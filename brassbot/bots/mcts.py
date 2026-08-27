@@ -95,6 +95,17 @@ class MCTSBot(Bot):
 
     DEFAULTS = {
         "iterations": 300,
+        # A full tuning run (17 candidates, 57 min) moved this to 0.5 and
+        # reported +3.0 VP on its validation block against a +-2.2 noise floor --
+        # then measured 2.8 VP WORSE on the reporting seeds, paired against this
+        # value on identical games. Two seed blocks favoured 0.5, one favoured
+        # 1.0; pooled it is a wash. Not shipped: an unreplicated gain is not a
+        # gain. Kept at the value the published multiplayer work suggests.
+        #
+        # widen_k, widen_alpha and prior_width were all left alone by that run --
+        # nothing beat the noise floor. Search parameters here appear to be near
+        # a flat optimum, so the remaining gap is in the evaluation, not the
+        # search settings.
         "c": 1.0,           # UCT exploration, against normalised values
         "widen_k": 2.0,     # children allowed = widen_k * visits ** widen_alpha
         "widen_alpha": 0.5,

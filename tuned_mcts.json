@@ -1,0 +1,27 @@
+{
+  "bot": "mcts",
+  "weights": {
+    "iterations": 300,
+    "c": 0.5,
+    "widen_k": 2.0,
+    "widen_alpha": 0.5,
+    "prior_width": 24
+  },
+  "tuning_mean": 111.75,
+  "tuning_win_rate": 0.5,
+  "validation_start": 110.05,
+  "validation_tuned": 113.1,
+  "validation_noise": 2.2406357843140676,
+  "held_up": true,
+  "opponents": [
+    "heuristic",
+    "heuristic",
+    "heuristic"
+  ],
+  "games_per_candidate": 40,
+  "players": 4,
+  "tune_seed0": 10000,
+  "validate_seed0": 20000,
+  "replicated_on_reporting_seeds": false,
+  "note": "Reported +3.0 on its validation block; measured 2.8 WORSE on the reporting seeds paired against c=1.0. Not adopted."
+}

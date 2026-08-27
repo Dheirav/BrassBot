@@ -378,9 +378,40 @@ Deliberate, and each one is somewhere a stronger bot may later want a real choic
 7. ~~Make nodes cheaper~~ — done, twice over. Node cost 1.43 -> 0.67 ms and
    search 1.7-2.5x faster; details below. Strength is unchanged where it should
    be and the win rate rose from 50% to 57.5% at the same 600 iterations.
-8. **Measure at 1500+ iterations.** Search had not plateaued at 600 and is now
-   affordable, but the run timed out on a machine busy with unrelated work. Needs
-   a quiet box.
+8. ~~Measure at 1500+ iterations~~ and ~~tune the search parameters~~ — both done.
+
+### Search budget, measured
+
+40 games each (24 at 1500), 4p, against three heuristic bots:
+
+| agent | mean | win% | VP/action |
+| --- | --- | --- | --- |
+| heuristic | 96.3 +- 1.1 | 25.0% | 3.11 |
+| mcts 300 | 107.9 +- 2.2 | 40.0% | 3.48 |
+| mcts 600 | 112.8 +- 2.2 | 57.5% | 3.64 |
+| **mcts 1500** | **115.6 +- 3.2** | **66.7%** | **3.73** |
+
+Still improving, but **flattening**: roughly +5 for the first doubling, +3 for a
+2.5x increase after it. Compute is still a lever and the Rust port would still
+pay, but it is no longer the cheap one -- reaching an expert 155 this way would
+need far more doublings than the curve will support.
+
+### Search parameters are already near a flat optimum
+
+A full tuning run (17 candidates, 57 min, `-b mcts`) changed exactly one
+parameter, `c` from 1.0 to 0.5, and reported +3.0 VP on its validation block
+against a +-2.2 noise floor. Measured on the reporting seeds, **paired against
+c=1.0 on identical games, it came out 2.8 VP worse.** Two blocks favoured 0.5,
+one favoured 1.0; pooled it is a wash. Not adopted.
+
+`widen_k`, `widen_alpha` and `prior_width` were all left untouched -- nothing beat
+the noise floor. That is the useful result: the settings taken from published
+multiplayer work were already good, and **the remaining gap is in the evaluation,
+not the search configuration.** Do not re-run this expecting a win.
+
+The cited hope was that MCTS parameters could be worth a 32x compute advantage.
+Here they were worth nothing measurable, most likely because they were never
+badly chosen.
 8. **Policy/value net** — only if search plateaus. It has not.
 
 ## Search
