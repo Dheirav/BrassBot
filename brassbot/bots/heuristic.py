@@ -139,6 +139,30 @@ class HeuristicBot(Bot):
         # directionally right and statistically unproven; ~400 games per arm would
         # settle it.
         "beer_capacity": 3.0,
+        # The hand was invisible to this evaluation entirely, which made a wild
+        # card worth zero. Scout then read as: three cards gone (0), two wilds
+        # gained (0), one action spent -- a pure loss. The bot scouted 0.2 times
+        # a game and never planned around what it could actually play.
+        #
+        # Both DEFAULTED OFF. Measured:
+        #
+        #   wild  breadth   mean VP   scouts/game
+        #   0.0     0.0        98.6          0.20   <- baseline
+        #   2.0     0.15       93.4          3.60   <- farms wilds
+        #   1.0     0.05       98.2          3.05
+        #   1.0     0.15      100.5          3.05   <- +1.9, only ~1.2 sigma
+        #
+        # At 2.0 the bot farms cards: an action is worth ~3 VP, and two wilds
+        # paid +4.0, so Scout was always profitable and it looped. Below the
+        # price of an action that pathology goes away, but nothing then clears
+        # the noise floor either.
+        #
+        # The conclusion is about the proxy, not the idea. Counting cards is not
+        # what makes a hand good -- what those cards LET YOU DO is, and that
+        # depends on how scarce each one is and what the board looks like. See
+        # the card-scarcity note in NEXT.md for the formulation worth trying.
+        "wild_card": 0.0,
+        "hand_breadth": 0.0,
     }
 
     # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
@@ -302,6 +326,11 @@ class HeuristicBot(Bot):
             if t.owner == seat and not t.flipped and t.industry.is_sellable
         )
         value += min(own_beer, waiting) * self.w["beer_capacity"]
+
+        # What the hand still lets us do.
+        wilds = sum(1 for c in p.hand if c.is_wild)
+        distinct = len({(c.kind, c.town, c.industries) for c in p.hand if not c.is_wild})
+        value += wilds * self.w["wild_card"] + distinct * self.w["hand_breadth"]
 
         # Money and liquidity both decay to nothing as the game closes: cash you
         # cannot spend is dead weight, and being liquid on the last turn buys

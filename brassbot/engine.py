@@ -51,6 +51,8 @@ MAX_DOUBLE_RAIL = 40
 # of move generation -- only this many lines are considered for pairing.
 DOUBLE_RAIL_CANDIDATES = 12
 MAX_SELL_COMBOS = 24
+# Distinct sets of cards a Scout may throw away.
+MAX_SCOUT_VARIANTS = 3
 
 
 # --- small helpers ----------------------------------------------------------
@@ -439,10 +441,36 @@ def legal_scouts(state: GameState) -> list[Scout]:
         return []
     if any(c.is_wild for c in p.hand):
         return []  # cannot Scout while already holding a wild
-    idx = _unique_hand_indices(state, p.idx)
-    if len(idx) < 3:
-        idx = list(range(len(p.hand)))
-    return [Scout(idx[0], (idx[1], idx[2]))]
+    # Which three cards you give up is a real decision -- an expert scouts away
+    # duplicates and cards for sites already taken, and holds the ones naming a
+    # location they still want. Offering a single arbitrary triple made Scout a
+    # move the bot could not use well, and it scouted 0.2 times a game.
+    #
+    # Cards are ranked cheapest-first: duplicates in hand are the cheapest thing
+    # to spend, then location cards whose town has no slot left.
+    hand = p.hand
+    counts: dict = {}
+    for card in hand:
+        key = (card.kind, card.town, card.industries)
+        counts[key] = counts.get(key, 0) + 1
+
+    def expendable(i: int) -> tuple:
+        card = hand[i]
+        key = (card.kind, card.town, card.industries)
+        full = 0
+        if card.town is not None:
+            slots = state.tiles.get(card.town, ())
+            full = 0 if any(t is None for t in slots) else 1
+        # higher = more willing to discard
+        return (-counts[key], -full, i)
+
+    order = sorted(range(len(hand)), key=expendable)
+    out = []
+    for start in range(min(MAX_SCOUT_VARIANTS, max(1, len(order) - 2))):
+        pick = order[start:start + 3]
+        if len(pick) == 3:
+            out.append(Scout(pick[0], (pick[1], pick[2])))
+    return out
 
 
 def legal_actions(state: GameState) -> list[Action]:

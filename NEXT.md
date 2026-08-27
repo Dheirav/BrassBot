@@ -389,6 +389,46 @@ is.** A hand-written script cannot separate those. The next test is to give
 `docs/expert-strategy.md` to an agent and have it play through a text interface,
 which checks the interpretation rather than the encoding.
 
+## The hand is now in the model, but priced badly
+
+The evaluation had **no reference to the hand at all** -- so a wild card was
+worth zero, and Scout read as three cards gone (0), two wilds gained (0), one
+action spent. A pure loss, and the bot scouted 0.20 times a game.
+
+Move generation was also at fault: `legal_scouts` returned a single action that
+always discarded the first three distinct cards in hand order, so the bot could
+not choose what to give up. It now offers three variants, cheapest-first --
+duplicates before singletons, cards for full towns before cards for open ones.
+That part is kept.
+
+Pricing the hand is unsolved. Measured:
+
+| wild | breadth | mean VP | scouts/game |
+| --- | --- | --- | --- |
+| 0.0 | 0.0 | 98.6 +- 1.0 | 0.20 |
+| 2.0 | 0.15 | 93.4 +- 1.3 | 3.60 |
+| 1.0 | 0.15 | 100.5 +- 1.2 | 3.05 |
+
+At 2.0 it farms wilds -- an action is worth ~3 VP and two wilds paid +4.0, so
+Scout looped. Below the cost of an action the pathology stops, but nothing
+clears the noise floor. Both weights default to 0.
+
+**Counting cards is the wrong proxy.** What makes a hand good is what it lets you
+do, which depends on scarcity.
+
+### Card scarcity -- the formulation worth trying next
+
+Experts count the deck. A location card that appears **once per era** means the
+site is uncontested and can wait; one with **three copies** means a rival may
+hold one, so move first. Those counts are already in `brassbot/data/brass.json`
+and completely unused.
+
+This is also the right answer to "should the bot predict opponents' hands". The
+MCTS *sampling* is already correct -- `determinize` redeals from the deck plus
+opponents' hands, and public discards are already excluded because they sit in
+each player's discard pile. What is missing is not inference, it is using the
+known deck distribution to judge how contested a site is.
+
 ## Known simplifications
 
 Deliberate, and each one is somewhere a stronger bot may later want a real choice:
