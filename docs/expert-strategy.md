@@ -72,3 +72,63 @@ industries**. It touches 4.25 industries and finishes mid-level in all of them,
 which is precisely the mistake he warns produces "half the points" of a committed
 player. Our own numbers say the same thing — 4.2 VP per build against an expert
 8-10.
+
+## What the coached game actually looked like (4p, and it is not what I assumed)
+
+From the follow-up coaching video, a full 4-player game played and won. The
+final split was **76 VP from links, 57 from industry** — and the striking part:
+
+> "we didn't make any manufacturer in the [rail era]"
+
+They built roughly **four irons, two or three breweries, and exactly two level-2
+manufacturers** — all in the Canal Era — and spent essentially the entire Rail
+Era on links. Their whole industry output was ~6 tiles for 57 VP, or **~9.5 VP
+per tile**. Ours is 10.1 tiles for 42.5 VP, or **4.2**.
+
+So the shape of a strong 4p game is: **few tiles, all level 2+, all flipped in
+the Canal Era so they score twice — then links, links, links.**
+
+### Manufacturer is chosen for being cheap, not for scoring
+
+> "everything else — the beer, the iron and the links — will be the same whatever
+> main industry you do... but you have a higher chance of winning when you went
+> for manufacturer because you didn't have to put any effort other than taking a
+> half action to develop level one manufacturer"
+
+It is not the highest-scoring line. It is the line that costs **one develop
+action**, leaving every other action free for iron, beer and links. That is a
+different claim from the one I recorded earlier and it changes what to optimise.
+
+### Income is not a goal — they won with the lowest income at the table
+
+> "you look at all the other players, they have such high incomes compared to
+> us... the game is won with victory points, not with income"
+
+**This contradicts our evaluation.** We weight income at `0.1125 x rounds`, worth
+~1.7 VP per income level in the early game — one of the largest terms we have.
+The winner of that game had the *worst* income on the board. Income is
+instrumental: it buys actions, and it stops mattering the moment the actions run
+out.
+
+### Other concrete plays we do not make
+
+- **Overbuild your own level-1 iron** with a higher-level iron rather than
+  building elsewhere. The new site would need a link; the overbuild does not.
+  Saving that action is worth more than the link's VP.
+- **Place coal where your own links already are** — "you are not just getting VP
+  for the coal, you are giving VP to your links."
+- **Level 5 manufacturer carries a double link icon**; surround it with your own
+  links.
+- **Turn-order loop**: as last player take a loan or other cheap action to become
+  first, then spend heavily on a quad rail (two double-rail actions) to fall back
+  to last, and repeat. Four actions back to back.
+- **Beer locations are taken fast.** Secure them proactively; an unflipped
+  brewery you own still denies the site and still scores.
+
+### Where our link VP actually goes
+
+Their ~10-12 links produced **76 VP**; our 13.2 links produce **48.9** — about
+3.7 each against their ~6-7. Link VP counts icons on *flipped* tiles in adjacent
+locations, so their links score more because they are built **around industry
+that was already flipped in the Canal Era**. Same board, different order of
+operations.

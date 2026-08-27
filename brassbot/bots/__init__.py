@@ -1,6 +1,7 @@
 """Bot registry, so the harness can name opponents on the command line."""
 
 from .base import Bot
+from .book import BookBot
 from .heuristic import HeuristicBot
 from .mcts import MCTSBot
 from .simple import GreedyBot, RandomBot
@@ -10,6 +11,7 @@ REGISTRY: dict[str, type[Bot]] = {
     GreedyBot.name: GreedyBot,
     HeuristicBot.name: HeuristicBot,
     MCTSBot.name: MCTSBot,
+    BookBot.name: BookBot,
 }
 
 
@@ -44,4 +46,4 @@ def make(spec: str, seed: int = 0) -> Bot:
     return cls(seed=seed, **weights)
 
 
-__all__ = ["Bot", "RandomBot", "GreedyBot", "HeuristicBot", "MCTSBot", "REGISTRY", "make"]
+__all__ = ["Bot", "RandomBot", "GreedyBot", "HeuristicBot", "MCTSBot", "BookBot", "REGISTRY", "make"]

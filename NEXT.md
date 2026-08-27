@@ -366,6 +366,29 @@ parameters are at a flat optimum, search budget still pays but is flattening, an
 the evaluation has now been pushed to where its remaining errors need depth
 rather than better weights.
 
+## Sequencing was tested directly, and the test failed
+
+`brassbot/bots/book.py` forces the expert's Canal Era plan and hands off to the
+ordinary bot for the Rail Era, isolating sequencing from everything else.
+
+| seat 0 | mean VP | VP entering rail | flipped in canal | links |
+| --- | --- | --- | --- | --- |
+| heuristic | 99.1 +- 1.0 | **32.7** | 3.33 | 12.4 |
+| book | 93.9 +- 4.0 | **13.9** | 2.03 | 9.7 |
+| expert | - | 70-80 | - | ~11 |
+
+It made the diagnosed number worse, not better. The encoding is at fault, not
+necessarily the strategy: a priority list fires its develops on the first legal
+opportunity, burning two early actions for no VP and no income, and never builds
+coal, so it cannot afford the level 2+ tiles the plan is built around. The
+expert's own game interleaves -- loan, link, cheap iron for income, develop only
+once iron is cheap or flipped.
+
+**So the open question is now whether the strategy is wrong or my reading of it
+is.** A hand-written script cannot separate those. The next test is to give
+`docs/expert-strategy.md` to an agent and have it play through a text interface,
+which checks the interpretation rather than the encoding.
+
 ## Known simplifications
 
 Deliberate, and each one is somewhere a stronger bot may later want a real choice:
