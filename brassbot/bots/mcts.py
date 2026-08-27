@@ -110,6 +110,20 @@ class MCTSBot(Bot):
         "widen_k": 2.0,     # children allowed = widen_k * visits ** widen_alpha
         "widen_alpha": 0.5,
         "prior_width": 24,  # candidates the prior ranks before the tree sees them
+        # Probability of valuing a leaf by playing the game out at random and
+        # taking the ACTUAL final score, instead of asking the evaluation.
+        #
+        # The evaluation is both the prior and the leaf value, so search can only
+        # ever prefer what the evaluation already likes -- measured, MCTS gained
+        # +9 VP over the heuristic while changing its strategy not at all. A real
+        # play-out is the one signal uncorrelated with those blind spots.
+        #
+        # A TRUNCATED play-out does not do this: it ends in the same evaluation,
+        # so the systematic bias survives and only noise is added. It has to run
+        # to the end of the game, which costs 160 ms against 0.35 ms for the
+        # evaluation -- 454x. Affordable only for testing whether the signal is
+        # better per iteration.
+        "rollout": 0.0,
     }
 
     def __init__(self, seed: int = 0, **params):
@@ -127,8 +141,27 @@ class MCTSBot(Bot):
     def _values(self, state: GameState) -> list[float]:
         """One value per player. Leaves need all of them: max^n backs up a
         vector, because a 4-player game has no single scalar score."""
+        if self.p["rollout"] and self.rng.random() < self.p["rollout"]:
+            return self._playout_values(state)
         self.evaluator.w = self.evaluator.weights_for(state.n_players)
         return [self.evaluator.player_value(state, i) for i in range(state.n_players)]
+
+    def _playout_values(self, state: GameState) -> list[float]:
+        """Play the game out at random and return the real final scores.
+
+        Unbiased by construction -- it never consults the evaluation, so a line
+        the evaluation undervalues can still back up a good number. Expensive,
+        and noisy enough that it is meant to be blended rather than used alone.
+        """
+        probe = state.clone()
+        guard = 0
+        while not probe.finished and guard < 400:
+            actions = legal_actions(probe)
+            if not actions:
+                break
+            apply_action(probe, self.rng.choice(actions))
+            guard += 1
+        return [p.vp for p in probe.players]
 
     def _seat_value(self, state: GameState, seat: int) -> float:
         """Just one player's value. The prior only ranks moves for the player to

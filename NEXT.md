@@ -455,6 +455,39 @@ opponents' hands, and public discards are already excluded because they sit in
 each player's discard pile. What is missing is not inference, it is using the
 known deck distribution to judge how contested a site is.
 
+## Search cannot escape the evaluation, and play-outs do not rescue it
+
+MCTS gains +9 VP over the heuristic while changing its strategy **not at all** --
+same 4 of 11 profile bands, same tile levels, same 1.17 tiles per sell. Its prior
+and its leaf value are the same function, so it can only ever prefer what the
+evaluation already likes.
+
+The obvious fix is an uncorrelated leaf signal: play the game out and use the
+real final score. Tested at **equal iterations**, which separates signal quality
+from compute:
+
+| rollout | mean VP | win% | brewery lvl | tiles/sell | VP entering rail |
+| --- | --- | --- | --- | --- | --- |
+| 0.0 | 102.5 +- 4.1 | 50.0% | 1.75 | 1.11 | 35.6 |
+| 0.3 | 95.8 +- 3.8 | 12.5% | 2.12 | 1.00 | 26.2 |
+
+**It loses, so speed was never the barrier.** Random play scores ~2.1 VP a game
+here, so the final score of a random continuation barely depends on where it
+started -- unbiased, and its variance swamps the signal. More compute would buy
+more samples of something nearly constant. A truncated play-out is worse still:
+it ends in the same evaluation, so the bias survives and only noise is added.
+
+**This closes the last cheap route.** Search parameters are at a flat optimum,
+search budget is flattening, evaluation weights are exhausted at 4p, and now the
+one signal that could have escaped the evaluation's frame is measured not to
+work. **The Rust port is not justified by any measured requirement.**
+
+What remains is a **learned value function** trained on self-play outcomes: low
+variance, and uncorrelated with hand-crafted blind spots by construction, which
+is exactly the combination play-outs could not provide. That is a project of
+weeks, not an afternoon, and it should be entered deliberately rather than drifted
+into.
+
 ## Known simplifications
 
 Deliberate, and each one is somewhere a stronger bot may later want a real choice:
