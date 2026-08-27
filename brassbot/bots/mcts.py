@@ -3,7 +3,9 @@
 Three choices here follow published results on comparable games rather than
 taste; `docs/research-landscape.md` carries the citations.
 
-* **Leaves are evaluated, not rolled out.** A Brass game is ~124 moves, and
+* **Leaves are evaluated, not rolled out** by default -- though `rollout` exists
+  as a research switch to value a leaf by the real final score instead; see the
+  parameter's own note for what that costs and what it measured. A Brass game is ~124 moves, and
   playing one out at random produces a signal too weak and too sparse to be
   worth its cost. TAG's Power Grid agent likewise stores full states and
   evaluates on expansion with no rollout at all. We already have a tuned

@@ -150,3 +150,29 @@ def test_bounds_handle_a_single_observed_value():
     b = Bounds()
     b.update(3.0)
     assert b.normalise(3.0) == 0.5
+
+
+# --- play-out leaves --------------------------------------------------------
+
+def test_playout_values_returns_one_real_score_per_player(game):
+    """The play-out path values a leaf by finishing the game, so it must return
+    genuine final scores -- one per seat, in seat order."""
+    bot = MCTSBot(seed=2, iterations=4, prior_width=3)
+    values = bot._playout_values(game)
+    assert len(values) == game.n_players
+    assert all(isinstance(v, int) for v in values)
+
+
+def test_playout_does_not_mutate_the_state(game):
+    """The riskiest property of the new path: it applies actions in a loop, so a
+    missing clone would corrupt the real game."""
+    bot = MCTSBot(seed=2, iterations=4, prior_width=3)
+    before = snapshot(game)
+    bot._playout_values(game)
+    assert snapshot(game) == before
+
+
+def test_a_rollout_bot_still_returns_a_legal_action(game):
+    bot = MCTSBot(seed=5, iterations=4, prior_width=3, rollout=1.0)
+    actions = legal_actions(game)
+    assert bot.choose(game, actions) in actions

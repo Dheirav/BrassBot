@@ -273,44 +273,59 @@ class HeuristicBot(Bot):
         return cache[n]
 
     @staticmethod
-    def _sale_context(state, seat: int):
+    def _sale_context(state):
         """What a sale needs, computed once per position instead of per tile.
 
         Deliberately an approximation: "connected to some merchant, and some
-        merchant in this game accepts this good, and beer exists somewhere I
-        could draw on". Checking the exact merchant-by-merchant reachability
+        merchant in this game accepts this good". None of it depends on the
+        seat, so it is computed once rather than once per player. Checking the exact merchant-by-merchant reachability
         would mean a search per merchant per candidate action, which move
         generation cannot afford.
         """
         reachable = connected_locations(state, list(state.merchants))
         accepted = {slot.kind for slots in state.merchants.values() for slot in slots}
-        beer = any(slot.beer > 0 for slot in state.merchant_slots()) or any(
-            t.industry is Industry.BREWERY and t.owner == seat and t.resources > 0
-            for _town, _slot, t in state.all_tiles())
-        return reachable, accepted, beer
+        merchant_beer = any(slot.beer > 0 for slot in state.merchant_slots())
+        return reachable, accepted, merchant_beer
 
     def player_value(self, state, seat: int) -> float:
         data = state.data
         p = state.players[seat]
         value = float(p.vp)
-        reachable, accepted, beer_available = self._sale_context(state, seat)
-        connected_towns = set()
-        claimed_towns: set = set()
+        reachable, accepted, merchant_beer = self._sale_context(state)
         contest = self._contest(state)
+
+        # ONE pass over the board. Each term added to this evaluation used to
+        # bring its own scan -- tiles, own beer, sellables waiting, brewery beer
+        # for the sale check -- four walks of every tile, four times over (once
+        # per player). That reached 4,800 board scans per decision and cost most
+        # of the evaluation's runtime.
+        own: list = []
+        own_beer = 0
+        waiting = 0
+        connected_towns: set = set()
+        claimed_towns: set = set()
+        for town, _slot, tile in state.all_tiles():
+            if tile.owner != seat:
+                continue
+            own.append((town, tile))
+            claimed_towns.add(town)
+            if town in reachable:
+                connected_towns.add(town)
+            if tile.industry is Industry.BREWERY and tile.resources > 0:
+                own_beer += tile.resources
+            if not tile.flipped and tile.industry.is_sellable:
+                waiting += 1
+
+        # Beer for a sale may come from a merchant or from a brewery of our own.
+        beer_available = merchant_beer or own_beer > 0
 
         # Tiles: what era scoring would pay right now, plus a discounted promise
         # on the rest. The promise has to include the tile's INCOME, not just its
         # VP -- a coal mine is worth 1 VP and 4 income spaces, so valuing only
         # the VP makes every build look like a waste of money.
         rounds = self.rounds_left(state)
-        for _town, _slot, tile in state.all_tiles():
-            if tile.owner != seat:
-                continue
+        for town, tile in own:
             spec = data.tile(tile.industry, tile.level)
-            town = _town
-            if town in reachable:
-                connected_towns.add(town)
-            claimed_towns.add(town)
             if tile.flipped:
                 # A level 2+ tile flipped during the Canal Era survives the
                 # era-end wipe and scores AGAIN at the end of the Rail Era. So
@@ -375,14 +390,6 @@ class HeuristicBot(Bot):
         # while tiles-per-sell fell from 1.00 to 0.83 and the score dropped 22 VP.
         # Beer is worth what it lets you flip, so it is worth nothing beyond the
         # tiles there are to flip.
-        own_beer = sum(
-            t.resources for _t, _s, t in state.all_tiles()
-            if t.industry is Industry.BREWERY and t.owner == seat and not t.flipped
-        )
-        waiting = sum(
-            1 for _t, _s, t in state.all_tiles()
-            if t.owner == seat and not t.flipped and t.industry.is_sellable
-        )
         value += min(own_beer, waiting) * self.w["beer_capacity"]
 
         # What the hand still lets us do.

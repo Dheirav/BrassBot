@@ -60,7 +60,11 @@ def measure(bot, weights, opponents, games, workers, seed0=TUNE_SEED0, players=4
 
 def tune(bot, opponents, games, passes, workers, keys=None, players=4, fixed=()):
     weights = tunable(bot)
-    skip = set(fixed) | {"pass_bias"}
+    # `rollout` is a research switch, not a quality parameter: one play-out costs
+    # ~285 ms against ~0.25 ms for an evaluation, so a candidate at rollout=1.0
+    # turns a minutes-long run into hours -- and if it happened to clear the noise
+    # floor, tune() would adopt it and ship a 1000x-slower bot.
+    skip = set(fixed) | {"pass_bias", "rollout"}
     keys = keys or [k for k in weights if k not in skip]
 
     best_mean, best_win, noise = measure(bot, weights, opponents, games, workers,

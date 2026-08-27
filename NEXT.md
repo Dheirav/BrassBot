@@ -471,16 +471,22 @@ from compute:
 | 0.0 | 102.5 +- 4.1 | 50.0% | 1.75 | 1.11 | 35.6 |
 | 0.3 | 95.8 +- 3.8 | 12.5% | 2.12 | 1.00 | 26.2 |
 
-**It loses, so speed was never the barrier.** Random play scores ~2.1 VP a game
-here, so the final score of a random continuation barely depends on where it
-started -- unbiased, and its variance swamps the signal. More compute would buy
-more samples of something nearly constant. A truncated play-out is worse still:
-it ends in the same evaluation, so the bias survives and only noise is added.
+**That experiment was confounded and its conclusion has been withdrawn.** A code
+review found that `_values` returned *either* an evaluator number (~15-35 on an
+arbitrary utility scale) *or* a raw final score (~0-30, and near 0 for a weak
+seat), and pushed both into the same accumulator and the same `Bounds`. Each leaf
+therefore sampled a Bernoulli mixture of two distributions ~15-19 VP apart, so
+two siblings of equal true value could differ by several VP purely from which
+drew more play-outs -- and most-visited-child follows that. The result measured a
+badly scaled estimator, not the value of an unbiased signal.
 
-**This closes the last cheap route.** Search parameters are at a flat optimum,
-search budget is flattening, evaluation weights are exhausted at 4p, and now the
-one signal that could have escaped the evaluation's frame is measured not to
-work. **The Rust port is not justified by any measured requirement.**
+A clean A/B (`rollout` 0.0 vs 1.0, one consistent estimator per arm, equal
+iterations) is the right test and is being run.
+
+**Do not repeat the mistake in the finding:** if two value sources are mixed at a
+node, they must share a scale, or be blended deterministically, or be normalised
+before backup. Mixing them per-sample injects variance that looks exactly like a
+signal-quality result.
 
 What remains is a **learned value function** trained on self-play outcomes: low
 variance, and uncorrelated with hand-crafted blind spots by construction, which
