@@ -163,6 +163,34 @@ class HeuristicBot(Bot):
         # the card-scarcity note in NEXT.md for the formulation worth trying.
         "wild_card": 0.0,
         "hand_breadth": 0.0,
+        # How contested a site is, per copy of its location card in the deck.
+        #
+        # Experts count the deck rather than the hand. A town whose card appears
+        # ONCE per era is effectively reserved for whoever holds it -- there is no
+        # rush. A town with three copies can be reached by a rival at any moment,
+        # so you take it first. Same card in hand, opposite urgency, decided
+        # entirely by how many copies exist.
+        #
+        # This prices the board rather than the hand: claiming a contested town
+        # is worth more than claiming a safe one, because the safe one will still
+        # be there later. Spending an action is what earns it, which is the shape
+        # that has worked here -- unlike counting cards you are holding.
+        # DEFAULTED OFF. Measured: 99.1 at 0.0, 88.5 at 0.3, 89.5 at 0.8.
+        #
+        # The bug this went through first is instructive on its own: scoring the
+        # claim per TILE rather than per town paid the bot to pile tiles into the
+        # same contested town, and it duly built 11.9 tiles instead of 10.8 and
+        # lost 11.3 VP. Counting once per town is verified correct -- a second
+        # tile in Birmingham adds its own value and no claim.
+        #
+        # But it still costs ~10 VP, and the reason is conceptual. This encodes
+        # "contested is more VALUABLE". The real principle is "contested is more
+        # URGENT". Nuneaton, at one card copy, is just as good a site to own; you
+        # can simply take it later because nobody can race you there. A static
+        # state evaluation naturally expresses value, and urgency is a property of
+        # sites you have NOT claimed yet -- the risk of losing them before you
+        # act. That is the other side of the board from where this sits.
+        "site_urgency": 0.0,
     }
 
     # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
@@ -227,6 +255,23 @@ class HeuristicBot(Bot):
                   for i in range(state.n_players) if i != me]
         return mine - self.w["rival"] * (max(rivals) if rivals else 0.0)
 
+    @classmethod
+    def _contest(cls, state) -> dict:
+        """Copies of each town's location card in this game's deck.
+
+        A farm brewery has no location card at all, so it scores 0 -- correctly,
+        since it can only be reached with an industry or wild card and no
+        opponent can race you there with a location card.
+        """
+        n = state.n_players
+        cache = cls.__dict__.get("_contest_cache")
+        if cache is None:
+            cache = {}
+            setattr(cls, "_contest_cache", cache)
+        if n not in cache:
+            cache[n] = dict(state.data.decks[n]["locations"])
+        return cache[n]
+
     @staticmethod
     def _sale_context(state, seat: int):
         """What a sale needs, computed once per position instead of per tile.
@@ -250,6 +295,8 @@ class HeuristicBot(Bot):
         value = float(p.vp)
         reachable, accepted, beer_available = self._sale_context(state, seat)
         connected_towns = set()
+        claimed_towns: set = set()
+        contest = self._contest(state)
 
         # Tiles: what era scoring would pay right now, plus a discounted promise
         # on the rest. The promise has to include the tile's INCOME, not just its
@@ -263,6 +310,7 @@ class HeuristicBot(Bot):
             town = _town
             if town in reachable:
                 connected_towns.add(town)
+            claimed_towns.add(town)
             if tile.flipped:
                 # A level 2+ tile flipped during the Canal Era survives the
                 # era-end wipe and scores AGAIN at the end of the Rail Era. So
@@ -304,6 +352,16 @@ class HeuristicBot(Bot):
         for link in data.links:
             if state.links.get(link.id) == seat:
                 value += sum(link_icons_at(state, end) for end in link.ends)
+
+        # Credit for sites others could have raced us to -- counted ONCE per town.
+        #
+        # Scoring it per tile paid the bot to pile tiles into the same contested
+        # town for a repeated bonus: at weight 0.3 it built 11.9 tiles instead of
+        # 10.8, reached the Rail Era on 26.6 VP instead of 33.9, and lost 11.3 VP.
+        # The claim is worth something once. A second tile in a town you already
+        # hold races nobody, because the town is already yours. (The Canal Era
+        # forbids it outright; only the Rail Era allows the stacking.)
+        value += sum(contest.get(t, 0) for t in claimed_towns) * self.w["site_urgency"]
 
         # Merchant access is the gateway to every sale, so it is worth something
         # in its own right, before any particular tile is ready to sell.

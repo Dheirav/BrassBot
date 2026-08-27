@@ -416,7 +416,33 @@ clears the noise floor. Both weights default to 0.
 **Counting cards is the wrong proxy.** What makes a hand good is what it lets you
 do, which depends on scarcity.
 
-### Card scarcity -- the formulation worth trying next
+### Card scarcity was tried, and it needs a different shape
+
+`site_urgency` scored a claimed town by how many copies of its location card
+exist. Measured: **99.1 at 0.0, 88.5 at 0.3, 89.5 at 0.8** -- about -10 VP.
+Defaulted off.
+
+Two lessons, one mechanical and one conceptual.
+
+**Mechanical:** the first version scored the claim per *tile* rather than per
+town, which paid the bot to pile tiles into the same contested town. It built
+11.9 tiles instead of 10.8 and lost 11.3 VP. Only the Rail Era allows the
+stacking, so the bug lived in exactly half the game. Counting once per town is
+verified correct and still loses ~10 VP, so the accounting was not the problem.
+
+**Conceptual, and the useful part:** this encodes *contested = more valuable*.
+The real principle is *contested = more urgent*. A one-copy town like Nuneaton is
+just as good to own -- you can take it later because nobody can race you there.
+Value and urgency are different quantities, and a state evaluation naturally
+expresses value.
+
+**Urgency lives on sites you have NOT claimed.** The shape that might work is a
+risk term over reachable-but-unbuilt sites: the more copies of a town's card
+exist, the more likely a rival takes it before you act, so act there first. That
+is a property of the board you do not yet own, which is the opposite side from
+where this term sat.
+
+### The original note, kept for the reasoning
 
 Experts count the deck. A location card that appears **once per era** means the
 site is uncontested and can wait; one with **three copies** means a rival may
