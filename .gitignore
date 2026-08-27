@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+/runs/
+
+# Third-party source, all rights reserved (no licence published). Fetched on
+# demand by tools/extract_gamedata.js; the generated brassbot/data/brass.json is
+# tracked instead, since component values are facts rather than expression.
+tools/vendor/
+
+# Crops of the publisher's board and player-mat artwork, used to settle the link
+# scoring question. The written analysis in docs/link-scoring.md stands alone;
+# the images are reproducible from the sources it cites.
+docs/evidence/
+
+# Extracted text of the Esoteric Order of Gamers rules summary. That sheet states
+# it "may not be re-posted online, sold or repurposed in any way", so it stays
+# local. See docs/research-landscape.md for where to obtain it.
+docs/rules_reference_eog.txt

@@ -1,0 +1,357 @@
+# NEXT — BrassBot
+
+Live handover document. Current state, then what to pick up.
+
+## Goal
+
+A bot that plays 4-player Brass: Birmingham as strongly as possible.
+
+**The original 200+ VP target is not reachable at 4 players** -- see
+`docs/research-landscape.md`. Actions are fixed at 31 per player in a 4p game,
+and expert human play converts them at about 5 VP each, giving ~155. Reported 4p
+winning scores average 140-150 and top out around 176-185. 200 VP would need
+~6.5 VP/action, about 30% better than expert humans. At 2 players (39 actions)
+200+ is normal for experienced players, and the engine and harness both support
+`--players 2`.
+
+**Measure progress in VP per action**, which is comparable across player counts
+and encodes the real constraint:
+
+| target | VP/action (4p) |
+| --- | --- |
+| current bot | ~2.0 |
+| competent club player | ~3.2 |
+| **expert human 4p** | **~5.0** |
+| best reported 4p game | ~6.0 |
+
+**Caveat that shapes the whole project:** a Brass score is not self-contained.
+Breweries flip when *someone else* sells; coal and iron mines flip when
+*someone else* consumes. Against passive opponents you burn your own actions
+flipping your own tiles and your ceiling drops; against three strong opponents
+you contend for the same slots, merchants and cheap coal. So "200+" is only
+meaningful against a **named opponent pool**, and the eval harness must report a
+score distribution, not a mean. Typical 4p winning scores are ~150–190, so this
+target sits near the top of the human range.
+
+## Decisions
+
+| Question | Choice |
+| --- | --- |
+| Engine language | Python now; port the hot path to Rust/PyO3 once the rules are frozen |
+| Scope | Self-play, plus eventually a live advisor (feed it a real game state, get a move) |
+| Compute | CPU search first; RTX 4060 laptop (8GB) in reserve for a policy/value net |
+
+Live *automation* of BoardGameArena is off the table — an advisor that takes a
+state and returns a move avoids their terms entirely.
+
+## Current state
+
+Rules engine complete and stable: 63 tests pass, and 80 full 4-player games
+(40 random, 40 greedy) run to completion with no failures.
+
+- `brassbot/data/brass.json` — generated, canonical component data.
+- `tools/extract_gamedata.js` — generates it from `tools/vendor/gameData.js`.
+  **Edit the tool, never the JSON**, so provenance survives.
+- `brassbot/gamedata.py` — typed loader, market price ladder, income track.
+- `tests/test_gamedata.py` — 36 invariants. All passing.
+- `docs/rules_reference_eog.txt` — the reference this engine was implemented
+  against: complete rules text, though none of the per-tile numbers. **Not
+  tracked** — the sheet states it may not be re-posted, so fetch your own copy
+  from orderofgamers.com (Brass: Birmingham v1.2) if you need it.
+- `brassbot/cards.py` — deck construction; wild cards are outside the deck.
+- `brassbot/state.py` — `GameState`, `Player`, `Tile`, setup, cheap `clone()`.
+- `brassbot/network.py` — the two connectivity notions and link distance.
+- `brassbot/resources.py` — coal/iron/beer sourcing, plan enumeration, consumption.
+- `brassbot/actions.py` — the seven action types.
+- `brassbot/engine.py` — move generation, application, round/era flow, scoring.
+- `brassbot/bots/` — `Bot` interface, the bots, and a spec parser so a bot can be
+  named as `heuristic:income=0.3,debt=0.5` and shipped to worker processes as a
+  plain string.
+  - `random` — uniform over legal actions. The floor.
+  - `greedy` — fixed action priorities, no board evaluation.
+  - `heuristic` — 1-ply lookahead over a real position evaluation.
+- `tools/tune.py` — coordinate descent over the heuristic weights, paired seeds,
+  tuned on a seed block kept clear of the reporting seeds.
+- `brassbot/evaluate.py` — the evaluation harness.
+- `tools/evaluate.py` — matchup CLI.
+- `tools/playout.py` — one game with a round-by-round trace, for debugging.
+
+```bash
+PYTHONPATH=. .venv/bin/python tools/evaluate.py greedy -o random -n 200 -w 8
+PYTHONPATH=. .venv/bin/python tools/evaluate.py greedy --mirror -n 200 -w 8
+PYTHONPATH=. .venv/bin/python tools/playout.py greedy -s 3
+```
+
+### Baseline numbers
+
+Held-out seeds (0-79), 80 games each, seats rotated. Weights tuned only at 4p.
+
+| fmt | pool | mean | SD | P10 | max | VP/action | win% |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 4p | mirror | **98.6 +- 1.0** | 17.0 | 78 | 151 | **3.18** | 25% |
+| 4p | vs greedy | 99.4 +- 1.8 | 15.9 | 78 | 137 | 3.21 | 91% |
+| 3p | mirror | 102.1 +- 1.4 | 21.2 | 77 | 152 | 2.92 | 33% |
+| 3p | vs greedy | 90.3 +- 3.2 | 29.0 | 58 | 144 | 2.58 | 94% |
+| 2p | mirror | 88.8 +- 2.5 | 31.8 | 59 | 136 | 2.28 | 50% |
+| 2p | vs greedy | 78.2 +- 4.0 | 36.0 | **0** | 132 | 2.01 | 88% |
+
+**The bot is strongest at 4p and weakest at 2p** -- the reverse of what a human
+shows, and a direct consequence of tuning only at 4p. Expert humans convert at
+~5.0 VP/action at every player count. 2p also still busts occasionally (P10 of 0
+against greedy), the failure mode 4p outgrew.
+
+**Per-format weight sets are the obvious next step** and `tools/tune.py` already
+takes `--players`-shaped opponents; only the tuner's hard-coded 4-player default
+needs generalising.
+
+Trajectory of the 4p mirror through this work:
+
+| stage | mean | VP/action |
+| --- | --- | --- |
+| with the fabricated money-VP rule (not comparable) | 68.6 | 2.21 |
+| after correcting scoring | 43.6 | 1.41 |
+| + sell-chain terms, re-tune | 93.1 | 3.00 |
+| + money horizon, mat potential | **98.6** | **3.18** |
+
+**Weight tuning has plateaued.** The last run gained +9.4 on its tuning seeds and
++1.9 on validation against a +-2.2 noise floor -- the tuner itself printed "NOT a
+real improvement" and its weights were discarded. The remaining gap to expert is
+not a weights problem.
+
+### Behaviour against expert benchmarks
+
+| metric | before | now | expert 4p |
+| --- | --- | --- | --- |
+| loans per game | 9.6 | **4.8** | 4-6 canal, 0-3 rail |
+| final income | -7.7 | **+8.0** | positive |
+| rail links | 5.0 | **7.0** | 7-10 |
+| canal links | 3.2 | 4.5 | 2-4 |
+| tiles sold | 0.6 | **2.8** | - |
+| tiles flipped | 5.4 | **9.5** | 8-12 |
+| VP split industry:link | - | **46:47** | 65:35 to 40:60 |
+| pottery level reached | 0.1 | 1.1 | - |
+| cash left at game end | ~164 | **52** | 0 (worth nothing) |
+
+Rail links, tiles flipped, loan count and the industry:link split are all now
+inside expert bands. The remaining leaks are visible: **52 pounds unspent at the
+final whistle** is roughly ten actions of unused buying power scoring nothing,
+and canal links run slightly above the expert 2-4 (the rule of thumb is to build
+one only when it scores 6+ VP or is strictly needed).
+
+### Distance to a realistic target
+
+**200+ is not reachable at 4 players** and this is now settled with tournament
+data -- see `docs/research-landscape.md`. Fifteen verified tournament games (WBC
+2024/2025, Prezcon 2023, WSBG 2022/2025) run **142-184, median 158, none at or
+above 200**.
+
+| target | VP/action | where we are |
+| --- | --- | --- |
+| club average | 3.2 | **we are here (3.00 mirror, 3.32 vs greedy)** |
+| strong 4p winner | 4.8-5.2 | +60 VP away |
+| tournament ceiling | 5.9 | - |
+
+Best single game so far: **150** (vs greedy), **139** (mirror) -- inside the
+range of real tournament winning scores, but not yet the average.
+
+## Link scoring — settled
+
+End-of-era link scoring counts **flipped tiles only**, plus **2 icons from every
+merchant location**. Resolved by reading the printed components, not the rules
+text (the icon is a symbol-font glyph that no text extraction preserves). Full
+evidence and reasoning in `docs/link-scoring.md`, with the images it cites in
+`docs/evidence/`.
+
+Encoded as `LINK_VP_COUNTS_UNFLIPPED_TILES = False` and `MERCHANT_LINK_ICONS`
+in `engine.py`, pinned by three tests.
+
+The strategic consequence the bot must exploit: **flipping pays twice** — the
+tile's own VP, plus switching on the link icons that every adjacent link counts.
+A link touching a merchant is worth a guaranteed 2 VP whatever else happens.
+
+## Evaluation terms, and the pattern behind them
+
+Three of the evaluation's terms exist because the same failure kept recurring:
+**Brass pays out at the end of a chain, and a one-step evaluation prices only the
+first link of it.** Each fix makes a deferred payoff visible.
+
+| term | the chain it makes visible |
+| --- | --- |
+| `unflipped` | a built tile pays nothing until it flips |
+| `sell_ready`, `merchant_access` | build -> connect to a merchant -> get beer -> sell |
+| `mat_potential` | develop -> unlock a higher tile -> build it -> flip it |
+| `money_horizon` | cash is only worth what it buys before the game ends |
+
+Expect the next plateau to be the same shape. When the bot looks irrational, ask
+which chain it cannot see, rather than which weight is wrong.
+
+## The heuristic bot
+
+Applies each legal action to a clone and scores the resulting position. The
+evaluation is built around what actually banks points:
+
+- **Nothing scores until it flips.** Unflipped tiles get partial credit as a
+  promise, and that promise must include the tile's *income*, not just its VP.
+  Valuing only the VP made every build look like a waste of money and the bot
+  simply hoarded — the first version scored 17 against greedy's 61.
+- **Income compounds**, so it is weighted by rounds remaining rather than flat.
+- **Being broke is not just "less money."** At zero cash almost every action
+  disappears from the list; the second failure mode was a bot that refused to
+  borrow, ran dry by canal round 3, and passed for the rest of the game. Money
+  therefore has a saturating liquidity term, steep near zero and flat once
+  solvent.
+- **Debt is not symmetric with income.** Unpayable negative income sells your
+  tiles at half cost and then costs a VP per pound, so it is charged on top of
+  the linear income term.
+- **Opponents count.** Draining a rival's mine flips *their* tile and pays
+  *them* income, so the value is net of the strongest opponent's position.
+
+Weights live in `HeuristicBot.DEFAULTS` and are tuned by playing, not by
+argument — hand-picking them went in circles, with each fix trading one failure
+mode for another.
+
+### Known weaknesses
+
+- **1-ply is myopic about loans.** A loan's cost is immediate and certain; its
+  benefit only appears once the money is spent. No shallow search sees that.
+- **No plan.** It cannot aim at pottery level 5, or hold a merchant for a later
+  sale. Every decision is local.
+- **It does not model the deck**, its own or anyone's, so it never plays around
+  what it is likely to draw.
+
+## Known simplifications
+
+Deliberate, and each one is somewhere a stronger bot may later want a real choice:
+
+- **Sell beer is resolved greedily** (merchant beer first, then any legal
+  brewery) rather than being a searchable choice. Which brewery you drain is
+  strategically real — it can hand an opponent income.
+- **Shortfall tile sales are cheapest-first.** The rules make this a player
+  choice.
+- **Move generation is capped** — `MAX_SOURCING_VARIANTS`, `MAX_DOUBLE_RAIL`,
+  `MAX_SELL_COMBOS` in `engine.py`. Raising them widens the action space.
+- **Link tiles return to their owner** after era scoring. The rules do not say
+  explicitly; with 14 per player the cap is near enough to never binding.
+
+## Next up
+
+1. ~~Eval harness~~ — done. Rotates seats, reports a distribution and the
+   `>=200` hit rate, splits drawn wins, and flags turn-order bias.
+2. ~~A real heuristic bot~~ — done, and tuned. Beats `greedy` 75.5% at +29 mean.
+3. ~~Diagnose where the points are missing~~ — done, and it changed the plan.
+   Full write-up in `docs/diagnosis.md`. The short version: the bot never builds
+   or sells cotton, manufacturers or potteries (highest level built: 0.3, 0.5,
+   0.1), sells 0.6 tiles a game, and spends **47-66% of its Rail Era actions
+   taking loans**. A quarter of its score is leftover cash.
+
+   It is stuck in a self-fulfilling trap: a 1-ply evaluation credits an
+   unflipped sellable tile at 0.25, so building one looks like a loss, so it
+   never builds one, so Sell is never legal, so money becomes the cheapest VP,
+   so it loans. It is being rationally pessimistic about its own inability to
+   execute the build-connect-sell chain.
+
+4. **Fix the evaluation before adding search** (next):
+   - credit an unflipped sellable tile near full value when a sale is *available
+     now* -- connected accepting merchant plus reachable beer -- and low when it
+     is not; add terms for merchant connectivity and beer access so building
+     *toward* a sale registers as progress
+   - set `money` to its true terminal value of 0.10 (it is 0.225) and let the
+     liquidity term carry "can I still act"; re-tune `debt` afterwards, since its
+     current value was fitted to a world where loans were good
+   - re-run the diagnostic; if sales rise and loans fall, re-tune
+5. **Memoise `legal_networks`** — a prerequisite for search either way.
+   Profiling puts `legal_actions` at 4.52 ms against 0.08 ms for clone+apply,
+   85% of it in `legal_networks` via ~112 `coal_plans` and ~282 `distances_from`
+   calls per invocation. That caps node expansion at ~200/s; published MCTS on
+   comparable games needed thousands of iterations per move.
+6. **Search bot** — MCTS, once the evaluation is honest, with two settings the
+   literature is clear about: **progressive widening** (in multiplayer, vanilla
+   MCTS *loses* to minimax at short budgets — 46.0% vs 71.9% with PW) and
+   **heuristic-evaluated leaves rather than rollouts to game end**.
+7. **Policy/value net** — only if search plateaus.
+
+**Sequencing is now evidence-backed, not a hunch.** One-step lookahead is a weak
+archetype on this class of game (in Power Grid, OSLA scores *below random*), so
+search is worth building eventually. But search does not repair a mis-calibrated
+evaluation — on Dominion, five MCTS variants across four parameter settings and
+three budgets all converged to the same poor optimum, and the fix was a better
+heuristic. Our failure is leaf-evaluation *bias*, not a horizon effect, and the
+sell chain sits 40-80 nodes deep. Fix the evaluation first. Details and citations
+in `docs/research-landscape.md`.
+
+**Do not simply re-tune.** The tuner drove `debt` from 0.45 to 0.1125 because it
+correctly learned that under this evaluation loans win. It is working properly on
+a broken objective.
+
+### How to tune without fooling yourself
+
+`tools/tune.py` uses **three disjoint seed blocks**: tune on 10000+, validate on
+20000+, report on 0+. It prints the measured noise floor and refuses any step
+that does not clear it, then re-measures the final weights on the validation
+block and says plainly whether the gain survived.
+
+That machinery exists because it caught two real failures:
+
+- A run reported **114.3** on its tuning seeds and measured **103.6** on
+  held-out boards, against 106.7 for the weights it replaced. Coordinate descent
+  had chased run-to-run variance for a whole pass.
+- On its first outing the new validation flagged a run claiming 118.2 as
+  **91.0 vs 101.0 starting** -- "NOT a real improvement."
+
+**Never accept a tuning result on its own seeds.** At 50-60 games per candidate
+with SD ~20, the noise floor is about +-2.5, and coordinate descent will happily
+walk uphill on noise for a dozen steps.
+
+### What tuning bought, and what it did not
+
+Coordinate descent over 73 candidates (9 min) moved the mean from 47.9 to 86.5
+on tuning seeds, holding up at 83.1 on unseen boards -- so the weights
+generalised rather than fitting the tuning set.
+
+The bigger win was robustness, which the mean hides: the untuned bot busted to
+zero in **9% of games** (SD 30.7, P10 0). The tuned bot has **no busts at all**
+(SD 13.6, P10 66). It stopped losing games outright.
+
+Caveat on reading the tuner log: with 40 games per candidate and SD ~30, its
+standard error is ~5. The early steps (47.9 -> 82) are far beyond noise; the
+last few one-point "improvements" are not, and pass 2 partly undid pass 1 on
+`rival` and `links_held`, which is what noise-fitting looks like. Raise
+`--games` before trusting small steps.
+
+### Performance
+
+3.5x faster than the first working engine (~80 -> ~280 moves/s single-threaded):
+
+- `link_adjacency` was rebuilt on every call, 11k times per game. Now cached
+  against a version counter on `LinkMap`, which bumps itself on mutation so no
+  call site has to remember to invalidate.
+- `distances_from` is memoised per source set against the same version, and was
+  additionally being recomputed *inside* `coal_plans`' recursion even though the
+  link graph cannot change mid-plan.
+- Double-rail generation cloned the whole state per candidate pair (3,080 clones
+  per game). It now reuses one probe clone, and the pair pool is bounded by
+  `DOUBLE_RAIL_CANDIDATES`.
+
+Still hot, in order: `all_tiles()` (a linear scan behind every resource query --
+an index of mines / iron works / breweries would help), `distances_from`, and
+`clone()` copying tiles that were never touched.
+
+MCTS will still want orders of magnitude more, which is what the Rust port is
+for.
+
+**Fixed along the way:** `clone()` shared the RNG object with its parent, so a
+lookahead that applied an action far enough to reshuffle the deck would have
+drawn from the real game's generator and changed what actually happened. Clones
+now copy the RNG state instead of the reference.
+
+**The design decision to get right early:** action canonicalisation. A raw Build
+is (card x location x tile x coal source x iron source). The caps above are a
+blunt first pass; the real fix is collapsing resource sourcing to the genuinely
+distinct choices.
+
+## Conventions
+
+- Ids are snake_case everywhere (`stoke_on_trent`, `farm_northern`, `coal_mine`).
+- Income *advances* are in track spaces; income *level* is what the space pays.
+  Never conflate them — the track is deliberately nonlinear.
+- Not a git repo yet.

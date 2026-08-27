@@ -1,0 +1,170 @@
+"""Bot contract and the heuristic evaluation.
+
+The evaluation is tuned numerically, so these tests pin its *shape* -- the
+orderings that must hold whatever the weights are -- rather than any particular
+number, which tuning is free to move.
+"""
+
+import pytest
+
+from brassbot.bots import REGISTRY, GreedyBot, HeuristicBot, RandomBot, make
+from brassbot.engine import flip_tile, legal_actions
+from brassbot.gamedata import Era, Industry
+from brassbot.state import Tile, new_game
+
+
+@pytest.fixture
+def game():
+    return new_game(4, seed=5)
+
+
+def place(state, town, slot, owner, industry, level, *, flipped=False, resources=0):
+    state.tiles[town][slot] = Tile(owner=owner, industry=industry, level=level,
+                                   era_built=Era.CANAL, flipped=flipped,
+                                   resources=resources)
+
+
+def snapshot(state):
+    """Everything a bot must leave untouched while it thinks."""
+    return (
+        [(p.money, p.vp, p.income_space, len(p.hand), len(p.discard), p.links_left)
+         for p in state.players],
+        sorted((t, s, tile.owner, tile.level, tile.flipped, tile.resources)
+               for t, s, tile in state.all_tiles()),
+        dict(state.links), state.coal, state.iron, len(state.deck),
+        state.turn_pos, state.actions_left, state.era, state.round,
+        state.rng.getstate(),
+    )
+
+
+# --- registry ---------------------------------------------------------------
+
+def test_registry_exposes_every_bot():
+    assert set(REGISTRY) == {"random", "greedy", "heuristic"}
+
+
+def test_make_builds_a_bare_name():
+    assert isinstance(make("greedy"), GreedyBot)
+    assert isinstance(make("random"), RandomBot)
+
+
+def test_make_applies_weight_overrides():
+    bot = make("heuristic:income=0.25,debt=0.9")
+    assert bot.w["income"] == 0.25
+    assert bot.w["debt"] == 0.9
+    assert bot.w["money"] == HeuristicBot.DEFAULTS["money"]  # untouched
+
+
+def test_make_rejects_an_unknown_bot():
+    with pytest.raises(KeyError):
+        make("nonesuch")
+
+
+def test_heuristic_rejects_an_unknown_weight():
+    with pytest.raises(KeyError):
+        make("heuristic:not_a_weight=1")
+
+
+# --- contract ---------------------------------------------------------------
+
+@pytest.mark.parametrize("name", ["random", "greedy", "heuristic"])
+def test_bots_return_a_legal_action(game, name):
+    actions = legal_actions(game)
+    assert make(name, seed=1).choose(game, actions) in actions
+
+
+@pytest.mark.parametrize("name", ["random", "greedy", "heuristic"])
+def test_bots_do_not_mutate_the_state_they_are_shown(game, name):
+    """The state is passed live, not cloned. A bot that looks ahead must clone
+    it itself -- and must leave the real game exactly as it found it."""
+    actions = legal_actions(game)
+    before = snapshot(game)
+    make(name, seed=1).choose(game, actions)
+    assert snapshot(game) == before
+
+
+@pytest.mark.parametrize("name", ["random", "greedy", "heuristic"])
+def test_bots_are_deterministic_for_a_given_seed(game, name):
+    actions = legal_actions(game)
+    assert make(name, seed=3).choose(game, actions) == make(name, seed=3).choose(game, actions)
+
+
+# --- shape of the evaluation ------------------------------------------------
+
+def test_a_flipped_tile_is_worth_more_than_an_unflipped_one(game):
+    """Flipped through the engine, so the income the flip pays is included --
+    that income is most of why flipping is worth chasing."""
+    bot = HeuristicBot()
+    place(game, "birmingham", 0, 0, Industry.COTTON_MILL, 1, flipped=False)
+    unflipped = bot.player_value(game, 0)
+    flip_tile(game, game.tiles["birmingham"][0])
+    assert bot.player_value(game, 0) > unflipped
+
+
+def test_income_is_worth_more_earlier_in_the_game(game):
+    """A point of income pays out every remaining round, so the same income is
+    worth more in the Canal Era than at the end of the Rail Era."""
+    bot = HeuristicBot()
+    game.players[0].income_space = 30
+    early = bot.player_value(game, 0)
+
+    late = game.clone()
+    late.era = Era.RAIL
+    late.round = late.rounds_this_era
+    assert bot.player_value(late, 0) < early
+
+
+def test_negative_income_is_penalised_beyond_the_linear_term(game):
+    """Debt is worse than symmetric: unpayable income sells your tiles off."""
+    bot = HeuristicBot()
+    p = game.players[0]
+    p.income_space = 10  # level 0
+    neutral = bot.player_value(game, 0)
+    p.income_space = 4   # level -6
+    down_six = neutral - bot.player_value(game, 0)
+
+    p.income_space = 16  # level +3
+    up_three = bot.player_value(game, 0) - neutral
+    assert down_six / 6 > up_three / 3
+
+
+def test_being_broke_is_worse_than_the_missing_money_alone(game):
+    """Zero money removes nearly every action, so the value of cash is steepest
+    near zero."""
+    bot = HeuristicBot()
+    p = game.players[0]
+    p.money = 0
+    broke = bot.player_value(game, 0)
+    p.money = 10
+    solvent = bot.player_value(game, 0)
+    p.money = 60
+    rich = bot.player_value(game, 0)
+    assert (solvent - broke) / 10 > (rich - solvent) / 50
+
+
+def test_stranded_canal_only_tiles_are_penalised_only_in_the_rail_era(game):
+    """A level 1 tile cannot be built once the era turns, so it blocks every
+    higher level of that industry."""
+    bot = HeuristicBot()
+    canal = bot.player_value(game, 0)
+    game.era = Era.RAIL
+    assert bot.player_value(game, 0) < canal
+
+
+def test_position_value_counts_a_rivals_strength_against_us(game):
+    """Draining an opponent's mine flips their tile and pays them income, so a
+    bot that ignored opponents would happily do them favours."""
+    bot = HeuristicBot()
+    alone = bot.position_value(game, 0)
+    game.players[1].vp += 50
+    assert bot.position_value(game, 0) < alone
+
+
+def test_rounds_left_falls_as_the_game_runs_out(game):
+    bot = HeuristicBot()
+    canal_start = bot.rounds_left(game)
+    rail = game.clone()
+    rail.era = Era.RAIL
+    rail.round = rail.rounds_this_era
+    assert bot.rounds_left(rail) < canal_start
+    assert bot.rounds_left(rail) == 0

@@ -1,0 +1,239 @@
+"""A bot that actually evaluates the board.
+
+`greedy` picks by action type. This one applies each legal action to a clone and
+scores the resulting position, which is the first point at which the bot can
+answer questions like "is this sale worth more than that mine?".
+
+The evaluation is built around what actually banks points in Brass:
+
+* **Nothing scores until it flips.** An unflipped tile is worth no VP, no
+  income, and lights up no links. It gets partial credit here as a promise, not
+  an asset.
+* **Income compounds.** A point of income is worth every remaining round of the
+  game, so the same income is worth far more in the Canal Era than late in the
+  Rail Era. The weight scales with rounds left rather than being flat.
+* **Links score off flipped neighbours**, plus a guaranteed 2 from any merchant.
+* **Canal-only tiles stranded on the mat in the Rail Era are dead weight** --
+  level 1 tiles cannot be built after the era turns, so they block every higher
+  level of that industry until developed away.
+
+The opponent term matters more here than in most games: draining a rival's mine
+or drinking their beer flips *their* tile and pays *them* income. A bot that
+only maximised its own score would happily do an opponent a large favour.
+"""
+
+from __future__ import annotations
+
+import math
+
+from ..actions import Loan, Pass
+from ..engine import apply_action, link_icons_at
+from ..gamedata import Era, Industry, income_level
+from ..network import connected_locations
+from .base import Bot
+
+
+class HeuristicBot(Bot):
+    name = "heuristic"
+
+    # Weights are instance data so they can be tuned by playing rather than by
+    # argument -- see tools/tune.py.
+    DEFAULTS = {
+        "unflipped": 0.375,   # odds we actually realise an unflipped tile's payoff
+        # Money is worth ZERO victory points -- it is only the second tiebreak.
+        # So cash has purely instrumental value: what it buys before the game
+        # ends. Held low deliberately; the liquidity term carries "can I still
+        # act", and leftover cash at the final whistle is wasted.
+        "money": 0.045,
+        "income": 0.1125,      # per income level, per remaining round
+        "blocked": 6,      # per industry blocked by a stranded canal-only tile
+        "rival": 0.225,        # how much the best opponent's position counts against us
+        "links_held": 0.3,  # mild preference for link tiles still in reserve
+        # Being broke is not just "less money": it removes almost every action
+        # from the list. This term is steep near zero and flat once solvent, so
+        # it buys liquidity without rewarding hoarding.
+        "liquidity": 8,
+        "liquidity_scale": 8.438,
+        # Negative income is not merely less money. If you cannot pay it you
+        # sell industry tiles at half cost and lose their VP outright, and if
+        # you still cannot pay you lose a VP per pound. It compounds, so it is
+        # charged on top of the linear income term rather than folded into it.
+        "debt": 0.0633,
+        "pass_bias": -0.5,   # only to break ties between equal-looking positions
+        # A sellable tile is worth almost nothing until it can actually be sold,
+        # and nearly its full value once it can. Without this split the bot
+        # never starts the build -> connect -> beer -> sell chain, because every
+        # step before the last one looks like a pure loss. See docs/diagnosis.md.
+        "sell_ready": 0.3187,
+        # Credit for merchant connectivity itself, so building *toward* a sale
+        # registers as progress rather than as spending money for nothing.
+        "merchant_access": 2.4,
+        # Cash is only worth what it buys before the game ends, and it scores
+        # nothing at the final whistle. So its value has to decay to zero as the
+        # actions run out -- otherwise the bot happily finishes holding money it
+        # can never spend. Ramps down over this many remaining rounds.
+        "money_horizon": 4,
+        # You may only ever build the LOWEST tile left on your mat, so the
+        # expensive tiles are gated behind clearing the cheap ones. Iron runs
+        # 3 VP at level I and 9 at level IV; pottery 10 and 20. A bot that never
+        # climbs plays the bottom of every stack and caps itself near half an
+        # expert score. Develop pays nothing immediately -- it spends a card and
+        # an iron to REMOVE a tile -- so its whole value is what it unlocks.
+        #
+        # Priced as the VP of the next tile available in each industry.
+        #
+        # This has a known perverse edge: pottery I is worth 10 VP and cannot be
+        # developed, so building it *lowers* this term, and the bot duly stops
+        # building pottery. A "count the blockers" formulation was written to
+        # fix exactly that, and measured worse -- mirror 95.1 against 98.8, and
+        # 100.4 against 104.8 versus greedy. Skipping pottery turns out to cost
+        # less than the iron climb gains, which matches the expert view that the
+        # full pottery line eats 10 of your 16 rail actions. Kept on the
+        # measurement, against the theory.
+        "mat_potential": 0.25,
+    }
+
+    def __init__(self, seed: int = 0, **weights):
+        super().__init__(seed)
+        unknown = set(weights) - set(self.DEFAULTS)
+        if unknown:
+            raise KeyError(f"unknown weights: {sorted(unknown)}")
+        self.w = {**self.DEFAULTS, **weights}
+
+    def choose(self, state, actions):
+        """Strictly deterministic: the same position always yields the same move.
+
+        Ties are broken by generation order rather than randomly, so a game is
+        reproducible from its seed alone and repeated runs cannot drift. That
+        also makes a regression in play visible instead of hiding inside
+        run-to-run noise.
+        """
+        me = state.current.idx
+        best_value = None
+        best_action = None
+
+        for action in actions:
+            probe = state.clone()
+            apply_action(probe, action)
+            value = self.position_value(probe, me)
+            if isinstance(action, Pass):
+                value += self.w["pass_bias"]
+            if best_value is None or value > best_value + 1e-9:
+                best_value, best_action = value, action
+
+        return best_action
+
+    # --- evaluation ---------------------------------------------------------
+
+    def position_value(self, state, me: int) -> float:
+        """Our position, net of what the strongest opponent holds."""
+        mine = self.player_value(state, me)
+        rivals = [self.player_value(state, i)
+                  for i in range(state.n_players) if i != me]
+        return mine - self.w["rival"] * (max(rivals) if rivals else 0.0)
+
+    @staticmethod
+    def _sale_context(state, seat: int):
+        """What a sale needs, computed once per position instead of per tile.
+
+        Deliberately an approximation: "connected to some merchant, and some
+        merchant in this game accepts this good, and beer exists somewhere I
+        could draw on". Checking the exact merchant-by-merchant reachability
+        would mean a search per merchant per candidate action, which move
+        generation cannot afford.
+        """
+        reachable = connected_locations(state, list(state.merchants))
+        accepted = {slot.kind for slots in state.merchants.values() for slot in slots}
+        beer = any(slot.beer > 0 for slot in state.merchant_slots()) or any(
+            t.industry is Industry.BREWERY and t.owner == seat and t.resources > 0
+            for _town, _slot, t in state.all_tiles())
+        return reachable, accepted, beer
+
+    def player_value(self, state, seat: int) -> float:
+        data = state.data
+        p = state.players[seat]
+        value = float(p.vp)
+        reachable, accepted, beer_available = self._sale_context(state, seat)
+        connected_towns = set()
+
+        # Tiles: what era scoring would pay right now, plus a discounted promise
+        # on the rest. The promise has to include the tile's INCOME, not just its
+        # VP -- a coal mine is worth 1 VP and 4 income spaces, so valuing only
+        # the VP makes every build look like a waste of money.
+        rounds = self.rounds_left(state)
+        for _town, _slot, tile in state.all_tiles():
+            if tile.owner != seat:
+                continue
+            spec = data.tile(tile.industry, tile.level)
+            town = _town
+            if town in reachable:
+                connected_towns.add(town)
+            if tile.flipped:
+                # A level 2+ tile flipped during the Canal Era survives the
+                # era-end wipe and scores AGAIN at the end of the Rail Era. So
+                # an early flip on a level 2+ tile is worth double, which is
+                # most of why experts push to enter rail at 70-80 VP.
+                scores_twice = state.era is Era.CANAL and tile.level >= 2
+                value += spec.vp * (2 if scores_twice else 1)
+                continue
+
+            levels = income_level(p.income_space + spec.income) - p.income
+            promise = spec.vp + levels * rounds * self.w["income"]
+
+            # A sellable tile only pays out through a Sell action, so it is
+            # worth what it is worth *if that sale is reachable*. Resource tiles
+            # flip on their own as the board consumes them, so they keep the
+            # ordinary discount.
+            if tile.industry.is_sellable:
+                ready = (town in reachable
+                         and (tile.industry.value in accepted or "any" in accepted)
+                         and beer_available)
+                value += promise * (self.w["sell_ready"] if ready
+                                    else self.w["unflipped"])
+            else:
+                value += promise * self.w["unflipped"]
+
+        # Links: icons in adjacent locations, exactly as they would score.
+        for link in data.links:
+            if state.links.get(link.id) == seat:
+                value += sum(link_icons_at(state, end) for end in link.ends)
+
+        # Merchant access is the gateway to every sale, so it is worth something
+        # in its own right, before any particular tile is ready to sell.
+        value += len(connected_towns) * self.w["merchant_access"]
+
+        # Money and liquidity both decay to nothing as the game closes: cash you
+        # cannot spend is dead weight, and being liquid on the last turn buys
+        # you nothing at all.
+        spendable = min(1.0, rounds / self.w["money_horizon"]) if self.w["money_horizon"] else 1.0
+        value += p.money * self.w["money"] * spendable
+        value += self.w["liquidity"] * spendable * (
+            1.0 - math.exp(-max(0, p.money) / self.w["liquidity_scale"]))
+
+        value += p.income * rounds * self.w["income"]
+        if p.income < 0:
+            value += p.income * rounds * self.w["debt"]
+        value += p.links_left * self.w["links_held"]
+
+        # What the mat can still produce: the VP of the next tile available in
+        # each industry. Developing raises it; building spends it onto the
+        # board, where it is credited separately.
+        for industry in Industry:
+            level = p.lowest_level(industry)
+            if level is not None:
+                value += data.tile(industry, level).vp * self.w["mat_potential"]
+
+        # Stranded canal-only tiles block an entire industry in the Rail Era.
+        if state.era is Era.RAIL:
+            for industry in Industry:
+                level = p.lowest_level(industry)
+                if level is not None and not data.tile(industry, level).rail_era:
+                    value -= self.w["blocked"]
+
+        return value
+
+    @staticmethod
+    def rounds_left(state) -> int:
+        """Rounds of income still to come, across both eras."""
+        this_era = max(0, state.rounds_this_era - state.round)
+        return this_era + (state.rounds_this_era if state.era is Era.CANAL else 0)

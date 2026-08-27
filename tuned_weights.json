@@ -1,0 +1,32 @@
+{
+  "weights": {
+    "unflipped": 0.375,
+    "money": 0.045,
+    "income": 0.1125,
+    "blocked": 6,
+    "rival": 0.225,
+    "links_held": 0.3,
+    "liquidity": 8,
+    "liquidity_scale": 8.438,
+    "debt": 0.0633,
+    "pass_bias": -0.5,
+    "sell_ready": 0.3187,
+    "merchant_access": 2.4,
+    "money_horizon": 4,
+    "mat_potential": 0.25
+  },
+  "note": "These are the weights in use. The most recent tuning run is recorded below and was REJECTED: it gained on its own seeds and not on unseen ones. tools/tune.py validates on a third seed block for this reason.",
+  "last_run_rejected": {
+    "tuning_mean": 111.18333333333334,
+    "validation_start": 103.0,
+    "validation_tuned": 104.88333333333334,
+    "validation_noise": 2.153042781818091,
+    "held_up": false,
+    "opponents": [
+      "greedy",
+      "greedy",
+      "greedy"
+    ],
+    "games_per_candidate": 60
+  }
+}
