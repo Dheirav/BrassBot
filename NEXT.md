@@ -480,8 +480,29 @@ two siblings of equal true value could differ by several VP purely from which
 drew more play-outs -- and most-visited-child follows that. The result measured a
 badly scaled estimator, not the value of an unbiased signal.
 
-A clean A/B (`rollout` 0.0 vs 1.0, one consistent estimator per arm, equal
-iterations) is the right test and is being run.
+The clean A/B has since been run -- `rollout` 0.0 vs 1.0, one consistent
+estimator per arm, equal iterations (40), 16 games each:
+
+| rollout | mean VP | win% |
+| --- | --- | --- |
+| 0.0 | 105.4 +- 4.3 | 43.8% |
+| 1.0 | 99.6 +- 4.3 | 25.0% |
+
+Same direction as the confounded run, but **-5.8 against a +-6.1
+difference-stderr is ~0.95 sigma -- not established.** There is no evidence
+play-outs help; the point estimate is against them; n=16 cannot settle it.
+
+**The cost argument is the one that actually decides it, and it needs no
+statistics.** The evaluation arm reaches 115.6 VP at 1500 iterations. Matching
+that with play-outs means 1500 x ~75 ms = **112 seconds per move**. A Rust port
+typically buys 10-50x, landing at 2-11 s per move -- still unusable. Play-outs
+would need ~100x before they are even in the conversation. So they are not a
+route to escaping the evaluation's frame at any budget realistically reachable
+from here.
+
+That is a narrower claim than the one withdrawn above. It says nothing about
+whether the Rust port is worthwhile for other reasons, only that *this* route
+does not justify it.
 
 **Do not repeat the mistake in the finding:** if two value sources are mixed at a
 node, they must share a scale, or be blended deterministically, or be normalised
