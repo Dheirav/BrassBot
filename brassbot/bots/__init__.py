@@ -2,12 +2,14 @@
 
 from .base import Bot
 from .heuristic import HeuristicBot
+from .mcts import MCTSBot
 from .simple import GreedyBot, RandomBot
 
 REGISTRY: dict[str, type[Bot]] = {
     RandomBot.name: RandomBot,
     GreedyBot.name: GreedyBot,
     HeuristicBot.name: HeuristicBot,
+    MCTSBot.name: MCTSBot,
 }
 
 
@@ -32,8 +34,14 @@ def make(spec: str, seed: int = 0) -> Bot:
         if not pair.strip():
             continue
         key, _, value = pair.partition("=")
-        weights[key.strip()] = float(value)
+        text = value.strip()
+        # Keep whole numbers as ints: some parameters are counts (iterations,
+        # widths) and float counts break range() and slicing.
+        try:
+            weights[key.strip()] = int(text)
+        except ValueError:
+            weights[key.strip()] = float(text)
     return cls(seed=seed, **weights)
 
 
-__all__ = ["Bot", "RandomBot", "GreedyBot", "HeuristicBot", "REGISTRY", "make"]
+__all__ = ["Bot", "RandomBot", "GreedyBot", "HeuristicBot", "MCTSBot", "REGISTRY", "make"]

@@ -298,11 +298,46 @@ Deliberate, and each one is somewhere a stronger bot may later want a real choic
    85% of it in `legal_networks` via ~112 `coal_plans` and ~282 `distances_from`
    calls per invocation. That caps node expansion at ~200/s; published MCTS on
    comparable games needed thousands of iterations per move.
-6. **Search bot** — MCTS, once the evaluation is honest, with two settings the
-   literature is clear about: **progressive widening** (in multiplayer, vanilla
-   MCTS *loses* to minimax at short budgets — 46.0% vs 71.9% with PW) and
-   **heuristic-evaluated leaves rather than rollouts to game end**.
-7. **Policy/value net** — only if search plateaus.
+6. ~~Search bot~~ — built (`brassbot/bots/mcts.py`) and it is the largest single
+   gain in the project. See below.
+7. **Make nodes cheaper.** Search strength is still climbing with budget, so
+   compute converts directly into playing strength. This is now the highest-value
+   engineering work: `legal_actions` at 0.78 ms is the node cost, and halving it
+   is worth about as much as doubling the iteration count.
+8. **Policy/value net** — only if search plateaus. It has not.
+
+## Search
+
+40 games each, 4p, against three heuristic bots (fair share of wins is 25%):
+
+| agent | mean | win% |
+| --- | --- | --- |
+| heuristic (no search) | 96.6 +- 1.2 | 25% |
+| mcts, 100 iterations | 105.6 +- 2.2 | 35% |
+| mcts, 300 iterations | 107.9 +- 2.2 | 40% |
+| mcts, 600 iterations | **112.5 +- 2.2** | **50%** |
+
+**Search pays at every budget tested and has not plateaued** -- roughly +4 VP per
+doubling, still climbing at 600. That settles the concern from the Kingdomino
+result (where UCT was 29 points *worse* than the greedy evaluator it wrapped at
+short budgets): we are well above that threshold, and the reason is that our
+leaves are evaluated by a tuned function rather than rolled out at random.
+
+Costs about 1.1 s/move at 600 iterations, so ~33 s per game for one searching
+seat.
+
+**But search alone will not reach expert play.** At ~+4 VP per doubling, closing
+the remaining 42 VP to a 155 expert score would need roughly ten more doublings,
+and diminishing returns will arrive long before that. Search is a large constant
+gain on top of the evaluation, not a substitute for the evaluation being right.
+
+### Order the sequencing was validated in
+
+Weight tuning at 4p was exhausted *before* search was built, and confirmed as a
+real optimum. Search then moved the number by +16. Building it earlier would
+have searched harder toward the loan-farming that the money-VP bug rewarded --
+which is exactly what the literature predicts, since search faithfully
+reproduces a biased evaluation rather than correcting it.
 
 **Sequencing is now evidence-backed, not a hunch.** One-step lookahead is a weak
 archetype on this class of game (in Power Grid, OSLA scores *below random*), so

@@ -40,12 +40,19 @@ def snapshot(state):
 # --- registry ---------------------------------------------------------------
 
 def test_registry_exposes_every_bot():
-    assert set(REGISTRY) == {"random", "greedy", "heuristic"}
+    assert set(REGISTRY) == {"random", "greedy", "heuristic", "mcts"}
 
 
 def test_make_builds_a_bare_name():
     assert isinstance(make("greedy"), GreedyBot)
     assert isinstance(make("random"), RandomBot)
+
+
+def test_make_keeps_counts_as_integers():
+    """Some parameters are counts, and a float count breaks range() and slicing."""
+    bot = make("mcts:iterations=100,c=1.5")
+    assert bot.p["iterations"] == 100 and isinstance(bot.p["iterations"], int)
+    assert isinstance(bot.p["c"], float)
 
 
 def test_make_applies_weight_overrides():
