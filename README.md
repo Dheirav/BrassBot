@@ -27,13 +27,22 @@ PYTHONPATH=. .venv/bin/python -m pytest -q          # 175 tests
 | **`mcts`, 1500 iterations** | **115.6** | **66.7%** | **3.73** |
 | *expert human* | *~155* | *-* | *~5.0* |
 
-Per player count, mirror matches on held-out seeds:
+The `heuristic` bot per player count, in mirror matches -- every seat the same
+bot -- on held-out seeds, with per-format weights applied:
 
-| format | mean | VP/action |
-| --- | --- | --- |
-| 2p | 104.9 | 2.69 |
-| 3p | 100.2 | 2.86 |
-| 4p | 98.2 | 3.17 |
+| format | mean | VP/action | win rate |
+| --- | --- | --- | --- |
+| 2p | 104.9 | 2.69 | 50% |
+| 3p | 100.2 | 2.86 | 33% |
+| 4p | 98.2 | 3.17 | 25% |
+
+**The two tables are not comparable.** A mirror match fixes the win rate at an
+equal share by construction, so the column above is a check that the harness is
+sound rather than a result: it measures score quality, not strength. `heuristic`
+is also contending with three copies of itself, where `mcts` above faces three
+weaker bots and takes more of the good slots. Reading 115.6 against 98.2 as one
+bot getting worse is the mistake this note exists to prevent -- they are
+different agents against different opponent pools.
 
 **On the target.** The project began aiming at 200+ VP in 4 players. That is not
 reachable: across fifteen verified tournament games the winning scores run
