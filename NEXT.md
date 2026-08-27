@@ -291,6 +291,37 @@ roughly 5 VP of opportunity cost each.
 The self-play ladder could never surface this, because every bot we have makes
 the same mistake equally. It took an external reference to see it.
 
+### The yardstick diagnoses; do not optimise against it
+
+Acting on the Canal Era finding was tried directly and **it failed usefully.**
+
+The mechanism was real: income is credited a compounding multiplier
+(`3 * rounds * income` for a loan's cost) while money was priced flat, so loans
+looked bad early and good late -- the inverse of expert play. Adding a
+compounding term to money (`money_compounding`) fixes that arithmetic and moves
+the bot straight onto the expert loan band:
+
+| `money_compounding` | canal loans | VP entering rail | bands met | mean VP |
+| --- | --- | --- | --- | --- |
+| 0.0 | 1.44 | 30.8 | 4/11 | **94.6** |
+| 0.02 | **4.44** (in band) | 12.7 | **7/11** | **70.0** |
+| 0.04 | 4.62 (in band) | 19.2 | 3/11 | 61.1 |
+
+**Matching the expert profile cost 25 VP.** Every loan spends an action. Experts
+can afford 4-6 of their 16 canal actions on borrowing because the remaining ones
+convert at ~5 VP each; ours convert at ~3, so the same trade is simply bad for
+us. Borrowing is a *symptom* of being able to use money well, not a cause of it.
+
+The term is kept but defaults to 0.0, with the reasoning in the code, so it can
+be revisited once action productivity rises -- at which point the trade should
+flip.
+
+**The lesson is Goodhart's, and it is now load-bearing here.** The yardstick is
+the only external reference we have, which makes it tempting as an objective.
+It is not one. A missed band is a question about the underlying capability, not
+a target to hit. The real finding stands: our actions are worth ~3 VP where an
+expert's are worth ~5, and no amount of cash fixes that.
+
 **On the bands.** They come from a handful of recorded tournament games and
 written expert guidance, cited per band (`--sources`) and collected in
 `docs/research-landscape.md`. They are not a measured distribution -- none exists

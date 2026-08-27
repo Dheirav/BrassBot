@@ -73,6 +73,27 @@ class HeuristicBot(Bot):
         # actions run out -- otherwise the bot happily finishes holding money it
         # can never spend. Ramps down over this many remaining rounds.
         "money_horizon": 4,
+        # A pound early is worth more than a pound late, for the same reason a
+        # point of income is: it compounds. Cash in the Canal Era buys tiles that
+        # flip, score TWICE (level 2+ survives the wipe and scores again), and
+        # pay income for the rest of the game.
+        #
+        # Without this the loan arithmetic runs backwards: a loan costs 3 income
+        # levels, priced at 3 * rounds * income -- large early, small late -- while
+        # +30 pounds was priced flat. So the bot refused to borrow in canal and
+        # borrowed freely in rail, the inverse of expert play.
+        #
+        # DEFAULTED OFF, because raising it works and costs 25 VP. At 0.02 the bot
+        # reaches the expert band of 4-6 canal loans and meets 7 of 11 profile
+        # dimensions instead of 4 -- while its mean score falls from 94.6 to 70.0.
+        # Every loan spends an action. Experts can afford 4-6 of their 16 canal
+        # actions on borrowing because the remaining ones convert at ~5 VP each;
+        # ours convert at ~3, so the trade is simply bad for us. Borrowing is a
+        # symptom of being able to use money well, not a cause of it.
+        #
+        # Left as a tunable so it can be revisited once action productivity
+        # improves, at which point the trade should flip.
+        "money_compounding": 0.0,
         # You may only ever build the LOWEST tile left on your mat, so the
         # expensive tiles are gated behind clearing the cheap ones. Iron runs
         # 3 VP at level I and 9 at level IV; pottery 10 and 20. A bot that never
@@ -250,7 +271,8 @@ class HeuristicBot(Bot):
         # cannot spend is dead weight, and being liquid on the last turn buys
         # you nothing at all.
         spendable = min(1.0, rounds / self.w["money_horizon"]) if self.w["money_horizon"] else 1.0
-        value += p.money * self.w["money"] * spendable
+        per_pound = self.w["money"] + self.w["money_compounding"] * rounds
+        value += p.money * per_pound * spendable
         value += self.w["liquidity"] * spendable * (
             1.0 - math.exp(-max(0, p.money) / self.w["liquidity_scale"]))
 

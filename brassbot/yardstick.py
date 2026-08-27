@@ -10,6 +10,14 @@ play, so it owes nothing to any bot we wrote. A bot can beat every opponent we
 have while still building half the rail links an expert builds -- and only this
 will say so.
 
+**Do not optimise against this.** It diagnoses; it is not an objective. Pushing
+the bot to match the expert loan count was tried directly: it reached the band,
+raised profile agreement from 4 of 11 dimensions to 7, and cost 25 VP of actual
+score. Expert behaviour is what strong play *looks like*, not what causes it --
+experts spend 4-6 canal actions borrowing because their remaining actions convert
+at ~5 VP each. Copy the symptom without the capability and you just lose the
+actions. Use a missed band as a question about the underlying capability.
+
 **Provenance, and its limits.** The bands come from a handful of recorded
 tournament games (WBC 2024/2025, Prezcon 2023, WSBG 2022/2025) and from written
 expert guidance; sources are cited per band and collected in
