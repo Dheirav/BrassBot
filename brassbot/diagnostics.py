@@ -50,6 +50,9 @@ class SeatRecord:
     # the totals alone hide the mistake that matters.
     loans_by_era: Counter = field(default_factory=Counter)
     develops_by_era: Counter = field(default_factory=Counter)
+    # Which stacks get cleared. Developing coal is not the same move as
+    # developing cotton, and the totals hide which one is happening.
+    develops_by_industry: Counter = field(default_factory=Counter)
     vp_entering_rail: int = 0
     builds_by_industry: Counter = field(default_factory=Counter)
     highest_level: dict = field(default_factory=dict)
@@ -84,6 +87,8 @@ def run_game(seat_bots: Sequence[str], seed: int, n_players: int = 4) -> list[Se
         elif isinstance(action, Develop):
             rec.tiles_developed += len(action.industries)
             rec.develops_by_era[state.era.value] += len(action.industries)
+            for ind in action.industries:
+                rec.develops_by_industry[ind.value] += 1
         elif isinstance(action, Loan):
             rec.loans_by_era[state.era.value] += 1
         elif isinstance(action, Sell):
