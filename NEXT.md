@@ -300,10 +300,12 @@ Deliberate, and each one is somewhere a stronger bot may later want a real choic
    comparable games needed thousands of iterations per move.
 6. ~~Search bot~~ — built (`brassbot/bots/mcts.py`) and it is the largest single
    gain in the project. See below.
-7. **Make nodes cheaper.** Search strength is still climbing with budget, so
-   compute converts directly into playing strength. This is now the highest-value
-   engineering work: `legal_actions` at 0.78 ms is the node cost, and halving it
-   is worth about as much as doubling the iteration count.
+7. ~~Make nodes cheaper~~ — done, twice over. Node cost 1.43 -> 0.67 ms and
+   search 1.7-2.5x faster; details below. Strength is unchanged where it should
+   be and the win rate rose from 50% to 57.5% at the same 600 iterations.
+8. **Measure at 1500+ iterations.** Search had not plateaued at 600 and is now
+   affordable, but the run timed out on a machine busy with unrelated work. Needs
+   a quiet box.
 8. **Policy/value net** — only if search plateaus. It has not.
 
 ## Search
@@ -316,6 +318,7 @@ Deliberate, and each one is somewhere a stronger bot may later want a real choic
 | mcts, 100 iterations | 105.6 +- 2.2 | 35% |
 | mcts, 300 iterations | 107.9 +- 2.2 | 40% |
 | mcts, 600 iterations | **112.5 +- 2.2** | **50%** |
+| mcts, 600, after the speedups below | 112.0 +- 2.2 | **57.5%** |
 
 **Search pays at every budget tested and has not plateaued** -- roughly +4 VP per
 doubling, still climbing at 600. That settles the concern from the Kingdomino
@@ -330,6 +333,37 @@ seat.
 the remaining 42 VP to a 155 expert score would need roughly ten more doublings,
 and diminishing returns will arrive long before that. Search is a large constant
 gain on top of the evaluation, not a substitute for the evaluation being right.
+
+### Making search cheaper
+
+Two rounds, both aimed by profiling rather than intuition -- and the first aimed
+at the wrong target.
+
+**Node cost 1.43 -> 0.67 ms.**
+
+- Double-rail probing was **88% of `legal_networks`, ~43% of the whole node**,
+  for the rarest action in the game. It cloned and then mutated `links` per
+  candidate pair, invalidating the connectivity caches every time. It now pairs
+  only lines that already source coal alone -- a second link only ever *adds*
+  connections -- and tests against the board as it stands. The approximation can
+  only refuse a legal move, never invent one; strength measured 96.6 +-1.1
+  against 96.6 +-1.2 before.
+- `legal_develops` cloned the entire state to ask what the mat looks like with
+  one tile gone. It now removes the tile, looks, and puts it back.
+
+**Search 1.7-2.5x faster** (300 iterations: 653 -> 259 ms/move).
+
+That node work barely helped *search*, so profiling MCTS directly was the next
+step: `legal_actions` was only **14%** of it, and the action-ranking prior
+**73%**. The prior computed a value for every player and then used one,
+discarding three quarters of the work. Behaviour-preserving -- the ordering is
+identical and choices still replay from seed.
+
+**The lesson, now three for three.** Every perf hypothesis reasoned from first
+principles in this project has been wrong or irrelevant (per-mine distance
+caching, twice; then `legal_actions`, which an old third-party profile named and
+which had stopped being true after the caching work). Profile the thing you are
+actually trying to speed up, immediately before you try.
 
 ### Order the sequencing was validated in
 

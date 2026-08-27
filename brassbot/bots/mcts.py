@@ -114,8 +114,17 @@ class MCTSBot(Bot):
     # -- evaluation ---------------------------------------------------------
 
     def _values(self, state: GameState) -> list[float]:
+        """One value per player. Leaves need all of them: max^n backs up a
+        vector, because a 4-player game has no single scalar score."""
         self.evaluator.w = self.evaluator.weights_for(state.n_players)
         return [self.evaluator.player_value(state, i) for i in range(state.n_players)]
+
+    def _seat_value(self, state: GameState, seat: int) -> float:
+        """Just one player's value. The prior only ranks moves for the player to
+        move, so evaluating all four and discarding three was 3/4 of the single
+        largest cost in the search."""
+        self.evaluator.w = self.evaluator.weights_for(state.n_players)
+        return self.evaluator.player_value(state, seat)
 
     def _ranked_actions(self, state: GameState, actions: list[Action]) -> list[Action]:
         """Order actions by a one-ply look, best first, and keep the best few.
@@ -129,7 +138,7 @@ class MCTSBot(Bot):
         for action in actions:
             probe = state.clone()
             apply_action(probe, action)
-            scored.append((self._values(probe)[seat], action))
+            scored.append((self._seat_value(probe, seat), action))
         scored.sort(key=lambda pair: -pair[0])
         width = self.p["prior_width"]
         return [a for _, a in scored[:width]] if width else [a for _, a in scored]

@@ -251,8 +251,12 @@ def legal_networks(state: GameState) -> list[Network]:
         return out
 
     single = data.constants["rail_link_cost"]
+    reachable_lines = []  # lines that can source coal on their own
     for link in lines:
-        for coal in coal_plans(state, list(link.ends), 1, MAX_SOURCING_VARIANTS):
+        plans = coal_plans(state, list(link.ends), 1, MAX_SOURCING_VARIANTS)
+        if plans:
+            reachable_lines.append(link)
+        for coal in plans:
             if single + plan_cost(coal) <= p.money:
                 out.append(Network(cards[0], (link.id,), coal))
 
@@ -260,22 +264,27 @@ def legal_networks(state: GameState) -> list[Network]:
     # must be connected to the SECOND link if it comes from an opponent.
     double = data.constants["rail_double_link_cost"]
     if p.links_left >= 2 and p.money >= double:
-        # Both links must be on the board before coal and beer are checked, so
-        # this needs a probe. One clone serves every pair: place, test, retract.
-        probe = state.clone()
+        # Pairs are drawn only from lines that can already source coal alone.
+        # Placing a second link only ever ADDS connections, so a pair of such
+        # lines can still reach coal together.
+        #
+        # Feasibility is checked against the board as it stands rather than a
+        # probe with both links placed. Mutating `links` per pair invalidated the
+        # connectivity caches every time and cost 88% of this function -- around
+        # 43% of the whole node -- for the rarest action in the game. The
+        # approximation only ever refuses a legal move (one whose coal or beer is
+        # reachable *solely* through the other new link), never invents one, and
+        # sits alongside the caps below.
         made = 0
-        for a, b in combinations(lines[:DOUBLE_RAIL_CANDIDATES], 2):
+        for a, b in combinations(reachable_lines[:DOUBLE_RAIL_CANDIDATES], 2):
             if made >= MAX_DOUBLE_RAIL:
                 break
-            probe.links[a.id] = player
-            probe.links[b.id] = player
-            try:
-                coal = coal_plans(probe, list(a.ends) + list(b.ends), 2, 1)
-                beer = beer_plans(probe, player, list(b.ends), 1, None, 1)
-            finally:
-                del probe.links[a.id]
-                del probe.links[b.id]
-            if coal and beer and double + plan_cost(coal[0]) <= p.money:
+            ends = list(a.ends) + list(b.ends)
+            coal = coal_plans(state, ends, 2, 1)
+            if not coal or double + plan_cost(coal[0]) > p.money:
+                continue
+            beer = beer_plans(state, player, list(b.ends), 1, None, 1)
+            if beer:
                 out.append(Network(cards[0], (a.id, b.id), coal[0], beer[0]))
                 made += 1
     return out
@@ -304,12 +313,18 @@ def legal_develops(state: GameState) -> list[Develop]:
             if plan_cost(iron) <= p.money:
                 out.append(Develop(cards[0], (first,), iron))
         # Two tiles in one action, each costing an iron. The second choice
-        # depends on the first, so probe a clone.
-        probe = state.clone()
-        probe.players[player].mat[first][probe.players[player].lowest_level(first) - 1] -= 1
-        for second in [i for i in Industry
-                       if (lv := probe.players[player].lowest_level(i)) is not None
-                       and state.data.tile(i, lv).can_develop]:
+        # depends on the first having gone, so take that tile off the mat, look,
+        # and put it back -- a clone here cost more than the rest of the function.
+        first_level = p.lowest_level(first)
+        p.mat[first][first_level - 1] -= 1
+        try:
+            seconds = [i for i in Industry
+                       if (lv := p.lowest_level(i)) is not None
+                       and state.data.tile(i, lv).can_develop]
+        finally:
+            p.mat[first][first_level - 1] += 1
+
+        for second in seconds:
             pair = tuple(sorted((first, second), key=lambda i: i.value))
             if pair in seen_pairs:
                 continue
