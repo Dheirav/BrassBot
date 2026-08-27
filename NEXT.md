@@ -328,6 +328,44 @@ written expert guidance, cited per band (`--sources`) and collected in
 publicly for this game. Outside a band is a question to investigate, not a
 verdict.
 
+## Price the flow, not the stock
+
+The single most useful rule learned about this evaluation. Every term that priced
+a *holding* made the bot hoard the thing and play worse; every term that priced
+something *conditional on being spent* helped.
+
+| term | shape | result |
+| --- | --- | --- |
+| `sell_ready` | conditional on a sale existing | worked |
+| `flip_horizon` | decays as the chance to use it expires | worked |
+| `money_horizon` | decays to zero at the whistle | worked |
+| `mat_potential` | value of the next tile unlocked | worked |
+| `money_compounding` | value per pound **held** | **-25 VP** |
+| `beer_capacity`, uncapped | value per barrel **held** | **-22 VP** |
+| `beer_capacity`, capped at tiles waiting | conditional again | no harm, +25% batching |
+
+The beer pair is the cleanest demonstration: the same term with one `min()` added
+is the difference between -22 VP and a small positive. Check the shape of a new
+term against this table before spending an afternoon measuring it.
+
+## The sell-batching problem needs search, not a weight
+
+A Sell action can flip several tiles at once, but each needs its own beer.
+Measured: **1.00 tiles per sell**, 2.5 tiles sellable on a turn, and **73% of
+turns leave sellable tiles stranded**. Experts batch 2-3.
+
+The capped `beer_capacity` term lifts batching to 1.15 and is worth +1.1 +-1.2 VP
+-- real mechanism, unproven score. This is the first of the chain-pricing fixes
+that did *not* produce a clear gain, and the reason looks structural: the payoff
+sits five or more plies out (build a brewery, connect, brew, hold sellables, sell
+several together). A one-ply evaluation can gesture at that chain but cannot plan
+it.
+
+**So this one is a search problem.** Which fits the rest of the picture: search
+parameters are at a flat optimum, search budget still pays but is flattening, and
+the evaluation has now been pushed to where its remaining errors need depth
+rather than better weights.
+
 ## Known simplifications
 
 Deliberate, and each one is somewhere a stronger bot may later want a real choice:

@@ -121,6 +121,24 @@ class HeuristicBot(Bot):
         # measured at 1.36 tiles per player per game, mostly brewery I. Level 2+
         # tiles survive the wipe and have the whole Rail Era to flip in.
         "flip_horizon": 3.0,
+        # Beer you own, per barrel still on your own breweries.
+        #
+        # A Sell action can flip several tiles at once, but every tile needs its
+        # own beer. Merchant beer gives one barrel per merchant tile, so without
+        # breweries of your own each Sell flips exactly one tile. Measured: 0.2
+        # own barrels, 2.5 tiles sellable, 0.9 of them fundable together -- 80
+        # sell actions flipped 83 tiles, and 73% of the time sellable tiles were
+        # left stranded.
+        #
+        # The brewery tile itself is already credited as an unflipped tile. This
+        # prices the barrels on top, because their value is not the brewery's VP
+        # but the other tiles they let you flip.
+        # Score gain NOT established: +1.1 +-1.2 over 100 paired games. Kept at
+        # 3.0 because three measurements agree in sign, tiles-per-sell rises
+        # monotonically 0.92 -> 1.06 -> 1.15, and nothing showed harm. Treat it as
+        # directionally right and statistically unproven; ~400 games per arm would
+        # settle it.
+        "beer_capacity": 3.0,
     }
 
     # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
@@ -266,6 +284,24 @@ class HeuristicBot(Bot):
         # Merchant access is the gateway to every sale, so it is worth something
         # in its own right, before any particular tile is ready to sell.
         value += len(connected_towns) * self.w["merchant_access"]
+
+        # Beer on our own breweries: each barrel is one more tile a Sell action
+        # can flip. Own beer needs no connection, which is what makes it the
+        # thing that turns a one-tile sale into a three-tile one.
+        # Capped at the number of tiles actually waiting to be sold. Pricing the
+        # barrels alone rewarded HOLDING them: breweries rose from 1.9 to 2.8
+        # while tiles-per-sell fell from 1.00 to 0.83 and the score dropped 22 VP.
+        # Beer is worth what it lets you flip, so it is worth nothing beyond the
+        # tiles there are to flip.
+        own_beer = sum(
+            t.resources for _t, _s, t in state.all_tiles()
+            if t.industry is Industry.BREWERY and t.owner == seat and not t.flipped
+        )
+        waiting = sum(
+            1 for _t, _s, t in state.all_tiles()
+            if t.owner == seat and not t.flipped and t.industry.is_sellable
+        )
+        value += min(own_beer, waiting) * self.w["beer_capacity"]
 
         # Money and liquidity both decay to nothing as the game closes: cash you
         # cannot spend is dead weight, and being liquid on the last turn buys
