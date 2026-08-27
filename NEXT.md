@@ -253,6 +253,50 @@ mode for another.
 - **It does not model the deck**, its own or anyone's, so it never plays around
   what it is likely to draw.
 
+## Measuring against expert play, not against ourselves
+
+Every other number here is relative to our own bots: the heuristic was tuned
+against greedy, search is measured against the heuristic. That ladder answers
+"better than our last bot", which is a different question from "good at Brass".
+
+`brassbot/yardstick.py` scores play against a profile of expert *behaviour* drawn
+from recorded tournament games, so it references no bot we wrote.
+
+```bash
+PYTHONPATH=. .venv/bin/python tools/yardstick.py heuristic -n 40 -w 4 --sources
+```
+
+Heuristic bot, 4p mirror -- **4 of 11 bands met**:
+
+| dimension | ours | expert | |
+| --- | --- | --- | --- |
+| VP per action | 3.07 | 4.8-5.2 | LOW |
+| **VP entering the Rail Era** | **29.5** | **70-80** | **LOW** |
+| **loans in the Canal Era** | **1.5** | **4-6** | **LOW** |
+| **tiles developed in the Rail Era** | **2.8** | **0** | **HIGH** |
+| tiles developed | 5.8 | 2-4 | HIGH |
+| canal links built | 4.9 | 2-4 | HIGH |
+| money left at the end | 18.9 | 0-10 | HIGH |
+| rail links built | 8.5 | 7-10 | ok |
+| tiles flipped | 9.8 | 8-12 | ok |
+| loans in the Rail Era | 1.8 | 0-3 | ok |
+| share of VP from industry | 0.47 | 0.40-0.65 | ok |
+
+**These four failures are one mistake.** The bot under-invests in the Canal Era:
+it takes 1.5 loans where experts take 4-6, so it has too little money, so it
+enters the Rail Era on **29.5 VP against an expert 70-80** -- and then spends
+scarce Rail Era actions developing (2.8) that should have been done in canal, at
+roughly 5 VP of opportunity cost each.
+
+The self-play ladder could never surface this, because every bot we have makes
+the same mistake equally. It took an external reference to see it.
+
+**On the bands.** They come from a handful of recorded tournament games and
+written expert guidance, cited per band (`--sources`) and collected in
+`docs/research-landscape.md`. They are not a measured distribution -- none exists
+publicly for this game. Outside a band is a question to investigate, not a
+verdict.
+
 ## Known simplifications
 
 Deliberate, and each one is somewhere a stronger bot may later want a real choice:

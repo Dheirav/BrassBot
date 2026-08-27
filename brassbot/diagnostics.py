@@ -46,6 +46,11 @@ class SeatRecord:
     tiles_developed: int = 0
     tiles_sold: int = 0
     links_built: Counter = field(default_factory=Counter)
+    # Expert play puts loans and develops almost entirely in the Canal Era, so
+    # the totals alone hide the mistake that matters.
+    loans_by_era: Counter = field(default_factory=Counter)
+    develops_by_era: Counter = field(default_factory=Counter)
+    vp_entering_rail: int = 0
     builds_by_industry: Counter = field(default_factory=Counter)
     highest_level: dict = field(default_factory=dict)
 
@@ -78,12 +83,21 @@ def run_game(seat_bots: Sequence[str], seed: int, n_players: int = 4) -> list[Se
                 rec.highest_level[action.industry.value] = max(prev, level)
         elif isinstance(action, Develop):
             rec.tiles_developed += len(action.industries)
+            rec.develops_by_era[state.era.value] += len(action.industries)
+        elif isinstance(action, Loan):
+            rec.loans_by_era[state.era.value] += 1
         elif isinstance(action, Sell):
             rec.tiles_sold += len(action.sales)
         elif isinstance(action, Network):
             rec.links_built[state.era.value] += len(action.lines)
 
+        was_canal = state.era is Era.CANAL
         apply_action(state, action)
+        # The moment the era turns, bank what each player is carrying: experts
+        # aim to enter the Rail Era on 70-80 VP.
+        if was_canal and state.era is not Era.CANAL:
+            for seat, p in enumerate(state.players):
+                records[seat].vp_entering_rail = p.vp
 
     for scoring in state.era_scores:
         era = scoring.era.value
