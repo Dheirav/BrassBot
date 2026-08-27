@@ -91,6 +91,24 @@ class HeuristicBot(Bot):
         # full pottery line eats 10 of your 16 rail actions. Kept on the
         # measurement, against the theory.
         "mat_potential": 0.25,
+        # How many rounds a tile realistically needs in order to flip. An
+        # unflipped tile is a promise, and a promise is only worth something if
+        # there is still time to collect on it.
+        #
+        # Level 1 tiles are REMOVED at the end of the Canal Era, so one built
+        # late in canal and not yet flipped is deleted having scored nothing --
+        # measured at 1.36 tiles per player per game, mostly brewery I. Level 2+
+        # tiles survive the wipe and have the whole Rail Era to flip in.
+        "flip_horizon": 3.0,
+    }
+
+    # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
+    # different games -- 39 / 35 / 31 actions each, different decks, different
+    # numbers of merchants -- so one weight vector does not fit all three. Filled
+    # in by tuning each format separately; an empty entry just means DEFAULTS.
+    PROFILES: dict[int, dict] = {
+        2: {"sell_ready": 0.478, "unflipped": 0.1875},
+        3: {"unflipped": 0.2812},
     }
 
     def __init__(self, seed: int = 0, **weights):
@@ -98,7 +116,20 @@ class HeuristicBot(Bot):
         unknown = set(weights) - set(self.DEFAULTS)
         if unknown:
             raise KeyError(f"unknown weights: {sorted(unknown)}")
+        # Explicit overrides beat the per-format profile, so that a tuning run
+        # can pin every weight it is testing.
+        self._explicit = dict(weights)
+        self._resolved: dict[int, dict] = {}
         self.w = {**self.DEFAULTS, **weights}
+
+    def weights_for(self, players: int) -> dict:
+        if players not in self._resolved:
+            self._resolved[players] = {
+                **self.DEFAULTS,
+                **self.PROFILES.get(players, {}),
+                **self._explicit,
+            }
+        return self._resolved[players]
 
     def choose(self, state, actions):
         """Strictly deterministic: the same position always yields the same move.
@@ -108,6 +139,7 @@ class HeuristicBot(Bot):
         also makes a regression in play visible instead of hiding inside
         run-to-run noise.
         """
+        self.w = self.weights_for(state.n_players)
         me = state.current.idx
         best_value = None
         best_action = None
@@ -179,6 +211,18 @@ class HeuristicBot(Bot):
 
             levels = income_level(p.income_space + spec.income) - p.income
             promise = spec.vp + levels * rounds * self.w["income"]
+
+            # Discount by how long this tile has left to flip before it is
+            # either wiped (level 1, at the end of the Canal Era) or the game
+            # simply ends.
+            left_in_era = max(0, state.rounds_this_era - state.round)
+            if state.era is Era.CANAL and tile.level >= 2:
+                horizon = left_in_era + state.rounds_this_era  # survives the wipe
+            else:
+                horizon = left_in_era
+            urgency = (min(1.0, horizon / self.w["flip_horizon"])
+                       if self.w["flip_horizon"] else 1.0)
+            promise *= urgency
 
             # A sellable tile only pays out through a Sell action, so it is
             # worth what it is worth *if that sale is reachable*. Resource tiles

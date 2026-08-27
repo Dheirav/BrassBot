@@ -31,18 +31,20 @@ def spec(weights: dict) -> str:
     return "heuristic:" + ",".join(f"{k}={v:.4g}" for k, v in sorted(weights.items()))
 
 
-def measure(weights, opponents, games, workers, seed0=TUNE_SEED0):
+def measure(weights, opponents, games, workers, seed0=TUNE_SEED0, players=4):
     name = spec(weights)
-    report = evaluate(name, opponents, games=games, seed0=seed0, workers=workers)
+    report = evaluate(name, opponents, games=games, seed0=seed0, workers=workers,
+                      n_players=players)
     summary = report.by_bot[name]
     return summary.mean, summary.win_rate, summary.stderr
 
 
-def tune(opponents, games, passes, workers, keys=None):
+def tune(opponents, games, passes, workers, keys=None, players=4):
     weights = dict(HeuristicBot.DEFAULTS)
     keys = keys or [k for k in weights if k != "pass_bias"]
 
-    best_mean, best_win, noise = measure(weights, opponents, games, workers)
+    best_mean, best_win, noise = measure(weights, opponents, games, workers,
+                                         players=players)
     print(f"baseline: mean {best_mean:.1f}  win {100*best_win:.0f}%  "
           f"(noise +-{noise:.1f} -- treat smaller steps as meaningless)")
     print(f"  {spec(weights)}\n")
@@ -59,7 +61,8 @@ def tune(opponents, games, passes, workers, keys=None):
             improved = None
             for value in candidates:
                 trial = dict(weights, **{key: value})
-                mean, win, _ = measure(trial, opponents, games, workers)
+                mean, win, _ = measure(trial, opponents, games, workers,
+                                       players=players)
                 evals += 1
                 # Require the step to clear the noise floor. Coordinate descent
                 # will otherwise happily chase run-to-run variance, and a run
@@ -81,13 +84,15 @@ def main(argv=None):
     ap.add_argument("-o", "--opponents", default="greedy")
     ap.add_argument("-n", "--games", type=int, default=40)
     ap.add_argument("--passes", type=int, default=2)
+    ap.add_argument("-p", "--players", type=int, default=4, choices=(2, 3, 4))
     ap.add_argument("-w", "--workers", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--out", default="tuned_weights.json")
     args = ap.parse_args(argv)
 
-    opponents = [args.opponents] * 3
+    opponents = [args.opponents] * (args.players - 1)
     t0 = time.time()
-    weights, mean, win, evals = tune(opponents, args.games, args.passes, args.workers)
+    weights, mean, win, evals = tune(opponents, args.games, args.passes,
+                                    args.workers, players=args.players)
     elapsed = time.time() - t0
 
     print(f"\n{evals} candidates in {elapsed/60:.1f} min")
@@ -96,9 +101,9 @@ def main(argv=None):
     # The verdict that counts: does it hold up on boards nobody optimised for?
     base = dict(HeuristicBot.DEFAULTS)
     start_v, _, v_noise = measure(base, opponents, args.games, args.workers,
-                                  seed0=VALIDATE_SEED0)
+                                  seed0=VALIDATE_SEED0, players=args.players)
     tuned_v, _, _ = measure(weights, opponents, args.games, args.workers,
-                            seed0=VALIDATE_SEED0)
+                            seed0=VALIDATE_SEED0, players=args.players)
     print(f"\nVALIDATION on unseen seeds {VALIDATE_SEED0}+:")
     print(f"  starting weights: {start_v:.1f}")
     print(f"  tuned weights:    {tuned_v:.1f}   ({tuned_v - start_v:+.1f}, "
@@ -113,6 +118,7 @@ def main(argv=None):
                    "validation_start": start_v, "validation_tuned": tuned_v,
                    "validation_noise": v_noise, "held_up": tuned_v > start_v + v_noise,
                    "opponents": opponents, "games_per_candidate": args.games,
+                   "players": args.players,
                    "tune_seed0": TUNE_SEED0, "validate_seed0": VALIDATE_SEED0},
                   fh, indent=2)
     print(f"wrote {args.out}")

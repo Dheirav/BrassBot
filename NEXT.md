@@ -84,25 +84,64 @@ PYTHONPATH=. .venv/bin/python tools/playout.py greedy -s 3
 
 ### Baseline numbers
 
-Held-out seeds (0-79), 80 games each, seats rotated. Weights tuned only at 4p.
+Held-out seeds (0-79), 80 games each, seats rotated, per-format weights applied.
 
 | fmt | pool | mean | SD | P10 | max | VP/action | win% |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | **98.6 +- 1.0** | 17.0 | 78 | 151 | **3.18** | 25% |
-| 4p | vs greedy | 99.4 +- 1.8 | 15.9 | 78 | 137 | 3.21 | 91% |
-| 3p | mirror | 102.1 +- 1.4 | 21.2 | 77 | 152 | 2.92 | 33% |
-| 3p | vs greedy | 90.3 +- 3.2 | 29.0 | 58 | 144 | 2.58 | 94% |
-| 2p | mirror | 88.8 +- 2.5 | 31.8 | 59 | 136 | 2.28 | 50% |
-| 2p | vs greedy | 78.2 +- 4.0 | 36.0 | **0** | 132 | 2.01 | 88% |
+| 4p | mirror | 98.2 +- 0.9 | 15.6 | 79 | 146 | **3.17** | 25% |
+| 4p | vs greedy | 101.3 +- 2.1 | 18.7 | 78 | 144 | 3.27 | 94% |
+| 3p | mirror | 100.2 +- 1.1 | 16.9 | 81 | 145 | 2.86 | 33% |
+| 3p | vs greedy | 101.0 +- 2.2 | 19.7 | 78 | 136 | 2.88 | 96% |
+| 2p | mirror | **104.9 +- 1.8** | 23.0 | 82 | 148 | 2.69 | 50% |
+| 2p | vs greedy | 105.9 +- 2.3 | 21.0 | 77 | 144 | 2.72 | 98% |
 
-**The bot is strongest at 4p and weakest at 2p** -- the reverse of what a human
-shows, and a direct consequence of tuning only at 4p. Expert humans convert at
-~5.0 VP/action at every player count. 2p also still busts occasionally (P10 of 0
-against greedy), the failure mode 4p outgrew.
+Effect of per-format weights (mean, before -> after):
 
-**Per-format weight sets are the obvious next step** and `tools/tune.py` already
-takes `--players`-shaped opponents; only the tuner's hard-coded 4-player default
-needs generalising.
+| fmt | mirror | vs greedy |
+| --- | --- | --- |
+| 2p | 88.8 -> **104.9** | 78.2 -> **105.9** |
+| 3p | 102.1 -> 100.2 | 90.3 -> **101.0** |
+| 4p | 98.6 -> 98.2 | 99.4 -> 101.3 |
+
+2p gained most, which is what the tuner predicted (+15.5 on validation) and what
+the format called for: **2p wanted `unflipped` cut by half and `sell_ready`
+raised by half.** With only one opponent, far less of your coal and beer is
+drained on somebody else's turn, so tiles do not flip by themselves -- you have
+to go and sell them. That is the interaction effect showing up as a weight.
+
+The 2p bust is also gone: P10 was **0** against greedy, and is now 77.
+
+**4p was rejected by its own validation at +0.0**, and a follow-up investigation
+established why. Do not redo this:
+
+- 4p had already been tuned four times; 2p and 3p never had. The 2p/3p gains
+  were catching up to where 4p already was, not finding anything new.
+- A sensitivity sweep (each weight at x0.5 and x2.0) *appeared* to find six
+  improvements, the best worth +6.7. **All of them were noise.** Re-run at 120
+  games on the same seeds, every sign flipped: liquidity +6.7 -> -2.2,
+  links_held +5.6 -> -4.1, income +4.5 -> -2.6.
+- The one genuinely interesting lead -- all four best weights changed *together*,
+  which coordinate descent cannot find because it moves one weight at a time --
+  ran +7.3 and +5.5 on two blocks and -0.2 and +1.1 on two others. On the
+  reporting seeds at 150 games it came out at **exactly -0.0 on both pools**.
+
+So 4p sits on a real optimum, not a plateau the evaluation is blind to:
+`unflipped` at half strength costs **-9.0**, so the evaluation is strongly
+sensitive to the weight that matters most. It is on a summit, not a flat.
+
+**Method warning.** Seed-block variance at 4p is large enough that a 40-game
+comparison manufactures +-7 VP effects out of nothing, and the stderr of the
+*baseline mean* is the wrong noise floor for a paired difference. Require >=150
+games and agreement across at least two blocks before believing any weight
+result.
+
+| fmt | profile |
+| --- | --- |
+| 2p | `unflipped` 0.375 -> 0.188, `sell_ready` 0.319 -> 0.478 |
+| 3p | `unflipped` 0.375 -> 0.281 |
+| 4p | defaults (tuning rejected) |
+
+Note the pattern: the fewer the opponents, the less an unflipped tile is worth.
 
 Trajectory of the 4p mirror through this work:
 
@@ -111,12 +150,7 @@ Trajectory of the 4p mirror through this work:
 | with the fabricated money-VP rule (not comparable) | 68.6 | 2.21 |
 | after correcting scoring | 43.6 | 1.41 |
 | + sell-chain terms, re-tune | 93.1 | 3.00 |
-| + money horizon, mat potential | **98.6** | **3.18** |
-
-**Weight tuning has plateaued.** The last run gained +9.4 on its tuning seeds and
-+1.9 on validation against a +-2.2 noise floor -- the tuner itself printed "NOT a
-real improvement" and its weights were discarded. The remaining gap to expert is
-not a weights problem.
+| + money horizon, mat potential, era boundary | **98.2** | **3.17** |
 
 ### Behaviour against expert benchmarks
 

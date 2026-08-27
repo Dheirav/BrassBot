@@ -168,3 +168,97 @@ def test_rounds_left_falls_as_the_game_runs_out(game):
     rail.round = rail.rounds_this_era
     assert bot.rounds_left(rail) < canal_start
     assert bot.rounds_left(rail) == 0
+
+
+# --- era boundary -----------------------------------------------------------
+
+def test_an_unflipped_level_1_tile_is_worth_less_as_the_canal_era_closes(game):
+    """Level 1 tiles are removed at the end of the Canal Era. One built late and
+    not yet flipped is deleted having scored nothing -- measured at 1.36 tiles
+    per player per game before this term existed."""
+    bot = HeuristicBot()
+    place(game, "birmingham", 0, 0, Industry.COTTON_MILL, 1)
+
+    game.round = 1
+    early = bot.player_value(game, 0)
+    game.round = game.rounds_this_era
+    assert bot.player_value(game, 0) < early
+
+
+def test_the_canal_deadline_bites_level_1_harder_than_level_2(game):
+    """Level 2+ tiles survive the wipe, so the closing Canal round is not a
+    deadline for them. Both still ease off as the game shortens -- income has
+    fewer rounds left to pay out in -- so the test is the *relative* fall."""
+    bot = HeuristicBot()
+
+    def fall(level):
+        board = game.clone()
+        place(board, "birmingham", 0, 0, Industry.COTTON_MILL, level)
+        board.round = 1
+        early = bot.player_value(board, 0)
+        board.round = board.rounds_this_era
+        return early - bot.player_value(board, 0)
+
+    assert fall(1) > fall(2)
+
+
+def test_the_deadline_applies_to_every_tile_in_the_rail_era(game):
+    """At the end of the Rail Era the game simply stops, so nothing unflipped is
+    worth anything -- level 2+ included."""
+    bot = HeuristicBot()
+    game.era = Era.RAIL
+    place(game, "birmingham", 0, 0, Industry.COTTON_MILL, 2)
+
+    game.round = 1
+    early = bot.player_value(game, 0)
+    game.round = game.rounds_this_era
+    assert bot.player_value(game, 0) < early
+
+
+# --- per-format profiles ----------------------------------------------------
+
+@pytest.fixture
+def clean_profiles():
+    saved = dict(HeuristicBot.PROFILES)
+    HeuristicBot.PROFILES.clear()
+    yield HeuristicBot.PROFILES
+    HeuristicBot.PROFILES.clear()
+    HeuristicBot.PROFILES.update(saved)
+
+
+def test_without_a_profile_a_format_gets_the_defaults(clean_profiles):
+    bot = HeuristicBot()
+    for players in (2, 3, 4):
+        assert bot.weights_for(players) == HeuristicBot.DEFAULTS
+
+
+def test_a_profile_applies_only_to_its_own_player_count(clean_profiles):
+    clean_profiles[2] = {"income": 0.9}
+    bot = HeuristicBot()
+    assert bot.weights_for(2)["income"] == 0.9
+    assert bot.weights_for(4)["income"] == HeuristicBot.DEFAULTS["income"]
+    # everything else in the 2p profile still comes from the defaults
+    assert bot.weights_for(2)["money"] == HeuristicBot.DEFAULTS["money"]
+
+
+def test_explicit_weights_beat_the_profile(clean_profiles):
+    """A tuning run pins the weights it is testing, so its overrides have to win
+    -- otherwise the profile would silently overwrite the candidate."""
+    clean_profiles[2] = {"income": 0.9}
+    bot = HeuristicBot(income=0.01)
+    assert bot.weights_for(2)["income"] == 0.01
+
+
+def test_choosing_a_move_uses_the_profile_for_that_player_count(clean_profiles):
+    """The bot only learns the player count from the state it is handed."""
+    from brassbot.engine import legal_actions
+
+    clean_profiles[3] = {"pass_bias": -99.0}
+    bot = HeuristicBot()
+    three = new_game(3, seed=2)
+    bot.choose(three, legal_actions(three))
+    assert bot.w["pass_bias"] == -99.0
+
+    four = new_game(4, seed=2)
+    bot.choose(four, legal_actions(four))
+    assert bot.w["pass_bias"] == HeuristicBot.DEFAULTS["pass_bias"]

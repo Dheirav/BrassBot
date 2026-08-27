@@ -1,0 +1,33 @@
+{
+  "weights": {
+    "unflipped": 0.28125,
+    "money": 0.045,
+    "income": 0.1125,
+    "blocked": 6,
+    "rival": 0.225,
+    "links_held": 0.3,
+    "liquidity": 8,
+    "liquidity_scale": 8.438,
+    "debt": 0.0633,
+    "pass_bias": -0.5,
+    "sell_ready": 0.3187,
+    "merchant_access": 2.4,
+    "money_horizon": 4,
+    "mat_potential": 0.25,
+    "flip_horizon": 3.0
+  },
+  "tuning_mean": 101.18333333333334,
+  "tuning_win_rate": 0.95,
+  "validation_start": 98.48333333333333,
+  "validation_tuned": 105.03333333333333,
+  "validation_noise": 3.2731135220245973,
+  "held_up": true,
+  "opponents": [
+    "greedy",
+    "greedy"
+  ],
+  "games_per_candidate": 60,
+  "players": 3,
+  "tune_seed0": 10000,
+  "validate_seed0": 20000
+}
