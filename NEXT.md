@@ -879,12 +879,20 @@ is not unlucky, it is inconsistent, because every decision is local.
 `brassbot/planner.py` is a beam search over whole lines of play rather than
 single actions, scoring plans by what they finish on. On 10 seeds at 4p:
 
-| | mean | best |
-| --- | --- | --- |
-| greedy 1-ply | 115.2 | 127 |
-| beam width 20 | **134.3** | **152** |
+| | mean | best game | time |
+| --- | --- | --- | --- |
+| greedy 1-ply | 115.2 | 127 | - |
+| beam width 20 | 134.3 | 152 | 32s |
+| **beam width 40** | **143.7** | **166** | 73s |
+| beam width 80 | 140.4 | 155 | 150s |
 
-**+19 VP, and it improves with width where MCTS refused to.** The action budget,
+**+28.5 VP over the 1-ply bot at width 40**, where MCTS saturated at 300
+iterations and got *worse* when made deeper. It plateaus by width 40 -- width 80
+is 140.4, inside noise of 143.7 on ten seeds and twice the cost -- which is the
+point to stop paying, not evidence that the approach is finished.
+
+For scale: 143.7 sits inside the human tournament range of 142-184, against a
+median of 158. No bot in this project has been near that. The action budget,
 mat order, resource availability and link adjacency become constraints on one
 optimisation instead of terms in a per-move score.
 
@@ -895,12 +903,12 @@ optimisation instead of terms in a per-move score.
 2. **It is ~25x slower than the heuristic** and re-plans nothing. A real bot
    plans, plays the first action, and re-plans as the board moves.
 
-Both will cost some of the +19. The question is how much survives.
+Both will cost some of the +28.5. The question is how much survives.
 
 ### Ordered plan
 
 1. **Determinize the planner and re-measure.** This is the honest number and
-   everything else waits on it. If most of the +19 survives sampling, build the
+   everything else waits on it. If most of the +28.5 survives sampling, build the
    bot around it; if it evaporates, the gain was clairvoyance.
 2. **Check whether the planner discovers turn-order management on its own.** The
    engine models "least spent goes first" correctly, and *nothing in the bot uses
