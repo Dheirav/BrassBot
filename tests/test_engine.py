@@ -19,6 +19,7 @@ from brassbot.engine import (
     link_icons_at,
     score_era,
     _end_era,
+    _collect_income,
     _end_round,
 )
 from brassbot.gamedata import Era, Industry, income_level
@@ -580,3 +581,32 @@ def test_each_rail_of_a_double_needs_its_own_connected_coal(game):
                 f"{link.id} in a double rail has no coal reachable from its own "
                 f"ends, so the pair's plan must have pooled them"
             )
+
+
+def test_an_income_shortfall_never_destroys_a_tile_that_raises_nothing(game):
+    """Pottery L2 and L4 have a printed cost of 0.
+
+    They sorted first on `cost // 2`, yielded nothing, and were removed from the
+    board while the debt stood untouched. A player holding only those lost both
+    tiles and still paid the whole VP penalty.
+    """
+    p = game.players[0]
+    p.income_space, p.money, p.vp = 6, 0, 20      # income level -4: owes 4
+    place(game, "stoke_on_trent", 1, 0, Industry.POTTERY, 2, flipped=True)
+    place(game, "birmingham", 0, 0, Industry.COTTON_MILL, 4, flipped=True)
+    _collect_income(game, p)
+
+    left = [(t, tile.industry) for t, _s, tile in game.all_tiles() if tile.owner == 0]
+    assert (("stoke_on_trent", Industry.POTTERY) in left), \
+        "the worthless pottery was sold to pay a debt it cannot pay"
+    assert p.vp == 20, "the cotton mill covered the debt, so no VP should be lost"
+
+
+def test_only_worthless_tiles_means_the_penalty_but_not_the_tiles(game):
+    p = game.players[0]
+    p.income_space, p.money, p.vp = 6, 0, 20
+    place(game, "stoke_on_trent", 1, 0, Industry.POTTERY, 2, flipped=True)
+    _collect_income(game, p)
+    left = [tile for _t, _s, tile in game.all_tiles() if tile.owner == 0]
+    assert len(left) == 1, "a tile worth nothing cannot pay, so it should remain"
+    assert p.vp == 16, "the shortfall is still charged at 1 VP per pound"

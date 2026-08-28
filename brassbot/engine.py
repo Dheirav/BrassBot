@@ -788,6 +788,12 @@ def _collect_income(state: GameState, p) -> None:
         if owed <= 0:
             break
         gain = spec_for(state, tile).cost // 2
+        # A tile that raises nothing is not a way to pay a debt. Pottery L2 and
+        # L4 have a printed cost of 0, so they sorted first, yielded GBP0 and
+        # were taken off the board while the debt stood untouched -- and a player
+        # holding only those lost both tiles AND the full VP penalty.
+        if gain <= 0:
+            continue
         state.tiles[town][slot] = None
         if gain >= owed:
             p.money += gain - owed
