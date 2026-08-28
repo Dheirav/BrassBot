@@ -518,6 +518,50 @@ is worth having, but the gap to an expert 155 is about 45 VP. Industry mixing is
 not what is costing us that, and a planning mechanism built to fix it should be
 budgeted against 4 VP, not 40.
 
+### Cotton losing is our bot, not our engine
+
+The guide names cotton as the 2-player industry and in our engine cotton loses at
+every count, 2p included. That is the kind of disagreement that has meant a rules
+bug three times this month, so it was checked rather than explained away.
+
+**The data is right, and it matches the guide's own premise exactly.** The guide
+argues cotton is a 2p line because "cotton III needs five tiles cleared, which
+only 2p can afford". Our mat holds cotton at L1x3, L2x2, L3x3, L4x3 -- so
+reaching level 3 means clearing exactly five tiles. The number the guide's
+argument turns on is the number in our data. Tile costs check out too (cotton L1
+GBP12 / 5 VP / 5 income, L4 GBP18 / 12 VP; pottery L5 GBP24 / 20 VP, rail only).
+
+**The bot cannot climb the track.** A cotton-committed bot at 2p reaches an
+average highest level of **2.02** on 2.92 tiles built. It never arrives at L3,
+where cotton's payoff actually is: L1 and L2 score 5 VP each, L3 and L4 score 9
+and 12. Manufacturer reaches 3.05 on 3.67 tiles, because its low levels are cheap
+(GBP8 and GBP10) and useful immediately.
+
+So cotton's value is back-loaded behind five low-value builds, and a 1-ply
+evaluator will not spend five actions on a payoff it cannot see. The guide's
+claim needs a planner to be true, and asserting it as a weight cannot substitute
+for one. Same conclusion as the opening book, reached from the opposite end.
+
+### The commitment effect is about +2 VP, not +3.7
+
+The arms were compared on the validation block (20000+), which is also where the
+winning arm was chosen -- so the shipping decision was re-run on the report block
+(0+), which had decided nothing.
+
+| format | validation (20000+) | report (0+) |
+| --- | --- | --- |
+| 4p | +3.65 (2.5 sigma) | **+1.53 +- 1.35 (1.1 sigma)** |
+| 3p | +4.04 (2.3 sigma) | **+2.71 +- 1.40 (1.9 sigma)** |
+| 2p | +1.99 (0.9 sigma) | **+2.17 +- 1.64 (1.3 sigma)** |
+
+The direction replicates in all three formats, but every magnitude shrank and
+none is individually significant. Pooled across formats it is **+2.14 +- 0.85**,
+about 2.5 sigma. Selecting the arm on one block and reading its size off the same
+block overstated it by most of a factor of two -- the second time this session
+that the split has caught exactly that.
+
+Treat commitment as worth ~2 VP.
+
 ### Choosing the industry adaptively, three ways, all worse than a constant
 
 | chooser | mean | vs control |
