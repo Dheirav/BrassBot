@@ -518,21 +518,36 @@ is worth having, but the gap to an expert 155 is about 45 VP. Industry mixing is
 not what is costing us that, and a planning mechanism built to fix it should be
 budgeted against 4 VP, not 40.
 
-### Choosing the industry adaptively is worse than not choosing
+### Choosing the industry adaptively, three ways, all worse than a constant
 
-The adaptive arm commits to whichever main industry the hand and board already
-support, weighting tiles already built above cards held. It gains nothing
-(+0.80, 0.5 sigma) and loses to simply always playing manufacturer.
+| chooser | mean | vs control |
+| --- | --- | --- |
+| anchored on tiles already built | 107.05 +- 1.00 | +0.80 |
+| merchant demand and cards, re-decided each turn | 106.22 +- 1.10 | -0.02 |
+| merchant demand and cards, **latched at game start** | 108.34 +- 0.98 | +2.10 |
+| **constant: always manufacturer** | **109.90 +- 0.97** | **+3.65** |
 
-The reason is that it often commits to cotton or pottery, and those are worse
-industries in a 4-player game *regardless of what you were dealt*. The guide says
-manufacturer is the 3-4 player industry; that is a fixed strategic fact about the
-action budget, not a read on your hand, and an adaptive chooser that treats it as
-a read throws the fact away. A mechanism here should encode "manufacturer at 4p",
-not "work out what to commit to".
+Two real lessons, in the order they were learned.
 
-Untested at 2p and 3p, where the guide names cotton as the 2-player industry --
-so the constant almost certainly differs by format, like the weight profiles do.
+**Re-deciding every turn is not commitment, it is mixing with extra steps.** The
+market-driven chooser picked manufacturer for 75% of its decisions, which should
+have been worth about +2.7 VP, and scored +0.0. Only 14 of 60 games *opened* on
+cotton, yet a quarter of all decisions were cotton -- it changed its mind partway
+and finished mid-level in two industries, which is exactly the failure rule 6
+describes. Latching the choice at the start is worth **+2.1 VP on its own**.
+
+**The market is the wrong signal, even latched.** At 4p the set of merchant tiles
+never varies -- two cotton, two manufacturer, one pottery, two wild, two blank --
+so only their positions are dealt fresh, and position is not what makes an
+industry good. What makes manufacturer the 3-4 player industry is the action
+budget: both level-2 manufacturers need no coal, so they cost no link action
+first, and the line costs one develop. That is a fixed property of tile costs, so
+a per-game read cannot beat a constant, and the chooser's 23% cotton games are
+simply losses.
+
+The variability that *is* real is by format, not by deal: the guide names cotton
+as the 2-player industry. So the right shape here is a per-format constant, like
+the weight profiles -- untested at 2p and 3p.
 
 ## Sequencing was tested directly, and the test failed
 

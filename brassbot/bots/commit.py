@@ -20,6 +20,7 @@ the very behaviour under test.
 
 from ..actions import Build
 from ..gamedata import Industry
+from ..network import distances_from, player_network
 from .heuristic import HeuristicBot
 
 # Fixed order so a numeric spec (commit=0,1,2) names the same industry every run.
@@ -35,35 +36,83 @@ class CommitBot(HeuristicBot):
     DEFAULTS = {**HeuristicBot.DEFAULTS, "commit": -1}
 
     def _adaptive(self, state):
-        """Commit to whichever main industry this position already supports.
+        """Pick the main industry this game's board actually rewards.
 
-        Tiles already on the board outrank the hand: they are a commitment
-        already paid for, and switching away from them is what mixing *is*. The
-        hand only breaks the tie before anything is built.
+        Driven by where the demand is and what we can play, because those are
+        the two things that differ between games:
+
+        * **Merchant demand, discounted by distance.** At 4p the *set* of
+          merchant tiles is always the same -- two cotton, two manufacturer, one
+          pottery, two wild, two blank -- but which location each lands on is
+          dealt fresh, and that decides how many link actions a sale costs.
+          Pottery is structurally scarce here: one dedicated slot against two.
+        * **Cards in hand** that can actually build the thing.
+
+        Tiles already built count for little, and that is the correction. The
+        first version weighted them ten apiece, so the first build settled the
+        commitment for the rest of the game and the "choice" was really made by
+        the ordinary greedy evaluator. It scored +0.80 VP, against +3.65 for
+        simply always playing manufacturer.
         """
         seat = state.current.idx
-        score = dict.fromkeys(MAIN_INDUSTRIES, 0)
-        for _town, _slot, tile in state.all_tiles():
-            if tile.owner == seat and tile.industry in score:
-                score[tile.industry] += 10
+        score = dict.fromkeys(MAIN_INDUSTRIES, 0.0)
+
+        # Distance is measured from where we can already build; before anything
+        # is on the board every merchant is equally far away.
+        network = player_network(state, seat)
+        dist = distances_from(state, network) if network else {}
+
+        for slot in state.merchant_slots():
+            if slot.kind == "blank":
+                continue
+            near = 1.0 / (1.0 + dist.get(slot.merchant, 2))
+            for industry in MAIN_INDUSTRIES:
+                if slot.accepts(industry):
+                    # A wild slot accepts everything, so it cannot discriminate
+                    # between industries and is worth less than a dedicated one.
+                    score[industry] += near * (3.0 if slot.kind != "any" else 1.0)
+
         for card in state.players[seat].hand:
             for industry in card.industries or ():
                 if industry in score:
-                    score[industry] += 1
-            if card.town is not None:
-                for slots in (state.data.towns[card.town].slots
-                              if card.town in state.data.towns else ()):
+                    score[industry] += 1.0
+            town = state.data.towns.get(card.town) if card.town else None
+            if town is not None:
+                for slots in town.slots:
                     for industry in slots:
                         if industry in score:
-                            score[industry] += 1
-        # Ties fall to MAIN_INDUSTRIES order, so the choice stays deterministic.
-        return max(MAIN_INDUSTRIES, key=lambda i: (score[i], -MAIN_INDUSTRIES.index(i)))
+                            score[industry] += 0.5
+
+        for _town, _slot, tile in state.all_tiles():
+            if tile.owner == seat and tile.industry in score:
+                score[tile.industry] += 1.5
+
+        return max(MAIN_INDUSTRIES,
+                   key=lambda i: (score[i], -MAIN_INDUSTRIES.index(i)))
+
+    def _latched(self, state):
+        """The adaptive choice, made once at the start and then held.
+
+        Re-deciding every turn is not commitment, it is mixing with extra steps.
+        Unlatched, the chooser picked manufacturer for 75% of decisions -- which
+        should have been worth about +2.7 VP -- and scored +0.0, because it
+        changed its mind partway and finished mid-level in two industries. Only
+        14 of 60 games *opened* on cotton, yet a quarter of all decisions were
+        cotton.
+
+        Latched on an empty board, so a bot instance reused for a second game
+        decides again rather than inheriting the last game's plan.
+        """
+        empty = not any(True for _t, _s, _tile in state.all_tiles())
+        if empty or getattr(self, "_commitment", None) is None:
+            self._commitment = self._adaptive(state)
+        return self._commitment
 
     def choose(self, state, actions):
         index = int(self.weights_for(state.n_players)["commit"])
         mine = None
         if index == -2:
-            mine = self._adaptive(state)
+            mine = self._latched(state)
         elif 0 <= index < len(MAIN_INDUSTRIES):
             mine = MAIN_INDUSTRIES[index]
         if mine is not None:
