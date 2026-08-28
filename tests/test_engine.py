@@ -131,11 +131,18 @@ def test_wild_location_card_cannot_reach_a_farm_brewery(game):
 
 
 def test_industry_card_builds_only_inside_your_network(game):
+    """Once you have anything on the board, an industry card is restricted to
+    your network.
+
+    This test used to assert the opposite of the rule for the empty-network case
+    -- "empty network means nowhere to build" -- which is how the missing
+    exception survived: the bug was pinned by a test rather than caught by one.
+    The correct empty-board behaviour is covered by the test below.
+    """
     player = game.current.idx
     game.players[player].money = 60
     only_card(game, player, Card(CardKind.INDUSTRY,
                                  industries=frozenset({Industry.COAL_MINE})))
-    assert not legal_builds(game), "empty network means nowhere to build"
 
     place(game, "dudley", 1, player, Industry.IRON_WORKS, 2)  # puts dudley in my network
     game.era = Era.RAIL  # sidestep the canal one-per-location rule
@@ -427,3 +434,25 @@ def test_unpayable_income_costs_a_vp_per_pound(game):
     _collect_income(game, p)
     assert p.money == 0
     assert p.vp == 10 - 4
+
+
+def test_an_industry_card_builds_anywhere_when_you_have_nothing_on_the_board(game):
+    """Rulebook, "Building if you have no tiles on the board": with no industry
+    or link tiles placed, an industry card may build in ANY location with a
+    matching undeveloped space, not only inside your (empty) network.
+
+    Every game opens in exactly this position, so omitting it silently narrowed
+    the first move of every game ever played by this engine.
+    """
+    player = game.current.idx
+    game.players[player].money = 60
+    only_card(game, player, Card(CardKind.INDUSTRY,
+                                 industries=frozenset({Industry.COAL_MINE})))
+    towns = {b.town for b in legal_builds(game)}
+    assert len(towns) > 1, "an empty network must not restrict where you may build"
+
+    # once something is on the board, the ordinary network rule applies again
+    place(game, "dudley", 0, player, Industry.COAL_MINE, 1)
+    game.era = Era.RAIL
+    game.players[player].mat[Industry.COAL_MINE][0] = 0
+    assert {b.town for b in legal_builds(game)} == {"dudley"}

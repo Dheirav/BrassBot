@@ -129,10 +129,16 @@ def _card_build_options(state: GameState, player: int, card: Card):
             for industry in Industry:
                 yield town_id, industry
     else:
-        # Industry cards build only inside your own network.
+        # Industry cards build inside your own network -- except that with
+        # nothing at all on the board you may build anywhere, which the rulebook
+        # gives its own heading ("Building if you have no tiles on the board").
+        # Without it the opening is far more constrained than the rules allow:
+        # every game starts with an empty network, so an industry card was
+        # unplayable on turn one.
         network = player_network(state, player)
         industries = card.industries if card.kind is CardKind.INDUSTRY else set(Industry)
-        for town_id in network:
+        towns = network if network else state.data.towns
+        for town_id in towns:
             for industry in industries:
                 yield town_id, industry
 
