@@ -186,13 +186,13 @@ def beer_plans(
             results.append(plan)
             return
 
-        options: list[Draw] = []
-        # Merchant beer first: it is strictly better when available, since it
-        # carries a bonus and costs no brewery.
+        options: list = []
+        # Merchant beer first: it carries a bonus and burns nobody's brewery.
+        merchant_draw = None
         if merchant is not None and not merchant_used:
             mid, mslot = merchant
             if state.merchants[mid][mslot].beer > 0:
-                options.append(Draw("merchant_beer", "beer", merchant=mid, mslot=mslot))
+                merchant_draw = Draw("merchant_beer", "beer", merchant=mid, mslot=mslot)
 
         for town, slot, tile in state.all_tiles():
             if tile.industry is not Industry.BREWERY:
@@ -203,7 +203,18 @@ def beer_plans(
             # connected to where the beer is needed.
             if tile.owner != player and town not in reachable:
                 continue
-            options.append(Draw("tile", "beer", town=town, slot=slot))
+            options.append((tile.owner != player, town, slot,
+                            Draw("tile", "beer", town=town, slot=slot)))
+
+        # Own breweries before opponents'. Consuming beer flips the brewery it
+        # came from and pays its owner, so draining an opponent's barrel hands
+        # them a tile flip you could have taken yourself. The board order this
+        # replaced picked by town name, which meant a plan happily scored for
+        # someone else while the player's own brewery sat unflipped all game.
+        options.sort(key=lambda o: o[:3])
+        options = [o[3] for o in options]
+        if merchant_draw is not None:
+            options.insert(0, merchant_draw)
 
         for draw in options:
             if draw.is_merchant_beer:

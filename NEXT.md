@@ -95,6 +95,21 @@ Held-out seeds (0-79), 80 games each, seats rotated, per-format weights applied.
 | 2p | mirror | **120.1 +- 1.7** | 22.1 | 98 | 170 | 3.08 | 50% |
 | 2p | vs greedy | 115.5 +- 2.3 | 20.3 | 91 | 163 | 2.96 | 100% |
 
+### A mirror cannot measure a symmetric change
+
+The beer-preference fix below moved 39 of 40 games and left the 4p mirror mean at
+**exactly 107.0**. That is not a null result, it is the wrong instrument: in a
+mirror every seat gets the improvement, so an edge that is purely relative
+cancels, and the subject's mean cannot move. Measuring it needs an asymmetric
+arm -- the preference given to seat 0 only, against a control run that measures
+what seat 0 is worth on its own (-0.52 VP, i.e. nothing).
+
+Paired on 300 identical seeds, the fix is worth **+1.23 +- 0.46 VP (2.7 sigma)**.
+Unpaired on 200 seeds the same effect read +1.38 +- ~1.2, which would not have
+supported any claim. Pair the seeds.
+
+Anything that changes a rule for all players at once needs this treatment.
+
 Re-measured after two engine fixes found by agents playing full games (the
 empty-network build exception, and choosing the discard instead of spending
 hand[0]). Mirror play gained most -- 4p 98.2 -> 107.0, 3p 100.2 -> 113.3, 2p
