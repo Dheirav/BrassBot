@@ -72,17 +72,18 @@ function draw(s) {
   // links: every line on the board, built ones in their owner's colour
   const built = {};
   s.links.forEach(l => built[l.id] = l.owner);
-  for (const l of (s.all_links || [])) {
-    if (l.id in built) continue;
-    const [a, b] = l.ends;
-    out += `<line x1="${C[a][0]}" y1="${C[a][1]}" x2="${C[b][0]}" y2="${C[b][1]}"
-            stroke="#2c3242" stroke-width="2" stroke-dasharray="5 5"/>`;
-  }
-  for (const l of s.links) {
-    const [a, b] = l.ends;
-    out += `<line x1="${C[a][0]}" y1="${C[a][1]}" x2="${C[b][0]}" y2="${C[b][1]}"
-            stroke="${COL[l.owner]}" stroke-width="4" stroke-linecap="round"/>`;
-  }
+  // A link is not always a line between two points: kidderminster-worcester
+  // -farm_southern joins three locations, so draw spokes from the centroid.
+  const spokes = (ends, stroke, w, dash) => {
+    const cx = ends.reduce((a,e)=>a+C[e][0],0)/ends.length;
+    const cy = ends.reduce((a,e)=>a+C[e][1],0)/ends.length;
+    return ends.map(e => `<line x1="${C[e][0]}" y1="${C[e][1]}" x2="${cx}" y2="${cy}"
+      stroke="${stroke}" stroke-width="${w}" stroke-linecap="round"
+      ${dash ? 'stroke-dasharray="5 5"' : ''}/>`).join('');
+  };
+  for (const l of (s.all_links || []))
+    if (!(l.id in built)) out += spokes(l.ends, '#2c3242', 2, true);
+  for (const l of s.links) out += spokes(l.ends, COL[l.owner], 4, false);
 
   // merchants
   for (const m of s.all_merchants) {
