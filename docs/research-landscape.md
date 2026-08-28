@@ -238,3 +238,45 @@ rather than size reasons:
 - `docs/evidence/*.png` — crops of Roxley's board and player-mat artwork used to
   settle the link-scoring question. `docs/link-scoring.md` states every finding
   in full without them.
+
+## 6. A learned value function: the cheap probe says no obvious headroom
+
+Before building a training pipeline, the question worth answering is whether a
+learned function can predict outcomes better than the hand-crafted one **on the
+job the evaluation actually does**.
+
+`brassbot/features.py` extracts 45 features per (state, seat), deliberately the
+same quantities the evaluation already uses, so a learned function competes on
+identical information. Self-play positions were labelled with the seat's final
+score, split by game, and a linear model fitted on the training games.
+
+| predictor | across all stages | within game stage |
+| --- | --- | --- |
+| hand-crafted evaluation | 0.279 | **0.605** |
+| linear model, same features | 0.700 | **0.595** |
+
+*(Spearman against final VP, held-out games.)*
+
+**The first column is a trap and the second is the real answer.** Predicting final
+VP across all stages is easy -- a Rail Era position already has most of its score
+banked -- and the linear model's dominant weight was `era_is_rail` at -47.6, i.e.
+it was mostly learning what turn it was. Our evaluation never does that: it ranks
+sibling positions inside a single decision, where the stage is identical for every
+candidate. Measured on that task, the hand-tuned weights **match a fitted linear
+model and slightly beat it**.
+
+So there is no easy win here. What this does *not* rule out:
+
+- **Nonlinearity.** Only a linear fit was tried. A network could find structure a
+  weighted sum cannot.
+- **Richer features.** These 45 are deliberately the evaluation's own quantities.
+  Board topology, per-tile detail, and opponent structure are all absent.
+- **Better training data.** Labels come from heuristic self-play, so the target is
+  "what the heuristic achieves from here", which caps what can be learned. The
+  AlphaZero loop exists to escape exactly that, by regenerating data with the
+  improved player.
+
+**Whoever picks this up should re-run the probe with a nonlinear model and richer
+features first.** It costs an hour and tells you whether the weeks are worth
+spending. Reporting the all-stages number instead of the within-stage one would
+have justified the whole project on an artifact.
