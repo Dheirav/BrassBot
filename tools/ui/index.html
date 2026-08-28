@@ -154,8 +154,10 @@ function draw(s) {
     box.innerHTML = s.moves.filter(m => filter === 'All' || m.kind === filter)
       .map(m => `<button class="move" onclick="play(${m.index})">${m.text}</button>`).join('');
   }
-  document.getElementById('log').innerHTML =
-    s.log.slice().reverse().map(l => `<div>${l}</div>`).join('');
+  document.getElementById('log').innerHTML = s.log.slice().reverse().map(l =>
+    `<div><span class="dot" style="background:${COL[l.seat]}"></span>
+     <span style="color:${l.seat === s.seat ? 'var(--accent)' : 'var(--dim)'}">
+     ${l.seat === s.seat ? 'You' : 'Bot ' + l.seat}</span> ${l.text}</div>`).join('');
 }
 
 function setFilter(k) { filter = k; draw(S); }

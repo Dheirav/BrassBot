@@ -25,8 +25,46 @@ from brassbot.state import new_game
 SEAT = 0
 
 
+def _card(state, seat: int, idx: int) -> str:
+    """The card an action spends. Every action discards one, and which one it is
+    was invisible here -- four agents reported losing the exact card their plan
+    needed to an action that never said what it was taking."""
+    hand = state.players[seat].hand
+    if not 0 <= idx < len(hand):
+        return "?"
+    c = hand[idx]
+    if c.town:
+        return c.town
+    if c.industries:
+        return "/".join(sorted(i.value for i in c.industries))
+    return c.kind.value
+
+
+def _plan(plan, label: str) -> str:
+    """Where a resource actually comes from.
+
+    Free coal out of an opponent's mine and 8 pounds of market coal used to
+    render identically, which makes two listed moves impossible to choose
+    between.
+    """
+    if not plan:
+        return ""
+    bits = []
+    for d in plan:
+        if d.kind == "market":
+            bits.append(f"market GBP{d.cost}")
+        elif d.kind == "merchant_beer":
+            bits.append(f"{d.merchant} barrel")
+        else:
+            bits.append(str(d.town))
+    return f" {label}<{'+'.join(bits)}>"
+
+
 def describe(state, action) -> str:
-    p = state.players[SEAT]
+    # The ACTING player, not seat 0: describing a bot's move against your own
+    # mat and hand gave the wrong tile level and the wrong card.
+    seat = state.current.idx
+    p = state.players[seat]
     if isinstance(action, Build):
         lvl = p.lowest_level(action.industry)
         spec = state.data.tile(action.industry, lvl)
@@ -38,22 +76,31 @@ def describe(state, action) -> str:
         occupied = state.tiles[action.town][action.slot]
         over = " (overbuild)" if occupied is not None else ""
         return (f"BUILD {action.industry.value} L{lvl} at {action.town}{over}"
-                f"  [{', '.join(bits)}, {spec.vp} VP, +{spec.income} income]")
+                f"  [{', '.join(bits)}, {spec.vp} VP, +{spec.income} income]"
+                f"  card:{_card(state, seat, action.card)}"
+                f"{_plan(action.coal, 'coal')}{_plan(action.iron, 'iron')}")
     if isinstance(action, Network):
         kind = "canal" if state.era is Era.CANAL else "rail"
-        return f"NETWORK {kind}: " + " + ".join(action.lines)
+        return (f"NETWORK {kind}: " + " + ".join(action.lines)
+                + f"  card:{_card(state, seat, action.card)}"
+                + _plan(action.coal, "coal") + _plan(action.beer, "beer"))
     if isinstance(action, Develop):
-        return "DEVELOP " + " + ".join(i.value for i in action.industries)
+        return ("DEVELOP " + " + ".join(i.value for i in action.industries)
+                + f"  card:{_card(state, seat, action.card)}"
+                + _plan(action.iron, "iron"))
     if isinstance(action, Sell):
-        return "SELL " + ", ".join(
-            f"{state.tiles[s.town][s.slot].industry.value} at {s.town} -> {s.merchant}"
-            for s in action.sales)
+        return ("SELL " + ", ".join(
+            f"{state.tiles[s.town][s.slot].industry.value} at {s.town}"
+            f" -> {s.merchant}#{s.mslot}" for s in action.sales)
+            + f"  card:{_card(state, seat, action.card)}")
     if isinstance(action, Loan):
-        return "LOAN  [+30 money, -3 income levels]"
+        return f"LOAN  [+30 money, -3 income levels]  card:{_card(state, seat, action.card)}"
     if isinstance(action, Scout):
-        return "SCOUT [discard 3, take a wild location + wild industry]"
+        gone = ", ".join(_card(state, seat, i)
+                         for i in (action.card, *action.extra))
+        return f"SCOUT [take wild location + wild industry]  discards:{gone}"
     if isinstance(action, Pass):
-        return "PASS"
+        return f"PASS  card:{_card(state, seat, action.card)}"
     return str(action)
 
 

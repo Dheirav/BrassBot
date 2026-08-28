@@ -54,7 +54,7 @@ def advance() -> None:
         if not actions:
             break
         action = bots[actor].choose(state, actions)
-        GAME["log"].append(f"P{actor}: {describe(state, action)}")
+        GAME["log"].append({"seat": actor, "text": describe(state, action)})
         apply_action(state, action)
 
 
@@ -140,7 +140,8 @@ class Handler(BaseHTTPRequestHandler):
             i = int(body.get("index", -1))
             if not state.finished and state.current.idx == GAME["seat"] \
                     and 0 <= i < len(actions):
-                GAME["log"].append(f"You: {describe(state, actions[i])}")
+                GAME["log"].append({"seat": GAME["seat"],
+                                    "text": describe(state, actions[i])})
                 apply_action(state, actions[i])
                 advance()
         elif self.path.startswith("/api/new"):
