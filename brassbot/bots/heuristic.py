@@ -565,10 +565,17 @@ class HeuristicBot(Bot):
         # board, where it is credited separately.
         # One lookup per industry, shared with the blocked term below: both used
         # to walk all six independently, 207,000 lowest_level calls a game.
+        # Decayed by the same ramp as cash, because it is the same kind of claim:
+        # worth something only while there are actions left to spend it. Without
+        # the decay the bot pays to improve a mat it can never build from -- it
+        # spent its LAST action of a game on a develop worth +0.5 of pure mat
+        # potential over passing, and took 1.5 Rail Era develops a game against
+        # an expert 0.
         lowest = {i: p.lowest_level(i) for i in Industry}
         for industry, level in lowest.items():
             if level is not None:
-                value += data.tile(industry, level).vp * self.w["mat_potential"]
+                value += (data.tile(industry, level).vp
+                          * self.w["mat_potential"] * spendable)
 
         # Stranded canal-only tiles block an entire industry in the Rail Era.
         if state.era is Era.RAIL:

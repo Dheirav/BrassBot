@@ -131,6 +131,12 @@ class BeamPlanner:
         same division of labour the MCTS prior uses.
         """
         self.ev.w = self.ev.weights_for(state.n_players)
+        # Apply the same commitment filter the heuristic uses. It lives in
+        # HeuristicBot.choose, which the beam never calls -- so the shipped
+        # commitment was being applied to the planner's OPPONENTS (through
+        # _opponent_move) and not to the planner itself. It touched 5.17
+        # industries a game against the supposedly-uncommitted heuristic's 4.52.
+        actions = self.ev._committed(state, actions)
         scored = []
         for action in actions:
             probe = state.clone()

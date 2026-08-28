@@ -13,6 +13,7 @@ from brassbot.engine import (
     apply_action,
     legal_actions,
     legal_builds,
+    legal_networks,
     legal_scouts,
     legal_sells,
     link_icons_at,
@@ -554,3 +555,28 @@ def test_turn_order_carries_across_the_era_boundary(game):
     assert game.turn_order == [1, 3, 2, 0], (
         f"expected the spend-sorted order, got {game.turn_order}"
     )
+
+
+def test_each_rail_of_a_double_needs_its_own_connected_coal(game):
+    """Coal for a double rail was planned from the union of both links' ends, so
+    a link with no reachable mine could take a cube from one it can never reach.
+
+    15% of offered double rails were illegal this way, and the bot played about
+    1.7 of them a game -- including one it could not have afforded at the price
+    the rules charge.
+    """
+    from brassbot.resources import coal_plans as _coal_plans
+
+    game.era = Era.RAIL
+    player = game.current.idx
+    game.players[player].money = 200
+    game.coal = 0                       # market empty, so only tiles can supply
+    for net in legal_networks(game):
+        if len(net.lines) != 2:
+            continue
+        a, b = (game.data.link_by_id[i] for i in net.lines)
+        for link in (a, b):
+            assert _coal_plans(game, list(link.ends), 1, 1), (
+                f"{link.id} in a double rail has no coal reachable from its own "
+                f"ends, so the pair's plan must have pooled them"
+            )
