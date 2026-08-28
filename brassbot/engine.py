@@ -51,8 +51,13 @@ MAX_DOUBLE_RAIL = 40
 # of move generation -- only this many lines are considered for pairing.
 DOUBLE_RAIL_CANDIDATES = 12
 MAX_SELL_COMBOS = 24
-# Distinct sets of cards a Scout may throw away.
-MAX_SCOUT_VARIANTS = 3
+# Distinct sets of cards a Scout may throw away. Raised from 3: Scout is a rare
+# action, so widening it is nearly free in search time, and all three of the old
+# sliding windows could discard the one card a plan needed -- which is what an
+# agent hit in play.
+MAX_SCOUT_VARIANTS = 20
+# Triples are drawn from this many most-expendable cards, C(6,3) = 20 of them.
+SCOUT_POOL = 6
 
 
 # --- small helpers ----------------------------------------------------------
@@ -516,22 +521,29 @@ def _merchant_bonus(state: GameState, player: int, merchant_id: str) -> None:
         # enum order instead always ate a coal mine, since COAL_MINE is first --
         # which is precisely backwards for a player routing a sale through this
         # merchant in order to clear a step off their main industry's track.
+        # Prefer a removal that actually uncovers the next level. Removing one
+        # of two identical tiles unlocks nothing at all -- an agent watched this
+        # eat one of its two coal L2s and gain literally nothing, when clearing
+        # its manufacturer L3 would have opened the cheap L4. Among removals
+        # that do uncover something, take the most valuable next tile.
         best = None
         for industry in Industry:
             level = p.lowest_level(industry)
             if level is None or not state.data.tile(industry, level).can_develop:
                 continue
-            uncovered = level + 1
+            uncovers = p.mat[industry][level - 1] == 1
             gain = 0
-            try:
-                gain = state.data.tile(industry, uncovered).vp
-            except Exception:
-                gain = 0
+            if uncovers:
+                try:
+                    gain = state.data.tile(industry, level + 1).vp
+                except Exception:
+                    gain = 0
             # Ties break on enum order, so the choice stays deterministic.
-            if best is None or gain > best[0]:
-                best = (gain, industry, level)
+            rank = (uncovers, gain)
+            if best is None or rank > best[0]:
+                best = (rank, industry, level)
         if best is not None:
-            _gain, industry, level = best
+            _rank, industry, level = best
             p.mat[industry][level - 1] -= 1
 
 
@@ -560,11 +572,14 @@ def legal_scouts(state: GameState) -> list[Scout]:
     # Cards are ranked cheapest-first: duplicates in hand are the cheapest thing
     # to spend, then location cards whose town has no slot left.
     order = sorted(range(len(p.hand)), key=_expendability(state, p.idx))
+    # Every triple among the most expendable few, rather than three sliding
+    # windows over them. The windows could only ever offer consecutive runs of
+    # the ranking, so a card ranked mid-table was in all of them or none.
     out = []
-    for start in range(min(MAX_SCOUT_VARIANTS, max(1, len(order) - 2))):
-        pick = order[start:start + 3]
-        if len(pick) == 3:
-            out.append(Scout(pick[0], (pick[1], pick[2])))
+    for pick in combinations(order[:SCOUT_POOL], 3):
+        out.append(Scout(pick[0], (pick[1], pick[2])))
+        if len(out) >= MAX_SCOUT_VARIANTS:
+            break
     return out
 
 
