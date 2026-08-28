@@ -8,7 +8,8 @@ each call is one decision.
     tools/play.py show /tmp/g.pkl                   # board, hand, legal moves
     tools/play.py move /tmp/g.pkl 7                 # play move 7, opponents reply
 
-Opponents are played by the `heuristic` bot. After your move the game runs on
+Opponents are played by the `heuristic` bot unless --opponent names another,
+e.g. `--opponent planner` to face the strongest bot we have (slower per move). After your move the game runs on
 until it is your turn again, so `show` always presents a decision that is yours.
 """
 import argparse
@@ -122,22 +123,30 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("new"); n.add_argument("--seed", type=int, default=1)
     n.add_argument("--players", type=int, default=4); n.add_argument("--out", required=True)
+    n.add_argument("--opponent", default="heuristic",
+                   help="bot spec for the other seats, e.g. planner")
     s = sub.add_parser("show"); s.add_argument("file")
     m = sub.add_parser("move"); m.add_argument("file"); m.add_argument("index", type=int)
     args = ap.parse_args(argv)
 
     if args.cmd == "new":
         state = new_game(args.players, seed=args.seed)
-        bots = [make("heuristic", seed=args.seed * 10 + i) for i in range(args.players)]
+        bots = [make(args.opponent, seed=args.seed * 10 + i)
+                for i in range(args.players)]
         advance(state, bots)
         with open(args.out, "wb") as fh:
-            pickle.dump((state, args.seed, args.players), fh)
+            # The opponent spec is saved with the game: `move` rebuilds the
+            # bots from scratch each invocation and must rebuild the same ones.
+            pickle.dump((state, args.seed, args.players, args.opponent), fh)
         show(state)
         return 0
 
     with open(args.file, "rb") as fh:
-        state, seed, players = pickle.load(fh)
-    bots = [make("heuristic", seed=seed * 10 + i) for i in range(players)]
+        loaded = pickle.load(fh)
+        # Older saves predate the opponent field.
+        state, seed, players = loaded[:3]
+        opponent = loaded[3] if len(loaded) > 3 else "heuristic"
+    bots = [make(opponent, seed=seed * 10 + i) for i in range(players)]
 
     if args.cmd == "move":
         actions = legal_actions(state)
@@ -148,7 +157,7 @@ def main(argv=None):
         apply_action(state, actions[args.index])
         advance(state, bots)
         with open(args.file, "wb") as fh:
-            pickle.dump((state, seed, players), fh)
+            pickle.dump((state, seed, players, opponent), fh)
     show(state)
     return 0
 
