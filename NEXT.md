@@ -442,6 +442,56 @@ Worth noting what the agents were actually right about. Their claim was about th
 guide, not about us, and the distinction matters -- "an expert source is wrong"
 does not imply "we copied the error".
 
+## Delta evaluation, and what it actually bought
+
+The evaluation cloned the state and valued all four seats for every candidate
+move. Three of those four are opponents, and our own move usually cannot change
+what any of them is worth -- so their value is computed once per decision and
+carried over whenever the shared state they read is unchanged.
+
+| | before | after |
+| --- | --- | --- |
+| heuristic, full games | 1.35 games/s | **1.70 games/s** |
+| MCTS prior (100 iters) | 8.70 s | **7.53 s** |
+| fast path taken | - | **51% of candidates** |
+
+Play is bit-identical over 30 full games, checked against the previous commit
+rather than assumed. Three separate changes:
+
+1. **`clone()` stopped seeding a generator it immediately overwrites.**
+   `random.Random()` seeds from OS entropy and the next line called `setstate`.
+   6.4x faster to construct, and clone is on the hot path. 3% of total runtime.
+2. **Merchant reachability is computed once per decision.** It is a search over
+   the link graph, only a Network action changes it, and it was being redone for
+   every candidate -- in the heuristic's `choose` and again in the MCTS prior,
+   where it is paid at every node of the tree.
+3. **Opponent values are reused** when `shared_signature` agrees.
+
+### The signature has to name things, not count them
+
+The first version counted flipped tiles, on the reasoning that tiles never
+unflip, so an unchanged count means nothing flipped. That is false:
+**overbuilding replaces a flipped tile with an unflipped one.** A build that
+overbuilt a flipped tile while its coal draw flipped another left the count at 8
+on both sides. Every rival holding a link into that town lost icons unseen --
+3 VP to one of them -- and one game in thirty played differently.
+
+Counts can cancel; identities cannot. Pinned by
+`test_reused_rival_values_equal_a_full_recomputation`, which carries seed 25
+because that is the game that caught it.
+
+### It applies to half the candidates, not 83%
+
+An earlier estimate in this project put applicability at 83%. Measured, it is
+**51%**, and the first honest implementation only reached 30% -- the signature
+included our own tiles, so every Build invalidated it. An opponent reads our
+tiles only through `link_icons_at`, which ignores unflipped ones, so our own
+unflipped tiles were narrowed out of the signature.
+
+The remaining 49% are candidates that genuinely change what an opponent is
+worth: draining a barrel or a coal cube out of their tile, flipping anything,
+placing a link, or ending the round.
+
 ## Sequencing was tested directly, and the test failed
 
 `brassbot/bots/book.py` forces the expert's Canal Era plan and hands off to the

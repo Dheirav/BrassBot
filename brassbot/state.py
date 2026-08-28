@@ -201,7 +201,11 @@ class GameState:
         # far enough to reshuffle the deck would otherwise draw from the real
         # game's RNG and change what actually happens. Copying the state keeps
         # it deterministic while making it independent.
-        rng = random.Random()
+        # __new__ rather than Random(): the constructor seeds itself from OS
+        # entropy, and setstate throws that away on the next line. Cloning is on
+        # the evaluation's hot path -- once per candidate move -- and the wasted
+        # seeding was 3% of a whole game's runtime.
+        rng = random.Random.__new__(random.Random)
         rng.setstate(self.rng.getstate())
         return GameState(
             data=self.data,  # immutable, shared

@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 
 from ..actions import Action
 from ..engine import apply_action, legal_actions
+from ..network import connected_locations
 from ..state import GameState
 from .base import Bot
 from .heuristic import HeuristicBot
@@ -184,11 +185,24 @@ class MCTSBot(Bot):
         tree would never reach the moves that matter.
         """
         seat = state.current.idx
+        ev = self.evaluator
+        ev.w = ev.weights_for(state.n_players)
+        # Reachability is a search over the link graph, and only a Network
+        # action changes it. Ranking candidates re-derived it for every single
+        # one, which is the prior's largest cost and is paid at every node of
+        # the tree.
+        base_links = set(state.links)
+        base_reachable = connected_locations(state, list(state.merchants))
+
         scored = []
         for action in actions:
             probe = state.clone()
             apply_action(probe, action)
-            scored.append((self._seat_value(probe, seat), action))
+            reachable = base_reachable if set(probe.links) == base_links else None
+            context = ev._sale_context(probe, reachable)
+            owned, _sig = ev.scan_board(probe)
+            scored.append((ev.player_value(probe, seat, context, owned[seat]),
+                           action))
         scored.sort(key=lambda pair: -pair[0])
         width = self.p["prior_width"]
         return [a for _, a in scored[:width]] if width else [a for _, a in scored]

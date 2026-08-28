@@ -235,10 +235,28 @@ class HeuristicBot(Bot):
         best_value = None
         best_action = None
 
+        # Placing a link is the only thing that changes what is reachable, so
+        # every other candidate can reuse this one search instead of repeating
+        # it. Compared by key set rather than by count, so that an era boundary
+        # -- which wipes canal links -- can never be mistaken for no change.
+        base_links = set(state.links)
+        base_reachable = connected_locations(state, list(state.merchants))
+
+        # The opponents' half of the evaluation, computed once for the position
+        # we are moving from. Any candidate that leaves the shared state alone
+        # reuses it.
+        base_owned, base_board_sig = self.scan_board(state)
+        base_context = self._sale_context(state, base_reachable)
+        base_rivals = [self.player_value(state, i, base_context, base_owned[i])
+                       for i in range(state.n_players) if i != me]
+        shared = (self.shared_signature(state, me, base_owned),
+                  max(base_rivals) if base_rivals else 0.0)
+
         for action in actions:
             probe = state.clone()
             apply_action(probe, action)
-            value = self.position_value(probe, me)
+            reachable = base_reachable if set(probe.links) == base_links else None
+            value = self.position_value(probe, me, reachable, shared)
             if isinstance(action, Pass):
                 value += self.w["pass_bias"]
             if best_value is None or value > best_value + 1e-9:
@@ -248,19 +266,32 @@ class HeuristicBot(Bot):
 
     # --- evaluation ---------------------------------------------------------
 
-    def position_value(self, state, me: int) -> float:
-        """Our position, net of what the strongest opponent holds."""
-        # Computed once and shared: none of it depends on which player we are
-        # valuing, and position_value evaluates every seat.
-        context = self._sale_context(state)
+    def position_value(self, state, me: int, reachable=None, shared=None) -> float:
+        """Our position, net of what the strongest opponent holds.
+
+        ``shared`` is ``(signature, best_rival)`` from a position whose shared
+        state this one may match. Three of the four seats we evaluate are
+        opponents, and our own move usually cannot change what any of them is
+        worth -- so when the signature agrees, their value is carried over
+        instead of recomputed. That is three quarters of the evaluation skipped.
+        """
+        context = self._sale_context(state, reachable)
         # One walk of the board, split by owner. Each player_value used to scan
         # every tile to pick out the handful it owns, so evaluating four seats
         # meant four full scans to extract four disjoint subsets.
-        owned = self.tiles_by_owner(state)
+        owned, board_sig = self.scan_board(state)
         mine = self.player_value(state, me, context, owned[me])
-        rivals = [self.player_value(state, i, context, owned[i])
-                  for i in range(state.n_players) if i != me]
-        return mine - self.w["rival"] * (max(rivals) if rivals else 0.0)
+
+        best_rival = None
+        if shared is not None:
+            base_sig, base_rival = shared
+            if base_sig == self.shared_signature(state, me, owned):
+                best_rival = base_rival
+        if best_rival is None:
+            rivals = [self.player_value(state, i, context, owned[i])
+                      for i in range(state.n_players) if i != me]
+            best_rival = max(rivals) if rivals else 0.0
+        return mine - self.w["rival"] * best_rival
 
     @classmethod
     def _contest(cls, state) -> dict:
@@ -280,7 +311,7 @@ class HeuristicBot(Bot):
         return cache[n]
 
     @staticmethod
-    def _sale_context(state):
+    def _sale_context(state, reachable=None):
         """What a sale needs, computed once per position instead of per tile.
 
         Deliberately an approximation: "connected to some merchant, and some
@@ -289,7 +320,14 @@ class HeuristicBot(Bot):
         would mean a search per merchant per candidate action, which move
         generation cannot afford.
         """
-        reachable = connected_locations(state, list(state.merchants))
+        # ``reachable`` is a breadth-first search over the link graph and the
+        # single most expensive part of the context. It depends only on which
+        # links are placed, so a caller evaluating many candidate moves can
+        # compute it once and hand it back for every candidate that did not
+        # place a link. The rest is a walk of ten merchant slots and is cheaper
+        # to redo than to invalidate.
+        if reachable is None:
+            reachable = connected_locations(state, list(state.merchants))
         accepted = {slot.kind for slots in state.merchants.values() for slot in slots}
         merchant_beer = any(slot.beer > 0 for slot in state.merchant_slots())
         return reachable, accepted, merchant_beer
@@ -297,10 +335,63 @@ class HeuristicBot(Bot):
     @staticmethod
     def tiles_by_owner(state) -> list[list]:
         """Every placed tile, bucketed by owner, in one pass."""
-        buckets: list[list] = [[] for _ in range(state.n_players)]
-        for town, _slot, tile in state.all_tiles():
-            buckets[tile.owner].append((town, tile))
+        buckets, _sig = HeuristicBot.scan_board(state)
         return buckets
+
+    @staticmethod
+    def scan_board(state):  # noqa: D401 - see tiles_by_owner
+        """One walk of the board: tiles bucketed by owner, and a signature of
+        everything shared that *another* seat's value can depend on.
+
+        The signature is what makes rival values reusable across candidate
+        moves. Walking the board separately to compute it would cost more than
+        the recomputation it saves, so it rides along with the bucketing.
+
+        The signature records tile *identity*, not counts. Counting was tried
+        and is wrong: overbuilding replaces a flipped tile with an unflipped
+        one, so the flipped total is not monotone. A build that overbuilt a
+        flipped tile while its coal draw flipped another left the count at 8
+        both sides, and every rival holding a link into that town silently lost
+        icons -- worth 3 VP to one of them. Counts can cancel; identities cannot.
+        """
+        buckets: list[list] = [[] for _ in range(state.n_players)]
+        board = []
+        for town, slot, tile in state.all_tiles():
+            buckets[tile.owner].append((town, tile))
+            board.append((town, slot, tile.owner, tile.industry, tile.level,
+                          tile.flipped, tile.resources))
+        return buckets, tuple(board)
+
+    @staticmethod
+    def shared_signature(state, me: int, buckets) -> tuple:
+        """Exactly what an *opponent's* value reads, and nothing else.
+
+        Narrowed twice, and both narrowings mattered:
+
+        Not the acting player's money, income, hand or mat. Those change on
+        nearly every move and no opponent's value reads them.
+
+        Not the acting player's unflipped tiles either. Including every tile on
+        the board was correct but far too strict -- a Build always changes the
+        board, so the reuse fired on only 30% of candidates. An opponent reads
+        our tiles solely through ``link_icons_at``, which counts flipped tiles,
+        so an unflipped tile of ours is invisible to them.
+
+        Opponents' own tiles are compared in full: we can overbuild one, and we
+        can drain a barrel out of one.
+        """
+        others = tuple(
+            (town, t.industry, t.level, t.flipped, t.resources)
+            for seat, bucket in enumerate(buckets) if seat != me
+            for town, t in bucket
+        )
+        # Ours matter to them only as link icons, which unflipped tiles do not
+        # contribute.
+        mine_flipped = tuple((town, t.industry, t.level)
+                             for town, t in buckets[me] if t.flipped)
+        merchant_beer = tuple(slot.beer for slot in state.merchant_slots())
+        return (state.round, state.era, state.rounds_this_era,
+                others, mine_flipped, merchant_beer, len(state.links))
 
     def player_value(self, state, seat: int, context=None, mine=None) -> float:
         data = state.data

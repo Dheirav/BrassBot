@@ -141,3 +141,61 @@ def test_the_mcts_leaf_agrees_with_the_slow_route():
     for state in positions(seeds=(6,), every=11):
         for seat, value in enumerate(searcher._values(state)):
             assert value == reference_player_value(reference, state, seat)
+
+
+def _delta_mismatches(n_players: int, seed: int, limit: int = 400):
+    """Play a real game; at every decision compare the reused rival value
+    against a full recomputation, for every candidate move.
+
+    Returns (mismatches, fast_path_hits, candidates).
+    """
+    from brassbot.network import connected_locations
+
+    bot = make("heuristic")
+    state = new_game(n_players, seed=seed)
+    mismatches, hits, total = [], 0, 0
+    while not state.finished and total < limit:
+        actions = legal_actions(state)
+        me = state.current.idx
+        bot.w = bot.weights_for(state.n_players)
+        base_links = set(state.links)
+        base_reachable = connected_locations(state, list(state.merchants))
+        owned, _bsig = bot.scan_board(state)
+        context = bot._sale_context(state, base_reachable)
+        rivals = [bot.player_value(state, i, context, owned[i])
+                  for i in range(state.n_players) if i != me]
+        shared = (bot.shared_signature(state, me, owned),
+                  max(rivals) if rivals else 0.0)
+
+        for action in actions:
+            probe = state.clone()
+            apply_action(probe, action)
+            reachable = base_reachable if set(probe.links) == base_links else None
+            fast = bot.position_value(probe, me, reachable, shared)
+            slow = bot.position_value(probe, me)
+            total += 1
+            po, _ps = bot.scan_board(probe)
+            if bot.shared_signature(probe, me, po) == shared[0]:
+                hits += 1
+            if abs(fast - slow) > 1e-9:
+                mismatches.append((action, fast, slow))
+        apply_action(state, bot.choose(state, actions))
+    return mismatches, hits, total
+
+
+@pytest.mark.parametrize("n_players,seed", [(4, 25), (4, 1), (3, 7), (2, 3)])
+def test_reused_rival_values_equal_a_full_recomputation(n_players, seed):
+    """Delta evaluation must be exact, not merely close.
+
+    Seed 25 is here because it caught the first version of this: the signature
+    counted flipped tiles instead of naming them, and a build that overbuilt a
+    flipped tile while its coal draw flipped another left the count unchanged.
+    Every rival holding a link into that town lost icons unseen -- 3 VP to one
+    of them -- and one game in thirty played differently.
+    """
+    mismatches, _hits, total = _delta_mismatches(n_players, seed)
+    assert total > 0, "no candidates were evaluated"
+    assert not mismatches, (
+        f"{len(mismatches)} of {total} candidates disagree; first: "
+        f"{mismatches[0][0]} fast={mismatches[0][1]:.6f} slow={mismatches[0][2]:.6f}"
+    )
