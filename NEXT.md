@@ -695,19 +695,42 @@ Deliberate, and each one is somewhere a stronger bot may later want a real choic
 
 ### Search budget, measured
 
-40 games each (24 at 1500), 4p, against three heuristic bots:
+Re-measured on the post-fix engine, 48 games each, 4p, held-out seeds 20000+,
+against three heuristic bots. The earlier curve is kept below it because the
+change in shape is the whole point.
 
-| agent | mean | win% | VP/action |
+| agent | before the engine fixes | **now** | win% now |
 | --- | --- | --- | --- |
-| heuristic | 96.3 +- 1.1 | 25.0% | 3.11 |
-| mcts 300 | 107.9 +- 2.2 | 40.0% | 3.48 |
-| mcts 600 | 112.8 +- 2.2 | 57.5% | 3.64 |
-| **mcts 1500** | **115.6 +- 3.2** | **66.7%** | **3.73** |
+| heuristic | 96.3 +- 1.1 | **105.5 +- 1.4** | 25% |
+| mcts 300 | 107.9 +- 2.2 | **118.2 +- 2.1** | 50% |
+| mcts 600 | 112.8 +- 2.2 | **119.1 +- 1.9** | 56% |
+| mcts 1500 | 115.6 +- 3.2 | **118.5 +- 3.1** | 54% |
 
-Still improving, but **flattening**: roughly +5 for the first doubling, +3 for a
-2.5x increase after it. Compute is still a lever and the Rust port would still
-pay, but it is no longer the cheap one -- reaching an expert 155 this way would
-need far more doublings than the curve will support.
+**The curve has gone flat, and this retires compute as a lever.** It used to be
+climbing at 1500, +2.8 over 600. It no longer climbs at all: 300 to 1500 is
+118.2 -> 118.5, five times the compute for nothing measurable. Every gap between
+the three budgets (0.6 to 0.9) is well inside its own error bar (1.9 to 3.1),
+and 1500 scores *below* 600.
+
+What changed is the floor, not the ceiling. The engine fixes lifted 300
+iterations by +10.3 while leaving the best achievable score where it was, near
+119. Search is no longer limited by how many positions it can look at; it is
+limited by the evaluation it looks at them with. More iterations converge harder
+on the same myopic opinion.
+
+Two consequences worth stating plainly:
+
+- **The delta-evaluation speedup buys no strength.** It makes experiments
+  cheaper -- which is real, and it is why this re-measurement was affordable --
+  but there is no VP waiting at the end of it.
+- **The Rust port loses its main justification.** It was argued for on compute,
+  and the previous version of this section said "the Rust port would still pay".
+  On this evidence it would not, not for strength. Revisit only if the
+  evaluation itself becomes expensive enough to be worth porting.
+
+The remaining gap to an expert 155 is the planning problem -- committing to an
+industry, investing in the Canal Era for a payoff two eras later -- and no amount
+of search over the current evaluation reaches it.
 
 ### Search parameters are already near a flat optimum
 
