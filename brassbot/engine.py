@@ -330,30 +330,47 @@ def legal_networks(state: GameState) -> list[Network]:
         # partners, but the 10 VP pair of the two together never appeared, which
         # is exactly the move the expert line wants and exactly when the board is
         # dense enough for it to matter.
-        pairs = list(combinations(reachable_lines[:DOUBLE_RAIL_CANDIDATES], 2))
+        # Candidate FIRST links, ranked by the icons they would score.
+        firsts = sorted(reachable_lines[:DOUBLE_RAIL_CANDIDATES],
+                        key=lambda l: -sum(link_icons_at(state, e) for e in l.ends))
+
+        seen_pairs: set = set()
+        pairs = []
+        for a in firsts:
+            # The second link is chosen against the board WITH the first placed.
+            # Drawing both from lines already touching the network could only
+            # ever build a fan of two, never a chain extending two locations out
+            # -- which is the main reason to pay for a double rail at all. Two
+            # agents lost the pair they wanted to this, and the rulebook is
+            # explicit that each link is placed separately, so the first is in
+            # your network when the second is evaluated.
+            probe = state.clone()
+            probe.links[a.id] = player
+            for b in buildable_lines(probe, player):
+                if b.id == a.id:
+                    continue
+                key = tuple(sorted((a.id, b.id)))
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                pairs.append((a, b, probe))
         pairs.sort(key=lambda ab: -sum(
-            link_icons_at(state, end) for link in ab for end in link.ends))
-        for a, b in pairs:
+            link_icons_at(state, end) for link in ab[:2] for end in link.ends))
+
+        for a, b, probe in pairs:
             if made >= MAX_DOUBLE_RAIL:
                 break
-            # Each link needs its OWN connected coal. Asking for two cubes from
-            # the union of both links' endpoints let one link take a free cube
-            # from a mine it can never reach: over 40 self-play games, 15% of
-            # offered double rails had an illegal coal plan and the bot played
-            # 1.7 of them a game -- in the repro it was charged GBP15 for an
-            # action that legally costs GBP23, so it could not have afforded it.
-            #
-            # The first draw is applied to a probe before planning the second,
-            # so the two cannot spend the same cube. This is slightly stricter
-            # than the rules, which allow the first placement to open up coal for
-            # the second, and the comment above is honest that refusing a legal
-            # move is the acceptable direction here.
+            # Each link needs its own connected coal: the first from the board as
+            # it stands, the second from the board with the first placed. Asking
+            # for two cubes from the union of both links' endpoints let one link
+            # take a free cube from a mine it could never reach -- 15% of offered
+            # double rails, and about 1.7 played a game.
             first = coal_plans(state, list(a.ends), 1, 1)
             if not first:
                 continue
-            probe = state.clone()
-            apply_plan(probe, player, first[0])
-            second = coal_plans(probe, list(b.ends), 1, 1)
+            after = probe.clone()
+            apply_plan(after, player, first[0])
+            second = coal_plans(after, list(b.ends), 1, 1)
             if not second:
                 continue
             coal = [tuple(first[0]) + tuple(second[0])]

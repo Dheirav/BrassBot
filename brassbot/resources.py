@@ -211,7 +211,18 @@ def beer_plans(
         # them a tile flip you could have taken yourself. The board order this
         # replaced picked by town name, which meant a plan happily scored for
         # someone else while the player's own brewery sat unflipped all game.
-        options.sort(key=lambda o: o[:3])
+        #
+        # Among our OWN breweries, prefer one sitting on a town our links touch.
+        # Flipping it raises the icons those links score, and the tiebreak here
+        # used to be the town's name: an agent watched it drain Stafford, which
+        # was on no link of its own, instead of Walsall, which was an endpoint of
+        # its own canal link. That link scored 7 instead of 9, and the game was
+        # lost by 2.
+        mine_towns = set()
+        for link_id, owner in state.links.items():
+            if owner == player:
+                mine_towns.update(state.data.link_by_id[link_id].ends)
+        options.sort(key=lambda o: (o[0], o[1] not in mine_towns, o[1], o[2]))
         options = [o[3] for o in options]
         if merchant_draw is not None:
             options.insert(0, merchant_draw)
