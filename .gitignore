@@ -18,3 +18,4 @@ docs/evidence/
 # it "may not be re-posted online, sold or repurposed in any way", so it stays
 # local. See docs/research-landscape.md for where to obtain it.
 docs/rules_reference_eog.txt
+.venv-ml/

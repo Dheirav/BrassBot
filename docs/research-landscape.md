@@ -265,6 +265,49 @@ sibling positions inside a single decision, where the stage is identical for eve
 candidate. Measured on that task, the hand-tuned weights **match a fitted linear
 model and slightly beat it**.
 
+### Re-run with a nonlinear model: there IS headroom, and it is the nonlinearity
+
+The two things that probe left open -- nonlinearity and richer features -- were
+tested together. `tools/value_probe.py`, run against `.venv-ml` (a separate venv
+holding scikit-learn, kept out of the engine's own `.venv`). 400 games, 138,880
+training rows, split by game, gradient-boosted trees with early stopping against
+a validation slice, and `RidgeCV` choosing its own penalty:
+
+| predictor | across stages | within game stage |
+| --- | --- | --- |
+| hand-crafted evaluation | 0.210 | 0.553 |
+| linear, original 45 features | 0.603 | 0.569 |
+| **boosted trees, original 45 features** | 0.638 | **0.614** |
+| linear, + track features | 0.616 | 0.583 |
+| **boosted trees, + track features** | 0.640 | **0.617** |
+
+**Boosted trees beat the hand-crafted evaluation by 0.064 within-stage.** That is
+the first predictor in this project to beat it on the metric that matters, and it
+reverses the earlier "no obvious headroom" reading.
+
+**The win is the nonlinearity, not the new features.** Trees on the original 45
+already reach 0.614; adding fourteen track-position features moves it to 0.617.
+The information needed was already in the feature set -- what the hand-tuned
+weighted sum cannot express is the *interactions* between those quantities. A
+linear fit on the same features gets 0.569, so it is specifically the functional
+form that was the limit.
+
+Track features do help the linear model (0.569 -> 0.583), which is consistent
+with them carrying real signal that a weighted sum can use; trees just find that
+structure without being handed it.
+
+Three caveats before this is treated as VP in hand:
+
+- **Spearman is a proxy.** The real test is a bot that evaluates with the model
+  and scores more. Nothing here has played a game.
+- **The labels cap it.** Positions are labelled with what the *heuristic* went on
+  to score, so the model learns "what the heuristic achieves from here". A
+  stronger label source would raise the ceiling and is the usual next iteration.
+- **Cost.** Trees still had not early-stopped at 600 rounds, so this is not even
+  a tuned model -- but a batched prediction over the ~88 candidates of one
+  decision is cheap, which makes this practical for the 1-ply bot even though it
+  would be far too slow inside MCTS.
+
 So there is no easy win here. What this does *not* rule out:
 
 - **Nonlinearity.** Only a linear fit was tried. A network could find structure a
