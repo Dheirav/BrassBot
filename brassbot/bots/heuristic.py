@@ -253,8 +253,12 @@ class HeuristicBot(Bot):
         # Computed once and shared: none of it depends on which player we are
         # valuing, and position_value evaluates every seat.
         context = self._sale_context(state)
-        mine = self.player_value(state, me, context)
-        rivals = [self.player_value(state, i, context)
+        # One walk of the board, split by owner. Each player_value used to scan
+        # every tile to pick out the handful it owns, so evaluating four seats
+        # meant four full scans to extract four disjoint subsets.
+        owned = self.tiles_by_owner(state)
+        mine = self.player_value(state, me, context, owned[me])
+        rivals = [self.player_value(state, i, context, owned[i])
                   for i in range(state.n_players) if i != me]
         return mine - self.w["rival"] * (max(rivals) if rivals else 0.0)
 
@@ -290,7 +294,15 @@ class HeuristicBot(Bot):
         merchant_beer = any(slot.beer > 0 for slot in state.merchant_slots())
         return reachable, accepted, merchant_beer
 
-    def player_value(self, state, seat: int, context=None) -> float:
+    @staticmethod
+    def tiles_by_owner(state) -> list[list]:
+        """Every placed tile, bucketed by owner, in one pass."""
+        buckets: list[list] = [[] for _ in range(state.n_players)]
+        for town, _slot, tile in state.all_tiles():
+            buckets[tile.owner].append((town, tile))
+        return buckets
+
+    def player_value(self, state, seat: int, context=None, mine=None) -> float:
         data = state.data
         p = state.players[seat]
         value = float(p.vp)
@@ -302,15 +314,15 @@ class HeuristicBot(Bot):
         # for the sale check -- four walks of every tile, four times over (once
         # per player). That reached 4,800 board scans per decision and cost most
         # of the evaluation's runtime.
-        own: list = []
+        own = mine if mine is not None else [
+            (town, tile) for town, _slot, tile in state.all_tiles()
+            if tile.owner == seat
+        ]
         own_beer = 0
         waiting = 0
         connected_towns: set = set()
         claimed_towns: set = set()
-        for town, _slot, tile in state.all_tiles():
-            if tile.owner != seat:
-                continue
-            own.append((town, tile))
+        for town, tile in own:
             claimed_towns.add(town)
             if town in reachable:
                 connected_towns.add(town)
@@ -424,15 +436,16 @@ class HeuristicBot(Bot):
         # What the mat can still produce: the VP of the next tile available in
         # each industry. Developing raises it; building spends it onto the
         # board, where it is credited separately.
-        for industry in Industry:
-            level = p.lowest_level(industry)
+        # One lookup per industry, shared with the blocked term below: both used
+        # to walk all six independently, 207,000 lowest_level calls a game.
+        lowest = {i: p.lowest_level(i) for i in Industry}
+        for industry, level in lowest.items():
             if level is not None:
                 value += data.tile(industry, level).vp * self.w["mat_potential"]
 
         # Stranded canal-only tiles block an entire industry in the Rail Era.
         if state.era is Era.RAIL:
-            for industry in Industry:
-                level = p.lowest_level(industry)
+            for industry, level in lowest.items():
                 if level is not None and not data.tile(industry, level).rail_era:
                     value -= self.w["blocked"]
 

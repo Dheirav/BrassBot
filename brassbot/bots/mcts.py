@@ -148,7 +148,8 @@ class MCTSBot(Bot):
         self.evaluator.w = self.evaluator.weights_for(state.n_players)
         # Shared across all four seats: none of it depends on which one.
         context = self.evaluator._sale_context(state)
-        return [self.evaluator.player_value(state, i, context)
+        owned = self.evaluator.tiles_by_owner(state)
+        return [self.evaluator.player_value(state, i, context, owned[i])
                 for i in range(state.n_players)]
 
     def _playout_values(self, state: GameState) -> list[float]:
