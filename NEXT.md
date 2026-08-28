@@ -570,10 +570,28 @@ At 80 games the other two fixed choices were clearly worse: cotton 103.7, potter
 98.1, against a 107.9 control. The spread between industries is far larger than
 the benefit of committing at all.
 
-**The rule transfers, and the size of it is the finding.** A 2.5 sigma +3.65 VP
-is worth having, but the gap to an expert 155 is about 45 VP. Industry mixing is
-not what is costing us that, and a planning mechanism built to fix it should be
-budgeted against 4 VP, not 40.
+**Withdrawn.** Re-measured after seventeen engine fixes, 200 games an arm on the
+report seeds, commitment is worth nothing at any player count: 2p +0.77 (0.4
+sigma), 3p -1.70, 4p -0.03, all for the *uncommitted* arm. It is now off.
+
+Two lessons, and the second is the one that matters.
+
+The engine fixes erased it. A +2.14 +- 0.85 effect measured on one engine did not
+survive the engine changing underneath it, which is worth remembering before
+shipping anything at 2.5 sigma.
+
+And the measurement asked the wrong question. It tested each industry as a
+*commitment*, where pottery loses heavily -- and then shipped a hard filter that
+also bans pottery *opportunistically*. Three agents at three player counts
+independently found pottery the best VP per action on the board (L1 is 10 VP for
+one build, L3 is 11 scored twice, L5 is 20) and each took 21-41 VP from it
+uncontested, because no bot of ours will build one. At 2p the filter is perverse:
+the deck holds **zero** manufacturer industry cards and two pottery ones, so it
+commits to the industry reachable only by location card and bans the one with its
+own cards.
+
+"Is X good to commit to" and "is X good to build" are different questions. A
+filter answers only the first and enforces it against the second.
 
 ### Cotton losing is our bot, not our engine
 

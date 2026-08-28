@@ -110,10 +110,15 @@ def describe(state, action) -> str:
                 + f"  card:{_card(state, seat, action.card)}"
                 + _plan(action.iron, "iron"))
     if isinstance(action, Sell):
+        # Which beer pays for it is a real choice and the two variants are
+        # otherwise identical on screen -- spending your own barrel flips your
+        # own brewery, worth 5-10 VP and twice in the Canal Era.
+        beer = " beer<own first>" if getattr(action, "own_beer", False) \
+            else " beer<merchant first>"
         return ("SELL " + ", ".join(
             f"{state.tiles[s.town][s.slot].industry.value} at {s.town}"
             f" -> {s.merchant}#{s.mslot}" for s in action.sales)
-            + f"  card:{_card(state, seat, action.card)}")
+            + f"  card:{_card(state, seat, action.card)}{beer}")
     if isinstance(action, Loan):
         return f"LOAN  [+30 money, -3 income levels]  card:{_card(state, seat, action.card)}"
     if isinstance(action, Scout):

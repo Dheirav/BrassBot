@@ -50,14 +50,21 @@ class HeuristicBot(Bot):
         # lets the bot buy its way out of the commitment whenever a position
         # looks tempting, which is the behaviour being prevented.
         #
-        # Manufacturer at every player count. Measured on the report seeds
-        # against an uncommitted control: 4p +1.53, 3p +2.71, 2p +2.17, pooled
-        # +2.14 +- 0.85. Cotton and pottery both lose everywhere, pottery
-        # heavily -- so this is worth about 2 VP, and picking the right industry
-        # matters far more than committing at all. The guide names cotton for
-        # 2p; that does not transfer here, because reaching cotton's payoff at
-        # level 3 costs five cleared tiles and a 1-ply bot will not spend them.
-        "commit": 1,
+        # OFF. It was measured at +2.14 +- 0.85 pooled and shipped on that, then
+        # re-measured after seventeen engine fixes over 200 games an arm and is
+        # now worth nothing anywhere: 2p +0.77 (0.4 sigma), 3p -1.70, 4p -0.03.
+        # The fixes changed the game enough to erase it.
+        #
+        # And it has a cost the measurement never showed. It bans every build of
+        # the other two sellable industries, so it forbids pottery outright --
+        # and three agents at three player counts independently found pottery the
+        # best VP per action on the board (L1 is 10 VP for one build, L3 is 11
+        # scored twice, L5 is 20), each taking 21-41 VP from it uncontested
+        # because no bot of ours will build one. The original measurement tested
+        # pottery as a COMMITMENT, which loses heavily, and never as the
+        # opportunistic tile it actually is. Those are different questions and
+        # the hard filter conflated them.
+        "commit": -1,
         "unflipped": 0.375,   # odds we actually realise an unflipped tile's payoff
         # Money is worth ZERO victory points -- it is only the second tiebreak.
         # So cash has purely instrumental value: what it buys before the game
