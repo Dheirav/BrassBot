@@ -832,137 +832,94 @@ Deliberate, and each one is somewhere a stronger bot may later want a real choic
 
 ## Next up
 
-1. ~~Eval harness~~ — done. Rotates seats, reports a distribution and the
-   `>=200` hit rate, splits drawn wins, and flags turn-order bias.
-2. ~~A real heuristic bot~~ — done, and tuned. Beats `greedy` 75.5% at +29 mean.
-3. ~~Diagnose where the points are missing~~ — done, and it changed the plan.
-   Full write-up in `docs/diagnosis.md`. The short version: the bot never builds
-   or sells cotton, manufacturers or potteries (highest level built: 0.3, 0.5,
-   0.1), sells 0.6 tiles a game, and spends **47-66% of its Rail Era actions
-   taking loans**. A quarter of its score is leftover cash.
+### Where the bot stands
 
-   It is stuck in a self-fulfilling trap: a 1-ply evaluation credits an
-   unflipped sellable tile at 0.25, so building one looks like a loss, so it
-   never builds one, so Sell is never legal, so money becomes the cheapest VP,
-   so it loans. It is being rationally pessimistic about its own inability to
-   execute the build-connect-sell chain.
-
-4. **Fix the evaluation before adding search** (next):
-   - credit an unflipped sellable tile near full value when a sale is *available
-     now* -- connected accepting merchant plus reachable beer -- and low when it
-     is not; add terms for merchant connectivity and beer access so building
-     *toward* a sale registers as progress
-   - set `money` to its true terminal value of 0.10 (it is 0.225) and let the
-     liquidity term carry "can I still act"; re-tune `debt` afterwards, since its
-     current value was fitted to a world where loans were good
-   - re-run the diagnostic; if sales rise and loans fall, re-tune
-5. **Memoise `legal_networks`** — a prerequisite for search either way.
-   Profiling puts `legal_actions` at 4.52 ms against 0.08 ms for clone+apply,
-   85% of it in `legal_networks` via ~112 `coal_plans` and ~282 `distances_from`
-   calls per invocation. That caps node expansion at ~200/s; published MCTS on
-   comparable games needed thousands of iterations per move.
-6. ~~Search bot~~ — built (`brassbot/bots/mcts.py`) and it is the largest single
-   gain in the project. See below.
-7. ~~Make nodes cheaper~~ — done, twice over. Node cost 1.43 -> 0.67 ms and
-   search 1.7-2.5x faster; details below. Strength is unchanged where it should
-   be and the win rate rose from 50% to 57.5% at the same 600 iterations.
-8. ~~Measure at 1500+ iterations~~ and ~~tune the search parameters~~ — both done.
-
-### Search budget, measured
-
-Re-measured on the post-fix engine, 48 games each, 4p, held-out seeds 20000+,
-against three heuristic bots. The earlier curve is kept below it because the
-change in shape is the whole point.
-
-| agent | before the engine fixes | **now** | win% now |
+| format | mirror | vs greedy | best single game |
 | --- | --- | --- | --- |
-| heuristic | 96.3 +- 1.1 | **105.5 +- 1.4** | 25% |
-| mcts 300 | 107.9 +- 2.2 | **118.2 +- 2.1** | 50% |
-| mcts 600 | 112.8 +- 2.2 | **119.1 +- 1.9** | 56% |
-| mcts 1500 | 115.6 +- 3.2 | **118.5 +- 3.1** | 54% |
+| 4p | 107.7 +- 0.8 | 106.8 | 164 |
+| 3p | 113.5 +- 1.2 | 105.9 | 153 |
+| 2p | 119.4 +- 1.3 | 114.9 | 158 |
 
-**The curve has gone flat, and this retires compute as a lever.** It used to be
-climbing at 1500, +2.8 over 600. It no longer climbs at all: 300 to 1500 is
-118.2 -> 118.5, five times the compute for nothing measurable. Every gap between
-the three budgets (0.6 to 0.9) is well inside its own error bar (1.9 to 3.1),
-and 1500 scores *below* 600.
+MCTS reaches ~119 at 4p. Human tournament play runs 142-184, median 158, and the
+yardstick's 5.9 VP/action ceiling gives ~183 at 4p -- the two agree, which is the
+best evidence we have that 5.9 is real. 200+ is a 2p target (39 actions x 5.9),
+not a 4p one.
 
-What changed is the floor, not the ceiling. The engine fixes lifted 300
-iterations by +10.3 while leaving the best achievable score where it was, near
-119. Search is no longer limited by how many positions it can look at; it is
-limited by the evaluation it looks at them with. More iterations converge harder
-on the same myopic opinion.
+### What is settled, and will not be revisited without new evidence
 
-Two consequences worth stating plainly:
+Seven levers have been measured and closed. Each has numbers in this document.
 
-- **The delta-evaluation speedup buys no strength.** It makes experiments
-  cheaper -- which is real, and it is why this re-measurement was affordable --
-  but there is no VP waiting at the end of it.
-- **The Rust port loses its main justification.** It was argued for on compute,
-  and the previous version of this section said "the Rust port would still pay".
-  On this evidence it would not, not for strength. Revisit only if the
-  evaluation itself becomes expensive enough to be worth porting.
+| lever | verdict |
+| --- | --- |
+| more MCTS iterations | saturates by 300; 5x compute buys nothing |
+| deeper search (narrow beam) | depth 10 plays *worse* than depth 4; breadth wins |
+| evaluation weights | flat optimum everywhere tried, income included |
+| industry commitment | real but ~2 VP; manufacturer at every count |
+| the guide's industry advice | cotton loses at every count, 2p included |
+| learned value function | better offline ranking, ~18 VP worse in play |
+| the Rust port's premise | it was justified on compute, and compute is dead |
 
-The remaining gap to an expert 155 is the planning problem -- committing to an
-industry, investing in the Canal Era for a payoff two eras later -- and no amount
-of search over the current evaluation reaches it.
+The through-line: **the search is not the constraint and cannot be made into
+one.** More iterations, more depth and a better leaf predictor all fail, because
+each one applies a myopic evaluation further away rather than fixing it.
 
-### Why search saturated: it is not depth, and that is the useful part
+### What actually produced points
 
-The budget curve going flat raised an obvious mechanism: with `prior_width` at 24
-the tree might be too wide to ever get deep, so extra iterations would widen a
-shallow tree rather than deepen it. Measured, that part is exactly true:
+Eleven rules bugs, all found by LLM agents playing full games through
+`tools/play.py`, none by self-play. Self-play cannot notice that a legal option
+was never offered. Three of our own "the bot fails this expert rule" verdicts
+turned out to be the move generator instead.
 
-| iterations | prior_width | max depth | mean leaf depth |
-| --- | --- | --- | --- |
-| 300 | 24 | 3.0 | 2.55 |
-| 300 | 4 | 6.7 | 4.85 |
-| 1500 | 24 | 4.3 | 3.36 |
-| 1500 | 4 | **10.0** | **7.61** |
+### The live thread: a planner, not an evaluator
 
-A round at 4p is eight plies, so at width 24 the search never sees its own next
-turn even at 1500 iterations. Narrowing to 4 more than doubles the depth.
+65% of the variance between seats in a 4p mirror is *play*, not the deal.
+Identical bots on the identical board finish **28 VP apart** on average. The bot
+is not unlucky, it is inconsistent, because every decision is local.
 
-**And it plays worse.** 60 games each, vs three heuristics:
+`brassbot/planner.py` is a beam search over whole lines of play rather than
+single actions, scoring plans by what they finish on. On 10 seeds at 4p:
 
-| iterations | width | mean | win% |
-| --- | --- | --- | --- |
-| 600 | **24** | **118.2 +- 1.7** | **53%** |
-| 600 | 8 | 115.0 +- 2.4 | 42% |
-| 600 | 4 | 114.3 +- 1.9 | 40% |
-| 1500 | 4 | 116.6 +- 2.3 | 43% |
-| 1500 | 8 | 117.8 +- 2.2 | 55% |
+| | mean | best |
+| --- | --- | --- |
+| greedy 1-ply | 115.2 | 127 |
+| beam width 20 | **134.3** | **152** |
 
-Trading breadth for depth costs about 4 VP. Seeing ten plies ahead through this
-evaluation is worth less than considering 24 candidate moves at the root through
-its one-ply ranking.
+**+19 VP, and it improves with width where MCTS refused to.** The action budget,
+mat order, resource availability and link adjacency become constraints on one
+optimisation instead of terms in a per-move score.
 
-That is a third independent line of evidence for the same conclusion. More
-iterations do not help; more depth does not help; the prior -- which is just the
-evaluation applied once -- is doing the work. Searching further only applies a
-myopic evaluation at a greater distance, and the leaf is where the error is.
+**It is a ceiling, not a bot yet.** Two things stand between them:
 
-**The search is not the constraint and cannot be made into one.** Anything that
-moves this project now has to change what a position is worth, not how many
-positions get looked at.
+1. **It cheats on hidden information** -- it sees opponents' hands and the deck
+   order. Needs determinization, sampling those as MCTS already does.
+2. **It is ~25x slower than the heuristic** and re-plans nothing. A real bot
+   plans, plays the first action, and re-plans as the board moves.
 
-### Search parameters are already near a flat optimum
+Both will cost some of the +19. The question is how much survives.
 
-A full tuning run (17 candidates, 57 min, `-b mcts`) changed exactly one
-parameter, `c` from 1.0 to 0.5, and reported +3.0 VP on its validation block
-against a +-2.2 noise floor. Measured on the reporting seeds, **paired against
-c=1.0 on identical games, it came out 2.8 VP worse.** Two blocks favoured 0.5,
-one favoured 1.0; pooled it is a wash. Not adopted.
+### Ordered plan
 
-`widen_k`, `widen_alpha` and `prior_width` were all left untouched -- nothing beat
-the noise floor. That is the useful result: the settings taken from published
-multiplayer work were already good, and **the remaining gap is in the evaluation,
-not the search configuration.** Do not re-run this expecting a win.
+1. **Determinize the planner and re-measure.** This is the honest number and
+   everything else waits on it. If most of the +19 survives sampling, build the
+   bot around it; if it evaporates, the gain was clairvoyance.
+2. **Check whether the planner discovers turn-order management on its own.** The
+   engine models "least spent goes first" correctly, and *nothing in the bot uses
+   it* -- zero references to `spent` or `turn_order` in the evaluation or in the
+   71 learned features. Four back-to-back actions is when a build -> connect ->
+   beer -> sell chain completes without an opponent draining it. A sequence
+   searcher should find this without being told; if it does, that is strong
+   evidence the approach is right.
+3. **Re-plan, not plan once.** Plan, take the first action, re-plan. Measure how
+   often re-planning changes the line.
+4. **Another agent playtest round.** Still the only method that reliably finds
+   real defects. Two rounds, eleven bugs.
+5. **The three remaining branching caps**, in cost order: Gloucester's develop
+   industry, optional merchant beer, double-rail reachability. The discard cap is
+   the expensive one and needs measuring before it is lifted.
 
-The cited hope was that MCTS parameters could be worth a 32x compute advantage.
-Here they were worth nothing measurable, most likely because they were never
-badly chosen.
-8. **Policy/value net** — only if search plateaus. It has not.
+Parked deliberately: the learned value function (needs MCTS-backed labels and
+accumulated data -- a week, for maybe a 30-40% chance), and the Rust port (no
+strength case left, though it would still make experiments faster).
 
 ## Search
 
