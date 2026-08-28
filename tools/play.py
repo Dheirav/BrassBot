@@ -19,7 +19,9 @@ import sys
 from brassbot.actions import Build, Develop, Loan, Network, Pass, Scout, Sell
 from brassbot.bots import make
 from brassbot.engine import apply_action, legal_actions
-from brassbot.gamedata import Era
+from brassbot.gamedata import Era, Industry, income_level
+from brassbot.network import is_connected_to_merchant
+from brassbot.resources import plan_cost
 from brassbot.state import new_game
 
 SEAT = 0
@@ -75,8 +77,27 @@ def describe(state, action) -> str:
             bits.append(f"{spec.iron_cost} iron")
         occupied = state.tiles[action.town][action.slot]
         over = " (overbuild)" if occupied is not None else ""
+
+        # Net cost, not the printed cost. A coal mine or iron works dumps its
+        # cubes into the market on the build and is paid for them, so a tile
+        # reading "cost 7" can cost 3 net -- or pay you 13 on an overbuild into
+        # an empty market. Budgeting from the printed number under-spends.
+        revenue = 0
+        if action.industry is Industry.COAL_MINE and is_connected_to_merchant(state, action.town):
+            revenue, _ = state.data.coal.revenue_from_selling(state.coal, spec.resource_produced)
+        elif action.industry is Industry.IRON_WORKS:
+            revenue, _ = state.data.iron.revenue_from_selling(state.iron, spec.resource_produced)
+        outlay = spec.cost + plan_cost(action.coal) + plan_cost(action.iron)
+        net = outlay - revenue
+        money = f"net {net}" if revenue else f"cost {outlay}"
+        bits[0] = money
+
+        # Income is printed in SPACES but the player sheet shows a LEVEL, and an
+        # unflipped tile pays nothing at all until it flips.
+        after = income_level(p.income_space + spec.income)
+        income = f"+{spec.income} income spaces -> level {after} on flip"
         return (f"BUILD {action.industry.value} L{lvl} at {action.town}{over}"
-                f"  [{', '.join(bits)}, {spec.vp} VP, +{spec.income} income]"
+                f"  [{', '.join(bits)}, {spec.vp} VP on flip, {income}]"
                 f"  card:{_card(state, seat, action.card)}"
                 f"{_plan(action.coal, 'coal')}{_plan(action.iron, 'iron')}")
     if isinstance(action, Network):
