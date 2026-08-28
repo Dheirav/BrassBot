@@ -393,6 +393,41 @@ parameters are at a flat optimum, search budget still pays but is flattening, an
 the evaluation has now been pushed to where its remaining errors need depth
 rather than better weights.
 
+## Income is not underpriced, and the tune block nearly said it was
+
+Two agents playing full games reported that the strategy guide's "income is not
+a goal" is wrong in this engine: a merchant-connected coal mine flips on build,
+roughly pays for itself, and jumps income several spaces. That is true of the
+*guide*. The question it raised for us was whether our evaluation shares the
+guide's mistake and underprices income.
+
+It does not. Swept head-to-head, one variant seat against three baseline seats
+(a mirror cannot see a weight that only buys a relative edge):
+
+| income | tune, seeds 10000+ | validation, seeds 20000+ |
+| --- | --- | --- |
+| 0.0 | +1.6 | -0.0 |
+| 0.0563 | **+3.0** | **-1.1** |
+| 0.075 | +1.2 | -1.4 |
+| 0.09 | +0.5 | - |
+| 0.1125 (shipped) | -1.0 control | +0.1 control |
+| 0.17 | -4.2 | - |
+| 0.225 | -6.4 | - |
+| 0.3 | -15.8 | - |
+| 0.45 | -42.6 | - |
+
+Raising income is monotonically worse and steeply so. Lowering it looked like a
++3.0 VP win on the tune block and evaporated to -1.1 on held-out seeds -- which
+is the whole reason the two blocks exist. Shipped weight stands.
+
+The behaviour numbers say the same thing: the bot ends on **+13.7 income** with
+**2.3 coal mines** standing, against the agent's income 16 on 4 mines. It already
+plays the coal-for-income line; it was never ignoring it.
+
+Worth noting what the agents were actually right about. Their claim was about the
+guide, not about us, and the distinction matters -- "an expert source is wrong"
+does not imply "we copied the error".
+
 ## Sequencing was tested directly, and the test failed
 
 `brassbot/bots/book.py` forces the expert's Canal Era plan and hands off to the
