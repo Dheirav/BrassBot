@@ -105,7 +105,15 @@ def is_connected_to_merchant(state: GameState, origin) -> bool:
     candidate action. Move generation asks this once per candidate line.
     """
     origins = [origin] if isinstance(origin, str) else origin
-    reachable = distances_from(state, tuple(state.merchants))
+    # Every merchant LOCATION, not just the ones holding a tile this game.
+    # state.merchants is filtered by player count, so searching from it made
+    # Warrington (2p) and Nottingham (2-3p) vanish as merchant spaces and left
+    # the whole north-east unable to reach the coal market. The rulebook is
+    # explicit -- a coal mine sells when "connected to any Merchant space (even
+    # those without Merchant tiles)", and the coal-purchase icon list names
+    # Warrington and Nottingham. This docstring already said so; the code did
+    # not. Selling *goods* still requires a real tile, and uses state.merchants.
+    reachable = distances_from(state, tuple(state.data.merchants))
     return any(o in reachable for o in origins)
 
 

@@ -88,12 +88,12 @@ Held-out seeds (0-79), 80 games each, seats rotated, per-format weights applied.
 
 | fmt | pool | mean | SD | P10 | max | VP/action | win% |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 107.0 +- 0.8 | 14.3 | 90 | 158 | **3.45** | 25% |
-| 4p | vs greedy | 104.6 +- 1.7 | 15.1 | 85 | 129 | 3.37 | 99% |
-| 3p | mirror | 113.7 +- 1.2 | 18.2 | 94 | 159 | 3.25 | 33% |
-| 3p | vs greedy | 106.0 +- 2.3 | 20.2 | 81 | 147 | 3.03 | 98% |
-| 2p | mirror | **119.6 +- 1.3** | 16.9 | 96 | 156 | 3.07 | 50% |
-| 2p | vs greedy | 114.7 +- 2.0 | 17.8 | 93 | 171 | 2.94 | 100% |
+| 4p | mirror | 107.7 +- 0.8 | 13.8 | 92 | 164 | **3.47** | 25% |
+| 4p | vs greedy | 106.8 +- 1.9 | 17.2 | 82 | 140 | 3.45 | 95% |
+| 3p | mirror | 113.5 +- 1.2 | 18.5 | 94 | 153 | 3.24 | 33% |
+| 3p | vs greedy | 105.9 +- 2.7 | 24.0 | 72 | 150 | 3.02 | 95% |
+| 2p | mirror | **119.4 +- 1.3** | 16.9 | 99 | 158 | 3.06 | 50% |
+| 2p | vs greedy | 114.9 +- 1.9 | 17.3 | 91 | 158 | 2.95 | 99% |
 
 Industry commitment is shipped in these numbers (`HeuristicBot.DEFAULTS["commit"]`
 = manufacturer). The mirror column barely moves and should not: commitment buys a
@@ -448,33 +448,35 @@ Worth noting what the agents were actually right about. Their claim was about th
 guide, not about us, and the distinction matters -- "an expert source is wrong"
 does not imply "we copied the error".
 
-## Open question: are unused merchant locations still merchant *spaces*?
+## Unused merchant locations are still merchant spaces -- settled, and fixed
 
-Two agents independently reported the same thing, and it is unresolved because
-our sources do not settle it.
+Two agents independently reported that `warrington` (2p) and `nottingham` (2-3p)
+were being dropped as merchant *spaces* rather than merely as merchant *tiles*.
+`state.merchants` is filtered by `min_players`, and both `is_connected_to_merchant`
+and `link_icons_at` read it, so at low player counts a coal mine in the north-east
+could not reach the coal market and `derby-nottingham` scored 0 instead of 2.
 
-`GameData.merchants_for(n)` filters merchant locations by `min_players`
-(warrington 3, nottingham 4), and `state.merchants` is built from it. Two things
-then read that filtered dict:
+Settled against the rulebook, which is explicit on both halves:
 
-- `is_connected_to_merchant` searches from `state.merchants`, so at 2p a coal
-  mine connected only via Warrington or Nottingham cannot sell to the market;
-- `link_icons_at` returns the printed 2 icons only for locations in that dict, so
-  `derby-nottingham` at 3p and `stoke_on_trent-warrington` at 2p score **0**.
+- a coal mine sells when **"connected to any Merchant space (even those without
+  Merchant tiles)"**, and the coal-purchase icons are printed on "the Warrington,
+  Shrewsbury, Nottingham, Gloucester, and Oxford Merchants";
+- `docs/link-scoring.md`, settled earlier from photographs of the components,
+  already recorded that every merchant location shows 2 link icons permanently,
+  per *location* and not per slot, with the pip clusters marking only which slots
+  take a tile at which player count.
 
-**Our own docstring asserts the opposite of our own code.** It reads "Merchant
-*spaces* count even when they hold no merchant tile (as at 2-3 players)". One of
-the two is wrong and the code has been winning by default.
+So the answer was partly already in this repo. `is_connected_to_merchant` now
+searches from `data.merchants` (all five locations) and `link_icons_at` keys on
+the same. Selling *goods* still requires a real merchant tile and is unchanged.
 
-The agents quote the rulebook as "connected to any merchant space (even those
-without merchant tiles)" and as naming Warrington and Nottingham in the
-coal-purchase icon list. `docs/rules_reference_eog.txt` does not contain those
-passages, so this cannot be confirmed from what is in the repo.
+**Its own docstring had been right all along** and the implementation had been
+quietly winning the disagreement. Worth remembering when a comment and the code
+it sits on disagree: that is a bug report, not a stale comment.
 
-It matters: at 2p it makes the whole north-east dead for market coal and worth
-nothing in link VP, and fixing it would move every 2p and 3p number. **Left
-unchanged deliberately, pending a real source.** Do not "fix" it on the strength
-of this note.
+Effect on our own numbers is small -- 2p mirror 119.6 -> 119.4, 3p 113.7 -> 113.5,
+both inside noise -- because the fix is symmetric and our bot rarely plays the
+north-east. It matters for anyone who does.
 
 ## Delta evaluation, and what it actually bought
 

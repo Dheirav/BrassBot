@@ -750,7 +750,12 @@ def _collect_income(state: GameState, p) -> None:
 
 
 def link_icons_at(state: GameState, location: str) -> int:
-    if location in state.merchants:
+    # data.merchants, not state.merchants: the icons are printed on the board at
+    # the location and are there whether or not this player count puts a tile on
+    # it -- see docs/link-scoring.md, settled from photographs of the components.
+    # Keying on the filtered dict scored derby-nottingham and
+    # stoke_on_trent-warrington as 0 instead of 2 at low player counts.
+    if location in state.data.merchants:
         return MERCHANT_LINK_ICONS.get(location, 0)
     total = 0
     for tile in state.tiles.get(location, ()):

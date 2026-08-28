@@ -8,6 +8,7 @@ import pytest
 
 from brassbot.actions import Build, Loan, Sale, Scout, Sell
 from brassbot.cards import WILD_INDUSTRY, Card, CardKind
+from brassbot.network import is_connected_to_merchant
 from brassbot.engine import (
     apply_action,
     legal_actions,
@@ -491,3 +492,23 @@ def test_the_largest_possible_sale_is_always_offered(game):
         assert max(len(s.sales) for s in sells) > 2, (
             "only small sales offered; the maximal combination is unreachable"
         )
+
+
+@pytest.mark.parametrize("players", [2, 3, 4])
+def test_merchant_spaces_count_even_without_a_merchant_tile(players):
+    """Warrington (2p) and Nottingham (2-3p) hold no merchant tile, but the
+    space is still on the board.
+
+    The rulebook: a coal mine sells when "connected to any Merchant space (even
+    those without Merchant tiles)", and the coal-purchase icons are printed at
+    Warrington and Nottingham. The link icons are printed on the location too,
+    so they score regardless of the player count.
+    """
+    game = new_game(players, seed=1)
+    for merchant in ("warrington", "nottingham"):
+        assert link_icons_at(game, merchant) == 2, (
+            f"{merchant} should show its printed 2 link icons at {players}p"
+        )
+    # A town joined only to Nottingham can still reach the coal market.
+    game.links["derby-nottingham"] = 0
+    assert is_connected_to_merchant(game, "derby")
