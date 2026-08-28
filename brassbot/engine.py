@@ -387,10 +387,16 @@ def sellable_tiles(state: GameState, player: int):
         for mid, slots in state.merchants.items():
             if mid not in reachable:
                 continue
+            # Every accepting slot, not just the first. A merchant can hold two
+            # tiles that both take your goods, each with its own beer barrel and
+            # its own bonus, and the rulebook has you choose which one you sell
+            # to. Breaking at the first match made the second slot's barrel
+            # unreachable for a whole game -- one agent lost every cotton sale
+            # to it after the first slot's barrel was spent, and had to spend
+            # two extra actions to work around a sale that was legal all along.
             for mslot, merchant in enumerate(slots):
                 if merchant.accepts(tile.industry):
                     yield Sale(town, slot, mid, mslot)
-                    break
 
 
 def legal_sells(state: GameState) -> list[Sell]:
@@ -401,11 +407,36 @@ def legal_sells(state: GameState) -> list[Sell]:
 
     candidates = list(sellable_tiles(state, player))
     out: list[Sell] = []
+    seen: set = set()
+
+    # The maximal sale, built greedily, is always offered. Enumeration below is
+    # smallest-first and stops at MAX_SELL_COMBOS, so with five or more sellable
+    # tiles every slot filled with one- and two-tile combos and the "flip
+    # everything in one action" move -- the whole point of the expert's one-sell
+    # -per-era line -- could not be generated at all. That made the bot look
+    # like it was choosing to dribble sales out when it was never offered the
+    # alternative.
+    biggest: list = []
+    for sale in candidates:
+        trial = biggest + [sale]
+        if len({(s.town, s.slot) for s in trial}) != len(trial):
+            continue
+        if _sell_is_feasible(state, player, tuple(trial)):
+            biggest = trial
+    if len(biggest) > 1:
+        key = tuple(sorted((s.town, s.slot) for s in biggest))
+        seen.add(key)
+        out.append(Sell(cards[0], tuple(biggest)))
+
     for size in range(1, len(candidates) + 1):
         for combo in combinations(candidates, size):
             if len({(s.town, s.slot) for s in combo}) != len(combo):
                 continue
+            key = tuple(sorted((s.town, s.slot) for s in combo))
+            if key in seen:
+                continue
             if _sell_is_feasible(state, player, combo):
+                seen.add(key)
                 out.append(Sell(cards[0], combo))
             if len(out) >= MAX_SELL_COMBOS:
                 return out
@@ -457,11 +488,29 @@ def _merchant_bonus(state: GameState, player: int, merchant_id: str) -> None:
     elif merchant.bonus_type == "develop":
         # Free develop of one lowest-level tile, no iron. Lightbulb potteries
         # are still excluded.
+        #
+        # The rulebook lets you remove a tile of ANY industry, so this takes the
+        # one that uncovers the most valuable next tile. Walking Industry in
+        # enum order instead always ate a coal mine, since COAL_MINE is first --
+        # which is precisely backwards for a player routing a sale through this
+        # merchant in order to clear a step off their main industry's track.
+        best = None
         for industry in Industry:
             level = p.lowest_level(industry)
-            if level is not None and state.data.tile(industry, level).can_develop:
-                p.mat[industry][level - 1] -= 1
-                break
+            if level is None or not state.data.tile(industry, level).can_develop:
+                continue
+            uncovered = level + 1
+            gain = 0
+            try:
+                gain = state.data.tile(industry, uncovered).vp
+            except Exception:
+                gain = 0
+            # Ties break on enum order, so the choice stays deterministic.
+            if best is None or gain > best[0]:
+                best = (gain, industry, level)
+        if best is not None:
+            _gain, industry, level = best
+            p.mat[industry][level - 1] -= 1
 
 
 def legal_loans(state: GameState) -> list[Loan]:
@@ -774,7 +823,18 @@ def _end_era(state: GameState) -> None:
     for p in state.players:
         deck += p.discard
         p.discard = []
-        deck += [c for c in p.hand if not c.is_wild]
+        # Wilds go back to their faceup decks, exactly as discard() does. They
+        # used to be dropped here and the counters never incremented, so every
+        # wild held across the boundary vanished from the game permanently --
+        # and since Scout needs both piles non-empty, enough leaks make Scout
+        # illegal for everyone for the rest of the game.
+        for card in p.hand:
+            if card.kind is CardKind.WILD_LOCATION:
+                state.wild_location += 1
+            elif card.kind is CardKind.WILD_INDUSTRY:
+                state.wild_industry += 1
+            else:
+                deck.append(card)
         p.hand = []
     state.rng.shuffle(deck)
     state.deck = deck

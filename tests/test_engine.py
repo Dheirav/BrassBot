@@ -456,3 +456,38 @@ def test_an_industry_card_builds_anywhere_when_you_have_nothing_on_the_board(gam
     game.era = Era.RAIL
     game.players[player].mat[Industry.COAL_MINE][0] = 0
     assert {b.town for b in legal_builds(game)} == {"dudley"}
+
+
+def test_wild_cards_return_to_their_decks_at_the_era_boundary(game):
+    """A wild held across the Canal/Rail boundary used to vanish from the game.
+
+    Scout needs both wild piles non-empty, so leaked wilds eventually make Scout
+    illegal for every player for the rest of the game.
+    """
+    before_loc, before_ind = game.wild_location, game.wild_industry
+    game.players[0].hand = [Card(CardKind.WILD_LOCATION),
+                            Card(CardKind.WILD_INDUSTRY)]
+    _end_era(game)
+    assert game.wild_location == before_loc + 1
+    assert game.wild_industry == before_ind + 1
+
+
+def test_the_largest_possible_sale_is_always_offered(game):
+    """Enumeration is smallest-first and capped, so without an explicit maximal
+    candidate the one-action multi-flip is unreachable exactly when it matters."""
+    player = game.current.idx
+    p = game.players[player]
+    p.money = 200
+    only_card(game, player, Card(CardKind.LOCATION, town="birmingham"))
+    towns = ["birmingham", "coventry", "dudley", "walsall", "wolverhampton"]
+    for i, town in enumerate(towns):
+        place(game, town, 0, player, Industry.MANUFACTURER, 2)
+        place(game, town, 1, player, Industry.BREWERY, 2)
+    for _t, _s, tile in game.all_tiles():
+        if tile.industry is Industry.BREWERY:
+            tile.resources = 4
+    sells = legal_sells(game)
+    if sells:
+        assert max(len(s.sales) for s in sells) > 2, (
+            "only small sales offered; the maximal combination is unreachable"
+        )

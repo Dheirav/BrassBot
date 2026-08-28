@@ -530,23 +530,40 @@ The guide names cotton as the 2-player industry and in our engine cotton loses a
 every count, 2p included. That is the kind of disagreement that has meant a rules
 bug three times this month, so it was checked rather than explained away.
 
-**The data is right, and it matches the guide's own premise exactly.** The guide
-argues cotton is a 2p line because "cotton III needs five tiles cleared, which
-only 2p can afford". Our mat holds cotton at L1x3, L2x2, L3x3, L4x3 -- so
-reaching level 3 means clearing exactly five tiles. The number the guide's
-argument turns on is the number in our data. Tile costs check out too (cotton L1
-GBP12 / 5 VP / 5 income, L4 GBP18 / 12 VP; pottery L5 GBP24 / 20 VP, rail only).
+**The data is right.** Our mat holds cotton at L1x3, L2x2, L3x3, L4x3, and tile
+costs check out against the components (cotton L1 GBP12 / 5 VP / 5 income, L4
+GBP18 / 12 VP; pottery L5 GBP24 / 20 VP, rail only).
 
 **The bot cannot climb the track.** A cotton-committed bot at 2p reaches an
-average highest level of **2.02** on 2.92 tiles built. It never arrives at L3,
-where cotton's payoff actually is: L1 and L2 score 5 VP each, L3 and L4 score 9
-and 12. Manufacturer reaches 3.05 on 3.67 tiles, because its low levels are cheap
-(GBP8 and GBP10) and useful immediately.
+average highest level of **2.02** on 2.92 tiles built, never arriving at L3 where
+the payoff is: L1 and L2 score 5 VP each, L3 and L4 score 9 and 12.
 
-So cotton's value is back-loaded behind five low-value builds, and a 1-ply
-evaluator will not spend five actions on a payoff it cannot see. The guide's
-claim needs a planner to be true, and asserting it as a weight cannot substitute
-for one. Same conclusion as the opening book, reached from the opposite end.
+### Correction: the track is cheap, and an agent climbed it
+
+The paragraph that stood here said cotton's value is "back-loaded behind five
+low-value builds", reading the guide's "cotton III needs five tiles cleared" as
+five *actions*. **That arithmetic was wrong.** Develop removes **two tiles per
+action**, so the L1/L2 row costs two or three actions, not five.
+
+An agent playing 2p seed 502 did it: one L1 build, then both actions of Canal
+round 5 on `DEVELOP cotton+cotton` twice, reaching L3 by action 9 of 39. It
+finished on **150 VP against the bot's 132**, with cotton producing 74 of them at
+**12.3 VP per cotton build** -- against the expert benchmark of 8-10 and our
+bot's 4.2.
+
+The decisive detail is one neither the guide nor this document had: **cotton L3
+and L4 are canal-era legal**, so an L3 built and flipped in the Canal Era scores
+9 twice. Two such tiles were 36 of that 150.
+
+So the failure is not the action budget. It is that a 1-ply evaluator will not
+pay a develop action whose return arrives two builds later -- a horizon problem,
+not a cost problem. The conclusion that this needs a planner survives; the
+reasoning given for it did not.
+
+What actually taxes the cotton line at 2p is beer and merchant access: only two
+merchant tiles ever accept cotton at 2p and both can land at one merchant, and
+`decks."2".dual_cotton_manufacturer = 0` means there are **no cotton industry
+cards at all** -- cotton is gated on nine location cards plus wilds.
 
 ### The commitment effect is about +2 VP, not +3.7
 
