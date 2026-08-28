@@ -22,7 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .bots.heuristic import HeuristicBot
-from .engine import apply_action, legal_actions
+from .actions import Sell
+from .engine import apply_action, legal_actions, legal_sells
 from .network import connected_locations
 
 
@@ -49,7 +50,8 @@ class BeamPlanner:
 
     def __init__(self, seat: int, width: int = 24, branch: int = 12,
                  evaluator: HeuristicBot | None = None,
-                 cheap_opponents: bool = False):
+                 cheap_opponents: bool = False, keep_per_root: int = 0,
+                 quiesce: int = 2):
         self.seat = seat
         self.width = width
         self.branch = branch
@@ -68,6 +70,32 @@ class BeamPlanner:
         # Anything faster here has to remove clones, not arithmetic.
         self.opponent = HeuristicBot()
         self.cheap_opponents = cheap_opponents
+        # Slots reserved per distinct FIRST action. OFF, because it was tried
+        # and it is badly wrong: 115.4 VP at a 46% win rate against 132.2 at 79%
+        # for plain value pruning, over the same 24 seeds.
+        #
+        # The idea was that the beam kills a first action at level two or three
+        # because its early steps score worse, even when the payoff lands inside
+        # the horizon -- the shape a tempo play has. The measurement says the
+        # cost of the cure exceeds the disease: reserving a slot for each of
+        # ~12 distinct first actions leaves a width-12 beam one plan deep per
+        # line. That is not a fairer search, it is a shallower one, and this
+        # beam needs its depth more than its breadth.
+        #
+        # It also means the pruning function is NOT why the planner fails to
+        # find turn-order management. That explanation is unsupported.
+        self.keep_per_root = keep_per_root
+        # Quiescence, borrowed from chess: never score a position in the middle
+        # of a transaction.
+        #
+        # A line that has built a manufacturer and not yet sold it looks like a
+        # pure loss -- money gone, tile unflipped -- which is the exact failure
+        # docs/diagnosis.md records for the one-ply bot, reappearing at the
+        # beam's horizon instead of at ply one. Chess does not evaluate a
+        # position with a capture pending; this does not evaluate one with a
+        # sale pending. "Quiet" here means no unflipped tile of ours that a Sell
+        # action could cash in right now.
+        self.quiesce = quiesce
 
     def _opponent_move(self, state, actions):
         if not self.cheap_opponents:
@@ -151,13 +179,45 @@ class BeamPlanner:
             # Prune first, then let the opponents move: the survivors are the
             # only states whose futures we still care about.
             children.sort(key=lambda p: -self._potential(p))
-            beam = children[:self.width]
+            beam = self._select(children)
             for plan in beam:
                 self._advance_opponents(plan.state)
             steps += 1
 
-        beam.sort(key=lambda p: -p.score)
+        for plan in beam:
+            self._quiesce(plan)
+        beam.sort(key=lambda p: -self._potential(p))
         return beam[0] if beam else None
+
+    def _quiesce(self, plan) -> None:
+        """Cash in pending sales before scoring, up to `quiesce` extra actions.
+
+        Greedy rather than a second beam: sells are few, and the point is to
+        finish the transaction, not to search it.
+        """
+        for _ in range(self.quiesce):
+            state = plan.state
+            if state.finished or state.current.idx != self.seat:
+                return
+            sells = legal_sells(state)
+            if not sells:
+                return
+            best, best_value = None, None
+            for action in sells:
+                probe = state.clone()
+                apply_action(probe, action)
+                value = self._potential_state(probe)
+                if best_value is None or value > best_value + 1e-9:
+                    best, best_value = action, value
+            if best is None:
+                return
+            apply_action(state, best)
+            plan.actions.append(best)
+            self._advance_opponents(state)
+
+    def _potential_state(self, state) -> float:
+        self.ev.w = self.ev.weights_for(state.n_players)
+        return self.ev.position_value(state, self.seat)
 
     def best_actions(self, state, horizon: int | None = None) -> list:
         """Just the action sequence.
@@ -169,6 +229,27 @@ class BeamPlanner:
         """
         plan = self.search(state, horizon)
         return plan.actions if plan else []
+
+    def _select(self, children: list) -> list:
+        """Best `keep_per_root` plans for each distinct first action, then the
+        best of whatever is left. `children` arrives already sorted by value."""
+        if self.keep_per_root <= 0:
+            return children[:self.width]
+        chosen, taken = [], {}
+        for plan in children:
+            root = repr(plan.actions[0]) if plan.actions else None
+            if taken.get(root, 0) < self.keep_per_root:
+                taken[root] = taken.get(root, 0) + 1
+                chosen.append(plan)
+                if len(chosen) >= self.width:
+                    return chosen
+        picked = {id(p) for p in chosen}
+        for plan in children:
+            if id(plan) not in picked:
+                chosen.append(plan)
+                if len(chosen) >= self.width:
+                    break
+        return chosen[:self.width]
 
     def _potential(self, plan) -> float:
         """Rank partial plans. Final VP once the game is over, and the

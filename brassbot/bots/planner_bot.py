@@ -34,6 +34,11 @@ class PlannerBot(Bot):
         # Sampled worlds per decision. Each one costs a full search, so this is
         # the expensive dial; 1 means plan in a single guessed world.
         "worlds": 1,
+        # Beam slots reserved per distinct first action. Zero: measured at
+        # 115.4 VP against 132.2 for plain value pruning. See planner.py.
+        "keep_per_root": 0,
+        # Extra actions spent finishing a pending sale before a line is scored.
+        "quiesce": 2,
     }
 
     def __init__(self, seed: int = 0, **params):
@@ -48,7 +53,9 @@ class PlannerBot(Bot):
             return actions[0]
         me = state.current.idx
         planner = BeamPlanner(seat=me, width=int(self.p["width"]),
-                              branch=int(self.p["branch"]))
+                              branch=int(self.p["branch"]),
+                              keep_per_root=int(self.p["keep_per_root"]),
+                              quiesce=int(self.p["quiesce"]))
 
         # Each sampled world votes for the first action of its best line, scored
         # by what that line reaches. Summing scores rather than counting votes
