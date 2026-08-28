@@ -944,15 +944,26 @@ A sequence searcher ought to find it unprompted. It does not. 16 seeds, 4p:
 It scores 22 VP more while taking *fewer* double turns, and its spending is flat
 whether or not it is acting last. Whatever the planner found, this is not it.
 
-**Why, and it is a real limit on the design.** The beam scores finished lines by
-final VP, but it *prunes* partial lines with `position_value` -- the same myopic
-evaluation. A plan that gives up value now to buy tempo later is cut at the
-pruning step, before the payoff is anywhere in view. So the planner escapes the
-evaluation's myopia in what it *rewards* and inherits it in what it *keeps*.
+**Why it happens is still unknown.** The obvious explanation -- that the beam
+prunes partial lines with the myopic `position_value` and so cuts tempo plays
+before they pay -- was tested and is wrong. Reserving beam slots per distinct
+first action, so no candidate is eliminated early, scores **115.4 at a 46% win
+rate against 132.2 at 79%**, and reserving two slots each is worse still at
+110.5/29%. Spreading a width-12 beam across ~12 first actions leaves every line
+one plan deep: a shallower search, not a fairer one. This beam needs depth more
+than breadth.
 
-That points at the next real lever: the pruning function, not the search. It also
-leaves turn-order management genuinely untried -- the guide claims it matters, no
-bot here has ever used it, and nothing yet measures what it is worth.
+Two chess ideas were then tried against the same target:
+
+| change | result |
+| --- | --- |
+| root-diverse pruning | **115.4** vs 132.2 control -- badly harmful |
+| quiescence (finish a pending sale before scoring) | 133.9 vs 132.8 control -- +1.1, 0.3 sigma, not a gain |
+| transposition table | not built; measured **22%** of scored states are repeats |
+
+So turn-order management remains untried *and* unexplained: the guide claims it
+matters, nothing here has ever used it, and we now know the pruning function is
+not what stops the planner finding it.
 
 ### Still to do on it
 

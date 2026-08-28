@@ -86,7 +86,13 @@ class BeamPlanner:
         # find turn-order management. That explanation is unsupported.
         self.keep_per_root = keep_per_root
         # Quiescence, borrowed from chess: never score a position in the middle
-        # of a transaction.
+        # of a transaction. Measured at +1.1 VP (132.8 -> 133.9 over 24 report
+        # seeds, win rate 83% either way), which is 0.3 sigma and therefore NOT
+        # a demonstrated gain. Kept at 2 because the point estimate is positive,
+        # it costs about 1% of runtime, and it is the right thing on principle --
+        # but it should not be cited as an improvement. quiesce=4 scores
+        # identically to quiesce=2, so the extension rarely wants more than two
+        # actions.
         #
         # A line that has built a manufacturer and not yet sold it looks like a
         # pure loss -- money gone, tile unflipped -- which is the exact failure
