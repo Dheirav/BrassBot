@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 
 from .bots.heuristic import HeuristicBot
 from .engine import apply_action, legal_actions
+from .network import connected_locations
 
 
 @dataclass
@@ -47,13 +48,41 @@ class BeamPlanner:
     """
 
     def __init__(self, seat: int, width: int = 24, branch: int = 12,
-                 evaluator: HeuristicBot | None = None):
+                 evaluator: HeuristicBot | None = None,
+                 cheap_opponents: bool = True):
         self.seat = seat
         self.width = width
         self.branch = branch
         self.ev = evaluator or HeuristicBot()
-        # Opponents reply with the ordinary bot while we search our own line.
+        # Opponents reply while we search our own line, and profiling says that
+        # is where the search actually spends itself: 56% of runtime in 645
+        # opponent decisions, each a full evaluation of ~88 candidates across all
+        # four seats. Inside a search the opponent model does not need to be the
+        # real bot -- it needs to be roughly right and cheap. This one ranks only
+        # by the acting seat's own value, which is the same trade the MCTS prior
+        # already makes.
         self.opponent = HeuristicBot()
+        self.cheap_opponents = cheap_opponents
+
+    def _opponent_move(self, state, actions):
+        if not self.cheap_opponents:
+            return self.opponent.choose(state, actions)
+        seat = state.current.idx
+        self.opponent.w = self.opponent.weights_for(state.n_players)
+        best_value = None
+        best_action = actions[0]
+        base_links = set(state.links)
+        reachable = connected_locations(state, list(state.merchants))
+        for action in actions:
+            probe = state.clone()
+            apply_action(probe, action)
+            ctx = self.opponent._sale_context(
+                probe, reachable if set(probe.links) == base_links else None)
+            owned, _sig = self.opponent.scan_board(probe)
+            value = self.opponent.player_value(probe, seat, ctx, owned[seat])
+            if best_value is None or value > best_value + 1e-9:
+                best_value, best_action = value, action
+        return best_action
 
     def _rank(self, state, actions):
         """Order candidates by the one-ply evaluation, best first.
@@ -83,7 +112,7 @@ class BeamPlanner:
             actions = legal_actions(state)
             if not actions:
                 break
-            apply_action(state, self.opponent.choose(state, actions))
+            apply_action(state, self._opponent_move(state, actions))
 
     def search(self, state, horizon: int | None = None) -> list:
         """Return the best action sequence found for this seat.

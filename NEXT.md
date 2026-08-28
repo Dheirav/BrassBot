@@ -896,6 +896,37 @@ median of 158. No bot in this project has been near that. The action budget,
 mat order, resource availability and link adjacency become constraints on one
 optimisation instead of terms in a per-move score.
 
+### The honest version works: 132.2 and a 79% win rate
+
+`brassbot/bots/planner_bot.py` is the real thing -- it samples what it cannot
+see, looks a bounded distance ahead rather than to the end of the game, and
+re-plans every turn. 4p against three heuristics, report seeds, 24 games:
+
+| bot | mean | win% | time |
+| --- | --- | --- | --- |
+| heuristic | 107.5 +- 1.5 | 25% | 3s |
+| mcts 600 | 117.8 +- 3.0 | 42% | 191s |
+| **planner h8 w12** | **132.2 +- 2.4** | **79%** | 286s |
+| planner h12 w16 | 130.7 +- 2.6 | 79% | 556s |
+
+**+24.7 over the heuristic and +14.4 over MCTS, at a 79% win rate against a 25%
+baseline.** The perfect-information ceiling is 143.7, so roughly 11 VP of that
+was clairvoyance and **most of the gain survives honest information** -- which
+was the question the whole approach hung on.
+
+That it holds up is partly because we are not blind: the deck composition is
+fixed and known per player count, discards are face up, and hand sizes are
+public. `determinize` redeals only the genuinely unseen pool, so the uncertainty
+is which unseen card sits where, not what exists.
+
+VP per action is now **4.26**, against the expert band of 4.8-5.2 and a club
+average of 3.2. The heuristic sits at 3.47.
+
+Horizon 12 with width 16 is no better than horizon 8 with width 12 and costs
+twice as much, so the useful settings are small.
+
+### Still to do on it
+
 **It is a ceiling, not a bot yet.** Two things stand between them:
 
 1. **It cheats on hidden information** -- it sees opponents' hands and the deck

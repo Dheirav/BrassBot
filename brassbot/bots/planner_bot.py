@@ -1,0 +1,80 @@
+"""A bot that plans a line, plays one action of it, and re-plans.
+
+The perfect-information beam in `brassbot/planner.py` scores 143.7 at 4p against
+the 1-ply bot's 115.2. This is the honest version of it, and the difference is
+the whole question: it samples what it cannot see, looks a bounded distance
+ahead instead of to the end of the game, and re-plans every turn as the board
+moves under it.
+
+What we are NOT blind to matters here, and keeps the sampling cheap. The deck
+composition is fixed and known per player count, discards are face up, and hand
+sizes are public -- so `determinize` redeals only the genuinely unseen pool
+rather than guessing the whole game. The uncertainty is which unseen card sits
+where, not what exists.
+"""
+
+from __future__ import annotations
+
+from ..engine import apply_action
+from ..planner import BeamPlanner
+from .base import Bot
+from .mcts import determinize
+
+
+class PlannerBot(Bot):
+    name = "planner"
+
+    DEFAULTS = {
+        # How far ahead one plan reaches. Eight actions is four of our own turns
+        # at 4p, which is enough to hold a whole build -> connect -> beer -> sell
+        # chain in view -- the chain a one-ply evaluator cannot see the start of.
+        "horizon": 8,
+        "width": 12,
+        "branch": 8,
+        # Sampled worlds per decision. Each one costs a full search, so this is
+        # the expensive dial; 1 means plan in a single guessed world.
+        "worlds": 1,
+    }
+
+    def __init__(self, seed: int = 0, **params):
+        super().__init__(seed)
+        unknown = set(params) - set(self.DEFAULTS)
+        if unknown:
+            raise KeyError(f"unknown params: {sorted(unknown)}")
+        self.p = {**self.DEFAULTS, **params}
+
+    def choose(self, state, actions):
+        if len(actions) == 1:
+            return actions[0]
+        me = state.current.idx
+        planner = BeamPlanner(seat=me, width=int(self.p["width"]),
+                              branch=int(self.p["branch"]))
+
+        # Each sampled world votes for the first action of its best line, scored
+        # by what that line reaches. Summing scores rather than counting votes
+        # keeps a single strong line from being outvoted by several weak ones.
+        tally: dict = {}
+        for i in range(int(self.p["worlds"])):
+            world = determinize(state, me, self.rng)
+            plan = planner.search(world, horizon=int(self.p["horizon"]))
+            if not plan or not plan.actions:
+                continue
+            first = plan.actions[0]
+            key = repr(first)
+            score, _ = tally.get(key, (0.0, None))
+            tally[key] = (score + planner._potential(plan), first)
+        if not tally:
+            return actions[0]
+
+        best_key = max(tally, key=lambda k: tally[k][0])
+        chosen = tally[best_key][1]
+        # The plan was made in a sampled world, so the chosen action must be
+        # matched back to a real legal one -- card indices refer to a hand that
+        # only existed in that world.
+        for action in actions:
+            if repr(action) == best_key:
+                return action
+        for action in actions:
+            if type(action) is type(chosen):
+                return action
+        return actions[0]

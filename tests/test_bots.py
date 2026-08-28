@@ -41,7 +41,7 @@ def snapshot(state):
 
 def test_registry_exposes_every_bot():
     assert set(REGISTRY) == {"random", "greedy", "heuristic", "mcts", "book", "commit",
-                             "learned"}
+                             "learned", "planner"}
 
 
 def test_make_builds_a_bare_name():
