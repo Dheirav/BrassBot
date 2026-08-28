@@ -833,6 +833,45 @@ The remaining gap to an expert 155 is the planning problem -- committing to an
 industry, investing in the Canal Era for a payoff two eras later -- and no amount
 of search over the current evaluation reaches it.
 
+### Why search saturated: it is not depth, and that is the useful part
+
+The budget curve going flat raised an obvious mechanism: with `prior_width` at 24
+the tree might be too wide to ever get deep, so extra iterations would widen a
+shallow tree rather than deepen it. Measured, that part is exactly true:
+
+| iterations | prior_width | max depth | mean leaf depth |
+| --- | --- | --- | --- |
+| 300 | 24 | 3.0 | 2.55 |
+| 300 | 4 | 6.7 | 4.85 |
+| 1500 | 24 | 4.3 | 3.36 |
+| 1500 | 4 | **10.0** | **7.61** |
+
+A round at 4p is eight plies, so at width 24 the search never sees its own next
+turn even at 1500 iterations. Narrowing to 4 more than doubles the depth.
+
+**And it plays worse.** 60 games each, vs three heuristics:
+
+| iterations | width | mean | win% |
+| --- | --- | --- | --- |
+| 600 | **24** | **118.2 +- 1.7** | **53%** |
+| 600 | 8 | 115.0 +- 2.4 | 42% |
+| 600 | 4 | 114.3 +- 1.9 | 40% |
+| 1500 | 4 | 116.6 +- 2.3 | 43% |
+| 1500 | 8 | 117.8 +- 2.2 | 55% |
+
+Trading breadth for depth costs about 4 VP. Seeing ten plies ahead through this
+evaluation is worth less than considering 24 candidate moves at the root through
+its one-ply ranking.
+
+That is a third independent line of evidence for the same conclusion. More
+iterations do not help; more depth does not help; the prior -- which is just the
+evaluation applied once -- is doing the work. Searching further only applies a
+myopic evaluation at a greater distance, and the leaf is where the error is.
+
+**The search is not the constraint and cannot be made into one.** Anything that
+moves this project now has to change what a position is worth, not how many
+positions get looked at.
+
 ### Search parameters are already near a flat optimum
 
 A full tuning run (17 candidates, 57 min, `-b mcts`) changed exactly one
