@@ -473,6 +473,8 @@ def legal_sells(state: GameState) -> list[Sell]:
     if len(biggest) > 1:
         seen.add(_sale_key(biggest))
         out.append(Sell(cards[0], tuple(biggest)))
+        if _sell_is_feasible(state, player, tuple(biggest), own_beer=True):
+            out.append(Sell(cards[0], tuple(biggest), own_beer=True))
 
     for size in range(1, len(candidates) + 1):
         for combo in combinations(candidates, size):
@@ -484,30 +486,46 @@ def legal_sells(state: GameState) -> list[Sell]:
             if _sell_is_feasible(state, player, combo):
                 seen.add(key)
                 out.append(Sell(cards[0], combo))
+                # The same sale paid for with our own barrels instead, so our
+                # own breweries flip. Only when it is actually feasible on own
+                # beer alone, otherwise it is the same move twice.
+                if _sell_is_feasible(state, player, combo, own_beer=True):
+                    out.append(Sell(cards[0], combo, own_beer=True))
             if len(out) >= MAX_SELL_COMBOS:
                 return out
     return out
 
 
-def _sell_is_feasible(state: GameState, player: int, sales) -> bool:
+def _sell_is_feasible(state: GameState, player: int, sales,
+                      own_beer: bool = False) -> bool:
     """Beer is shared across the sales in one action, so feasibility has to be
     checked by simulating the whole sequence."""
     probe = state.clone()
     for sale in sales:
-        if not _resolve_sale(probe, player, sale, commit=True):
+        if not _resolve_sale(probe, player, sale, commit=True, own_beer=own_beer):
             return False
     return True
 
 
-def _resolve_sale(state: GameState, player: int, sale: Sale, commit: bool) -> bool:
-    """Flip one tile by selling it. Beer is taken greedily: merchant beer first
-    (it carries a bonus), then whatever else is legal."""
+def _resolve_sale(state: GameState, player: int, sale: Sale, commit: bool,
+                  own_beer: bool = False) -> bool:
+    """Flip one tile by selling it.
+
+    Beer is taken greedily -- merchant beer first, since it is free and carries a
+    bonus -- unless ``own_beer``, which spends our own barrels first so our own
+    breweries flip.
+    """
     tile = state.tiles[sale.town][sale.slot]
     if tile is None or tile.flipped:
         return False
     spec = spec_for(state, tile)
     need = spec.beer_to_sell or 0
-    plans = beer_plans(state, player, sale.town, need, (sale.merchant, sale.mslot), 1)
+    merchant = None if own_beer else (sale.merchant, sale.mslot)
+    plans = beer_plans(state, player, sale.town, need, merchant, 1)
+    if not plans and own_beer:
+        # Our own barrels could not cover it; a merchant's may.
+        plans = beer_plans(state, player, sale.town, need,
+                           (sale.merchant, sale.mslot), 1)
     if not plans:
         return False
     if not commit:
@@ -639,7 +657,8 @@ def apply_action(state: GameState, action: Action) -> None:
     elif isinstance(action, Sell):
         discard(state, player, [action.card])
         for sale in action.sales:
-            _resolve_sale(state, player, sale, commit=True)
+            _resolve_sale(state, player, sale, commit=True,
+                          own_beer=getattr(action, "own_beer", False))
     elif isinstance(action, Loan):
         discard(state, player, [action.card])
         p.money += state.data.constants["loan_amount"]

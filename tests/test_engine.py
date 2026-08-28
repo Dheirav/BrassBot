@@ -610,3 +610,37 @@ def test_only_worthless_tiles_means_the_penalty_but_not_the_tiles(game):
     left = [tile for _t, _s, tile in game.all_tiles() if tile.owner == 0]
     assert len(left) == 1, "a tile worth nothing cannot pay, so it should remain"
     assert p.vp == 16, "the shortfall is still charged at 1 VP per pound"
+
+
+def test_a_sale_can_choose_to_spend_your_own_beer(game):
+    """The rulebook says you MAY consume a merchant's beer.
+
+    Taking it is usually right, but spending your own barrel flips your own
+    brewery -- 5-10 VP, and twice if it happens in the Canal Era. Three agents
+    reported being unable to make that choice.
+    """
+    player = game.current.idx
+    p = game.players[player]
+    p.money = 200
+    only_card(game, player, Card(CardKind.LOCATION, town="birmingham"))
+    place(game, "birmingham", 0, player, Industry.MANUFACTURER, 2)
+    place(game, "birmingham", 1, player, Industry.BREWERY, 2)
+    for _t, _s, tile in game.all_tiles():
+        if tile.industry is Industry.BREWERY:
+            tile.resources = 2
+    for link in game.data.links:
+        if link.canal:
+            game.links[link.id] = player
+    for slots in game.merchants.values():
+        for slot in slots:
+            slot.beer = 1
+
+    sells = legal_sells(game)
+    assert any(s.own_beer for s in sells), "no own-beer variant offered"
+
+    own = next(s for s in sells if s.own_beer)
+    before = game.tiles["birmingham"][1].resources
+    apply_action(game, own)
+    assert game.tiles["birmingham"][1].resources < before, (
+        "the own-beer sale did not draw on our own brewery"
+    )

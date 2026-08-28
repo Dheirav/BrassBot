@@ -50,11 +50,19 @@ class Sale:
 
 @dataclass(frozen=True, slots=True)
 class Sell:
-    """A single Sell action may flip several tiles; beer is resolved greedily at
-    apply time (merchant beer first, then own breweries)."""
+    """A single Sell action may flip several tiles.
+
+    ``own_beer`` asks the sale to spend our own barrels before a merchant's. The
+    rulebook says you MAY consume a merchant's beer, and taking it is usually
+    right -- it is free and carries a bonus -- but not always: spending your own
+    barrels flips your own breweries, which is 5-10 VP each and scores twice if
+    it happens in the Canal Era. Three separate agents reported being unable to
+    make that choice.
+    """
 
     card: int
     sales: tuple[Sale, ...]
+    own_beer: bool = False
 
 
 @dataclass(frozen=True, slots=True)
