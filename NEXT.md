@@ -182,20 +182,28 @@ Trajectory of the 4p mirror through this work:
 
 | metric | before | now | expert 4p |
 | --- | --- | --- | --- |
-| loans per game | 9.6 | **4.8** | 4-6 canal, 0-3 rail |
-| final income | -7.7 | **+8.0** | positive |
-| rail links | 5.0 | **7.0** | 7-10 |
-| canal links | 3.2 | 4.5 | 2-4 |
-| tiles sold | 0.6 | **2.8** | - |
-| tiles flipped | 5.4 | **9.5** | 8-12 |
-| VP split industry:link | - | **46:47** | 65:35 to 40:60 |
-| pottery level reached | 0.1 | 1.1 | - |
-| cash left at game end | ~164 | **52** | 0 (worth nothing) |
+| loans per game | 9.6 | **2.8** | 4-6 canal, 0-3 rail |
+| final income | -7.7 | **+13.7** | positive |
+| rail links | 5.0 | **8.0** | 7-10 |
+| canal links | 3.2 | 4.7 | 2-4 |
+| tiles sold | 0.6 | **5.0** | - |
+| tiles flipped | 5.4 | **11.6** | 8-12 |
+| VP split industry:link | - | **47:53** | 65:35 to 40:60 |
+| pottery level reached | 0.1 | 1.1 | - (not re-measured) |
+| cash left at game end | ~164 | **16** | 0 (worth nothing) |
 
-Rail links, tiles flipped, loan count and the industry:link split are all now
-inside expert bands. The remaining leaks are visible: **52 pounds unspent at the
-final whistle** is roughly ten actions of unused buying power scoring nothing,
-and canal links run slightly above the expert 2-4 (the rule of thumb is to build
+Rail links, tiles flipped and the industry:link split are inside expert bands.
+Cash left has largely closed -- **16 pounds** at the final whistle against the
+~164 we started this work with, though it is still above the expert 0-10.
+
+Loans moved the *wrong* way, and it is worth flagging rather than burying: 4.8 ->
+**2.8** a game, against an expert 4-6 in the Canal Era alone. The bot is
+borrowing less exactly where the yardstick says it should borrow more, which is
+the same Canal-Era under-investment the band table diagnoses. Note that acting on
+that finding directly has already been tried once and failed (see below) -- the
+diagnosis is sound, the obvious fix is not.
+
+Canal links also still run above the expert 2-4 (the rule of thumb is to build
 one only when it scores 6+ VP or is strictly needed).
 
 ### Distance to a realistic target
@@ -295,25 +303,31 @@ PYTHONPATH=. .venv/bin/python tools/yardstick.py heuristic -n 40 -w 4 --sources
 
 Heuristic bot, 4p mirror -- **4 of 11 bands met**:
 
+Re-measured after the four engine fixes, 200 games:
+
 | dimension | ours | expert | |
 | --- | --- | --- | --- |
-| VP per action | 3.07 | 4.8-5.2 | LOW |
-| **VP entering the Rail Era** | **29.5** | **70-80** | **LOW** |
-| **loans in the Canal Era** | **1.5** | **4-6** | **LOW** |
-| **tiles developed in the Rail Era** | **2.8** | **0** | **HIGH** |
-| tiles developed | 5.8 | 2-4 | HIGH |
-| canal links built | 4.9 | 2-4 | HIGH |
-| money left at the end | 18.9 | 0-10 | HIGH |
-| rail links built | 8.5 | 7-10 | ok |
-| tiles flipped | 9.8 | 8-12 | ok |
-| loans in the Rail Era | 1.8 | 0-3 | ok |
+| VP per action | 3.51 | 4.8-5.2 | LOW |
+| **VP entering the Rail Era** | **38.3** | **70-80** | **LOW** |
+| **loans in the Canal Era** | **1.4** | **4-6** | **LOW** |
+| **tiles developed in the Rail Era** | **2.7** | **0** | **HIGH** |
+| tiles developed | 4.6 | 2-4 | HIGH |
+| canal links built | 4.7 | 2-4 | HIGH |
+| money left at the end | 15.7 | 0-10 | HIGH |
+| rail links built | 8.0 | 7-10 | ok |
+| tiles flipped | 11.6 | 8-12 | ok |
+| loans in the Rail Era | 1.4 | 0-3 | ok |
 | share of VP from industry | 0.47 | 0.40-0.65 | ok |
 
 **These four failures are one mistake.** The bot under-invests in the Canal Era:
-it takes 1.5 loans where experts take 4-6, so it has too little money, so it
-enters the Rail Era on **29.5 VP against an expert 70-80** -- and then spends
-scarce Rail Era actions developing (2.8) that should have been done in canal, at
+it takes 1.4 loans where experts take 4-6, so it has too little money, so it
+enters the Rail Era on **38.3 VP against an expert 70-80** -- and then spends
+scarce Rail Era actions developing (2.7) that should have been done in canal, at
 roughly 5 VP of opportunity cost each.
+
+The engine fixes moved every number in the right direction (VP/action 3.07 ->
+3.51, VP entering rail 29.5 -> 38.3, tiles flipped 9.8 -> 11.6) without closing a
+single band. The diagnosis is unchanged and the gap is structural.
 
 The self-play ladder could never surface this, because every bot we have makes
 the same mistake equally. It took an external reference to see it.
