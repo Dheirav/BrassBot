@@ -98,4 +98,81 @@ def extract(state, seat: int) -> list[float]:
     )
 
 
-assert len(NAMES) == len(extract.__doc__ or "") or True  # names checked in tests
+
+
+SELLABLE = [i for i in Industry if i.is_sellable]
+
+EXTRA_NAMES = (
+    [f"track_cleared_{i.value}" for i in Industry]
+    + [f"tiles_to_next_level_{i.value}" for i in Industry]
+    + [f"next_vp_{i.value}" for i in Industry]
+    + [f"vp_two_levels_up_{i.value}" for i in SELLABLE]
+    + ["dominant_share", "industries_touched", "dominant_next_vp",
+       "dominant_built", "sellable_spread"]
+)
+
+
+def extra_features(state, seat: int) -> list[float]:
+    """Track position and plan progress.
+
+    The cotton finding is the motivation: cotton's payoff sits at level 3, five
+    tiles up the track, and nothing in the original 45 features says how far up a
+    track you are or what waits at the top. `tiles_to_next_level` is literally
+    the quantity the expert guide's argument turns on.
+    """
+    data, p = state.data, state.players[seat]
+    cleared, to_next, next_vp, two_up = [], [], [], []
+    for ind in Industry:
+        mat = p.mat[ind]
+        total = sum(mat) or 1
+        low = p.lowest_level(ind)
+        cleared.append(1.0 - sum(mat) / float(_track_total(data, p, ind) or total))
+        to_next.append(float(mat[low - 1]) if low else 0.0)
+        next_vp.append(float(data.tile(ind, low).vp) if low else 0.0)
+    for ind in SELLABLE:
+        low = p.lowest_level(ind)
+        target = (low or 0) + 2
+        spec = None
+        if low:
+            try:
+                spec = data.tile(ind, target)
+            except Exception:
+                spec = None
+        two_up.append(float(spec.vp) if spec else 0.0)
+
+    built = {i: 0 for i in Industry}
+    for _t, _s, tile in state.all_tiles():
+        if tile.owner == seat:
+            built[tile.industry] += 1
+    sell_built = [built[i] for i in SELLABLE]
+    total_sell = sum(sell_built)
+    dominant = max(SELLABLE, key=lambda i: built[i])
+    low_d = p.lowest_level(dominant)
+    return cleared + to_next + next_vp + two_up + [
+        (max(sell_built) / total_sell) if total_sell else 0.0,
+        float(sum(1 for i in Industry if built[i])),
+        float(data.tile(dominant, low_d).vp) if low_d else 0.0,
+        float(built[dominant]),
+        float(max(sell_built) - min(sell_built)),
+    ]
+
+
+_TOTALS: dict = {}
+
+
+def _track_total(data, player, industry) -> int:
+    """How many tiles the industry starts with, cached across calls."""
+    if industry not in _TOTALS:
+        _TOTALS[industry] = sum(player.mat[industry]) or 1
+    return _TOTALS[industry]
+
+
+ALL_NAMES: list[str] = NAMES + EXTRA_NAMES
+
+
+def extract_extended(state, seat: int) -> list[float]:
+    """The full feature vector: the evaluation's own quantities, plus track
+    position. Trees reach 0.614 within-stage on NAMES alone and 0.617 on these,
+    so the extras are close to free -- they are kept because they are what a
+    linear model can use (0.569 -> 0.583) and what a human can read."""
+    return extract(state, seat) + extra_features(state, seat)

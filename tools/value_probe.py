@@ -24,77 +24,11 @@ import numpy as np
 sys.path.insert(0, ".")
 
 from brassbot import features as F                      # noqa: E402
+from brassbot.features import extra_features           # noqa: E402
 from brassbot.bots import make                          # noqa: E402
 from brassbot.engine import apply_action, legal_actions  # noqa: E402
 from brassbot.gamedata import Industry                  # noqa: E402
 from brassbot.state import new_game                     # noqa: E402
-
-SELLABLE = [i for i in Industry if i.is_sellable]
-
-EXTRA_NAMES = (
-    [f"track_cleared_{i.value}" for i in Industry]
-    + [f"tiles_to_next_level_{i.value}" for i in Industry]
-    + [f"next_vp_{i.value}" for i in Industry]
-    + [f"vp_two_levels_up_{i.value}" for i in SELLABLE]
-    + ["dominant_share", "industries_touched", "dominant_next_vp",
-       "dominant_built", "sellable_spread"]
-)
-
-
-def extra_features(state, seat: int) -> list[float]:
-    """Track position and plan progress.
-
-    The cotton finding is the motivation: cotton's payoff sits at level 3, five
-    tiles up the track, and nothing in the original 45 features says how far up a
-    track you are or what waits at the top. `tiles_to_next_level` is literally
-    the quantity the expert guide's argument turns on.
-    """
-    data, p = state.data, state.players[seat]
-    cleared, to_next, next_vp, two_up = [], [], [], []
-    for ind in Industry:
-        mat = p.mat[ind]
-        total = sum(mat) or 1
-        low = p.lowest_level(ind)
-        cleared.append(1.0 - sum(mat) / float(_track_total(data, p, ind) or total))
-        to_next.append(float(mat[low - 1]) if low else 0.0)
-        next_vp.append(float(data.tile(ind, low).vp) if low else 0.0)
-    for ind in SELLABLE:
-        low = p.lowest_level(ind)
-        target = (low or 0) + 2
-        spec = None
-        if low:
-            try:
-                spec = data.tile(ind, target)
-            except Exception:
-                spec = None
-        two_up.append(float(spec.vp) if spec else 0.0)
-
-    built = {i: 0 for i in Industry}
-    for _t, _s, tile in state.all_tiles():
-        if tile.owner == seat:
-            built[tile.industry] += 1
-    sell_built = [built[i] for i in SELLABLE]
-    total_sell = sum(sell_built)
-    dominant = max(SELLABLE, key=lambda i: built[i])
-    low_d = p.lowest_level(dominant)
-    return cleared + to_next + next_vp + two_up + [
-        (max(sell_built) / total_sell) if total_sell else 0.0,
-        float(sum(1 for i in Industry if built[i])),
-        float(data.tile(dominant, low_d).vp) if low_d else 0.0,
-        float(built[dominant]),
-        float(max(sell_built) - min(sell_built)),
-    ]
-
-
-_TOTALS: dict = {}
-
-
-def _track_total(data, player, industry) -> int:
-    """How many tiles the industry starts with, cached across calls."""
-    if industry not in _TOTALS:
-        _TOTALS[industry] = sum(player.mat[industry]) or 1
-    return _TOTALS[industry]
-
 
 def play(seed: int):
     """One game; every (state, seat) with the seat's final score as the label."""
@@ -107,7 +41,7 @@ def play(seed: int):
         ev.w = ev.weights_for(state.n_players)
         for seat in range(4):
             rows.append((
-                F.extract(state, seat) + extra_features(state, seat),
+                F.extract_extended(state, seat),
                 stage, seat, ev.player_value(state, seat),
             ))
         apply_action(state, bot.choose(state, legal_actions(state)))

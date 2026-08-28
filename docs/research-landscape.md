@@ -296,6 +296,57 @@ Track features do help the linear model (0.569 -> 0.583), which is consistent
 with them carrying real signal that a weighted sum can use; trees just find that
 structure without being handed it.
 
+### It was built and played, and it loses. The offline metric did not transfer
+
+A bot was built on the model (`brassbot/bots/learned.py`, trained by
+`tools/train_value.py`, both run from `.venv-ml`). 1-ply, batching all candidates
+of a decision through one prediction. Measured against three heuristics on the
+report seeds, 60 games:
+
+| model | learned bot | heuristic opponents | win% |
+| --- | --- | --- | --- |
+| round 1: heuristic-play labels only | 39.5 +- 4.2 | 107.3 | 0% |
+| **round 2: + 400 on-policy games** | **89.6 +- 3.6** | 105.8 | 13% |
+| round 3: + 900 on-policy games | 75.5 +- 3.8 | 107.2 | 10% |
+
+**The better offline predictor plays worse.** The model beats the hand-crafted
+evaluation by 0.064 within-stage Spearman and loses to it by about 18 VP at its
+best. That is the headline, and it retires the probe metric along with the model.
+
+Why the metric lied, in two parts:
+
+- **It was measured on the wrong comparison.** Within-stage Spearman ranks
+  positions from *different games* that happen to share a round. The evaluation's
+  real job is ranking the ~88 *siblings* of a single position, which differ from
+  each other far less and along different axes.
+- **It was measured on the wrong distribution.** Both predictors were scored on
+  states the heuristic visits. Acting on the model walks somewhere else. On the
+  heuristic's own trajectory the model ranks Pass 24th of 26 and never first --
+  it behaves perfectly sensibly there. Playing its own games it passed **45 times
+  a game**, against the heuristic's zero, because a state reached by passing was
+  something training never contained and the prediction there is unconstrained
+  extrapolation.
+
+Note what the first model rediscovered from data: hoard cash and cards, do
+nothing. That is exactly the failure `NEXT.md` records under *price the flow, not
+the stock*, which cost 10-25 VP when hand-written terms had it. The correlation
+"players holding money late are winning" is in the data, and a model with no
+causal handle on it will act on it.
+
+**On-policy data fixes most of that, and then the labels rot.** Adding the states
+the bot actually reaches took it from 39.5 to 89.6 and collapsed passing from 45
+a game to 11. A second, larger round made it *worse* -- 446k on-policy rows
+against 297k heuristic rows, so the target increasingly became "what the learned
+bot achieves from here", and the learned bot is the weaker player. Iterating a
+value function on its own outcomes degrades the teacher.
+
+**What would have to change to revisit this.** Labels from a stronger source than
+heuristic self-play -- MCTS-backed returns, or accumulating rather than replacing
+each round's data so the strong labels are not diluted. Both are standard and
+neither was tried. What is now settled is that this particular route -- boosted
+trees on outcome labels, used greedily -- does not beat the hand-crafted
+evaluation, and that offline ranking quality was not a usable proxy for it.
+
 Three caveats before this is treated as VP in hand:
 
 - **Spearman is a proxy.** The real test is a bot that evaluates with the model

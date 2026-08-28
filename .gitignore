@@ -19,3 +19,4 @@ docs/evidence/
 # local. See docs/research-landscape.md for where to obtain it.
 docs/rules_reference_eog.txt
 .venv-ml/
+models/
