@@ -49,18 +49,23 @@ class BeamPlanner:
 
     def __init__(self, seat: int, width: int = 24, branch: int = 12,
                  evaluator: HeuristicBot | None = None,
-                 cheap_opponents: bool = True):
+                 cheap_opponents: bool = False):
         self.seat = seat
         self.width = width
         self.branch = branch
         self.ev = evaluator or HeuristicBot()
-        # Opponents reply while we search our own line, and profiling says that
-        # is where the search actually spends itself: 56% of runtime in 645
-        # opponent decisions, each a full evaluation of ~88 candidates across all
-        # four seats. Inside a search the opponent model does not need to be the
-        # real bot -- it needs to be roughly right and cheap. This one ranks only
-        # by the acting seat's own value, which is the same trade the MCTS prior
-        # already makes.
+        # Opponents reply while we search our own line, and profiling put 56%
+        # of runtime in 645 opponent decisions a game.
+        #
+        # The obvious inference -- make the opponent model cheaper -- was tried
+        # and is OFF by default because it does not pay. Ranking opponent replies
+        # by the acting seat's value alone saved 10% of the time (286s -> 256s)
+        # and cost 3.3 VP and eight points of win rate (132.2/79% -> 128.9/71%).
+        # The profile was read wrong: the cost inside an opponent decision is the
+        # clone and apply per candidate, not the four-seat evaluation, so cutting
+        # three quarters of the evaluation cut a small slice of the total.
+        #
+        # Anything faster here has to remove clones, not arithmetic.
         self.opponent = HeuristicBot()
         self.cheap_opponents = cheap_opponents
 
