@@ -146,7 +146,10 @@ class MCTSBot(Bot):
         if self.p["rollout"] and self.rng.random() < self.p["rollout"]:
             return self._playout_values(state)
         self.evaluator.w = self.evaluator.weights_for(state.n_players)
-        return [self.evaluator.player_value(state, i) for i in range(state.n_players)]
+        # Shared across all four seats: none of it depends on which one.
+        context = self.evaluator._sale_context(state)
+        return [self.evaluator.player_value(state, i, context)
+                for i in range(state.n_players)]
 
     def _playout_values(self, state: GameState) -> list[float]:
         """Play the game out at random and return the real final scores.

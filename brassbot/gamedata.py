@@ -161,6 +161,9 @@ class GameData:
     merchants: dict[str, Merchant]
     merchant_tile_mix: dict[int, tuple[str, ...]]
     links: tuple[Link, ...]
+    #: links keyed by id, so a player's own links can be walked without
+    #: scanning all 39 lines on the board
+    link_by_id: dict[str, Link]
     decks: dict[int, dict]
     coal: Market
     iron: Market
@@ -265,8 +268,10 @@ def load() -> GameData:
         towns=towns,
         merchants=merchants,
         merchant_tile_mix={int(k): tuple(v) for k, v in raw["merchant_tile_mix"].items()},
-        links=tuple(Link(id=l["id"], ends=tuple(l["ends"]), canal=l["canal"], rail=l["rail"])
-                    for l in raw["connections"]),
+        links=(links := tuple(Link(id=l["id"], ends=tuple(l["ends"]),
+                                   canal=l["canal"], rail=l["rail"])
+                              for l in raw["connections"])),
+        link_by_id={link.id: link for link in links},
         decks={int(k): v for k, v in raw["decks"].items()},
         coal=Market(tuple(raw["market"]["coal"]["prices"]), raw["market"]["coal"]["initial"],
                     raw["market"]["coal"]["empty_price"]),

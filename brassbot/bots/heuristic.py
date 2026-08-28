@@ -250,8 +250,11 @@ class HeuristicBot(Bot):
 
     def position_value(self, state, me: int) -> float:
         """Our position, net of what the strongest opponent holds."""
-        mine = self.player_value(state, me)
-        rivals = [self.player_value(state, i)
+        # Computed once and shared: none of it depends on which player we are
+        # valuing, and position_value evaluates every seat.
+        context = self._sale_context(state)
+        mine = self.player_value(state, me, context)
+        rivals = [self.player_value(state, i, context)
                   for i in range(state.n_players) if i != me]
         return mine - self.w["rival"] * (max(rivals) if rivals else 0.0)
 
@@ -287,11 +290,11 @@ class HeuristicBot(Bot):
         merchant_beer = any(slot.beer > 0 for slot in state.merchant_slots())
         return reachable, accepted, merchant_beer
 
-    def player_value(self, state, seat: int) -> float:
+    def player_value(self, state, seat: int, context=None) -> float:
         data = state.data
         p = state.players[seat]
         value = float(p.vp)
-        reachable, accepted, merchant_beer = self._sale_context(state)
+        reachable, accepted, merchant_beer = context or self._sale_context(state)
         contest = self._contest(state)
 
         # ONE pass over the board. Each term added to this evaluation used to
@@ -364,9 +367,10 @@ class HeuristicBot(Bot):
                 value += promise * self.w["unflipped"]
 
         # Links: icons in adjacent locations, exactly as they would score.
-        for link in data.links:
-            if state.links.get(link.id) == seat:
-                value += sum(link_icons_at(state, end) for end in link.ends)
+        for link_id, owner in state.links.items():
+            if owner == seat:
+                for end in data.link_by_id[link_id].ends:
+                    value += link_icons_at(state, end)
 
         # Credit for sites others could have raced us to -- counted ONCE per town.
         #
@@ -376,7 +380,9 @@ class HeuristicBot(Bot):
         # The claim is worth something once. A second tile in a town you already
         # hold races nobody, because the town is already yours. (The Canal Era
         # forbids it outright; only the Rail Era allows the stacking.)
-        value += sum(contest.get(t, 0) for t in claimed_towns) * self.w["site_urgency"]
+        if self.w["site_urgency"]:
+            value += sum(contest.get(t, 0)
+                         for t in claimed_towns) * self.w["site_urgency"]
 
         # Merchant access is the gateway to every sale, so it is worth something
         # in its own right, before any particular tile is ready to sell.
@@ -392,10 +398,14 @@ class HeuristicBot(Bot):
         # tiles there are to flip.
         value += min(own_beer, waiting) * self.w["beer_capacity"]
 
-        # What the hand still lets us do.
-        wilds = sum(1 for c in p.hand if c.is_wild)
-        distinct = len({(c.kind, c.town, c.industries) for c in p.hand if not c.is_wild})
-        value += wilds * self.w["wild_card"] + distinct * self.w["hand_breadth"]
+        # What the hand still lets us do. Both weights ship at 0, so this is
+        # skipped entirely rather than computed and multiplied away -- it was
+        # 261,000 wasted is_wild calls a game.
+        if self.w["wild_card"] or self.w["hand_breadth"]:
+            wilds = sum(1 for c in p.hand if c.is_wild)
+            distinct = len({(c.kind, c.town, c.industries)
+                            for c in p.hand if not c.is_wild})
+            value += wilds * self.w["wild_card"] + distinct * self.w["hand_breadth"]
 
         # Money and liquidity both decay to nothing as the game closes: cash you
         # cannot spend is dead weight, and being liquid on the last turn buys
