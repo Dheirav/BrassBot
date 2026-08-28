@@ -409,6 +409,19 @@ def sellable_tiles(state: GameState, player: int):
                     yield Sale(town, slot, mid, mslot)
 
 
+def _sale_key(sales) -> tuple:
+    """Identity of a sale set, INCLUDING which merchant slot each goes to.
+
+    Keying on (town, slot) alone silently undid the fix in sellable_tiles: that
+    now yields one Sale per accepting merchant slot, and this collapsed them
+    back together, so a tile sellable at two merchants was still only ever
+    offered at the first. The merchants differ by bonus -- Gloucester develops,
+    Oxford pays income, Shrewsbury pays VP, Warrington pays cash -- and each
+    slot carries its own beer barrel, so they are genuinely different moves.
+    """
+    return tuple(sorted((s.town, s.slot, s.merchant, s.mslot) for s in sales))
+
+
 def legal_sells(state: GameState) -> list[Sell]:
     player = state.current.idx
     cards = _unique_hand_indices(state, player)
@@ -434,15 +447,14 @@ def legal_sells(state: GameState) -> list[Sell]:
         if _sell_is_feasible(state, player, tuple(trial)):
             biggest = trial
     if len(biggest) > 1:
-        key = tuple(sorted((s.town, s.slot) for s in biggest))
-        seen.add(key)
+        seen.add(_sale_key(biggest))
         out.append(Sell(cards[0], tuple(biggest)))
 
     for size in range(1, len(candidates) + 1):
         for combo in combinations(candidates, size):
             if len({(s.town, s.slot) for s in combo}) != len(combo):
                 continue
-            key = tuple(sorted((s.town, s.slot) for s in combo))
+            key = _sale_key(combo)
             if key in seen:
                 continue
             if _sell_is_feasible(state, player, combo):

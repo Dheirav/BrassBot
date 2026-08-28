@@ -512,3 +512,23 @@ def test_merchant_spaces_count_even_without_a_merchant_tile(players):
     # A town joined only to Nottingham can still reach the coal market.
     game.links["derby-nottingham"] = 0
     assert is_connected_to_merchant(game, "derby")
+
+
+def test_a_tile_sellable_at_two_merchants_is_offered_at_both(game):
+    """sellable_tiles yields one Sale per accepting slot; legal_sells must not
+    collapse them again. The merchants differ by bonus and each slot carries its
+    own beer, so they are different moves, not duplicates."""
+    player = game.current.idx
+    game.players[player].money = 200
+    only_card(game, player, Card(CardKind.LOCATION, town="birmingham"))
+    place(game, "birmingham", 0, player, Industry.MANUFACTURER, 2)
+    place(game, "birmingham", 1, player, Industry.BREWERY, 2)
+    for _t, _s, tile in game.all_tiles():
+        if tile.industry is Industry.BREWERY:
+            tile.resources = 4
+    for link in game.data.links:
+        if link.canal:
+            game.links[link.id] = player
+    reached = {(s.merchant, s.mslot)
+               for sell in legal_sells(game) for s in sell.sales}
+    assert len(reached) > 1, f"only one merchant slot ever offered: {reached}"

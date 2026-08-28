@@ -478,6 +478,27 @@ Effect on our own numbers is small -- 2p mirror 119.6 -> 119.4, 3p 113.7 -> 113.
 both inside noise -- because the fix is symmetric and our bot rarely plays the
 north-east. It matters for anyone who does.
 
+## Choices the engine still makes for you
+
+Four agents playing 2p and 3p converged on the same class of complaint, and it is
+worth listing in one place because none of these is a rules *error* -- each is a
+legal move the generator never offers, which is how the beer bug and the sell-cap
+bug both hid.
+
+| choice | who makes it now | cost seen in play |
+| --- | --- | --- |
+| which card to discard for Loan / Network / Develop / Sell / Pass | `_expendability`, ties broken by shuffle order | an agent's Network ate the one `brewery` card its next build needed; no legal ordering saved it |
+| which 3 cards to Scout | 3 sliding windows of 56 possible triples | all three offered options discarded the card the plan needed |
+| which industry Gloucester's develop bonus clears | highest-VP next tile (was enum order, i.e. always coal) | removed one of two identical coal L2s, unlocking nothing |
+| whether to take merchant beer | always taken when available | rulebook says *may*; sometimes you want your own brewery drained so it flips |
+| which second link a double rail reaches | pairs built from lines reachable *before* the action | refused `(burton-stone, stone-uttoxeter)`, legal in the real game because the first link makes the second coal-reachable |
+
+All are documented branching-factor caps rather than oversights, and each costs
+search time to lift. But the pattern to remember is that **a behaviour number is
+not evidence about the bot until you have checked the bot was offered the
+alternative** -- rule 8's "fails" verdict was partly the sell cap, and rule 7's
+was entirely the beer ordering.
+
 ## Delta evaluation, and what it actually bought
 
 The evaluation cloned the state and valued all four seats for every candidate
