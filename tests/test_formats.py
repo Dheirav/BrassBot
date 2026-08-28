@@ -93,3 +93,35 @@ def test_determinism_holds_all_the_way_through_a_game():
         return trace
 
     assert run() == run()
+
+
+# --- serialisation ----------------------------------------------------------
+
+@pytest.mark.parametrize("players", [2, 3, 4])
+def test_a_game_survives_a_round_trip_through_pickle(players):
+    """Saving and restoring a game has to work -- tools/play.py persists state
+    between invocations, and a restored game must behave identically.
+
+    This caught a real bug: LinkMap tracks a version counter for cache
+    invalidation, and unpickling a dict subclass calls __setitem__ before
+    __init__, so restoring any game with a link on the board raised
+    AttributeError.
+    """
+    import pickle
+
+    state = new_game(players, seed=5)
+    bot = make("greedy")
+    for _ in range(30):          # get links onto the board
+        actions = legal_actions(state)
+        if not actions:
+            break
+        apply_action(state, bot.choose(state, actions))
+    assert state.links, "need at least one link placed to exercise the bug"
+
+    restored = pickle.loads(pickle.dumps(state))
+    assert [p.vp for p in restored.players] == [p.vp for p in state.players]
+    assert dict(restored.links) == dict(state.links)
+    assert restored.links.version == state.links.version
+    # and it must still be playable
+    restored.links["birmingham-oxford"] = 0
+    assert len(legal_actions(restored)) > 0

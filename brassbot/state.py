@@ -41,7 +41,11 @@ class LinkMap(dict):
     safely without every call site having to remember to invalidate.
     """
 
-    __slots__ = ("version",)
+    # A class-level default rather than a slot, because unpickling a dict
+    # subclass calls __setitem__ before __init__: with a slot, restoring a saved
+    # game raised AttributeError on the first key. Reading the class attribute
+    # and shadowing it with an instance one works in both orders.
+    version = 0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
