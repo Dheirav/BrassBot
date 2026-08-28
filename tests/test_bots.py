@@ -40,7 +40,7 @@ def snapshot(state):
 # --- registry ---------------------------------------------------------------
 
 def test_registry_exposes_every_bot():
-    assert set(REGISTRY) == {"random", "greedy", "heuristic", "mcts", "book"}
+    assert set(REGISTRY) == {"random", "greedy", "heuristic", "mcts", "book", "commit"}
 
 
 def test_make_builds_a_bare_name():
@@ -269,3 +269,23 @@ def test_choosing_a_move_uses_the_profile_for_that_player_count(clean_profiles):
     four = new_game(4, seed=2)
     bot.choose(four, legal_actions(four))
     assert bot.w["pass_bias"] == HeuristicBot.DEFAULTS["pass_bias"]
+
+
+def test_commit_bot_with_no_commitment_is_the_plain_heuristic():
+    """The control arm has to be a real control.
+
+    If commit=-1 diverged from the heuristic even slightly, the whole ceiling
+    measurement would be comparing two different bots rather than isolating the
+    effect of committing.
+    """
+    from brassbot.engine import apply_action, legal_actions
+
+    for seed in (0, 3):
+        a, b = new_game(4, seed=seed), new_game(4, seed=seed)
+        plain, control = make("heuristic"), make("commit:commit=-1")
+        while not a.finished:
+            assert repr(plain.choose(a, legal_actions(a))) == \
+                   repr(control.choose(b, legal_actions(b)))
+            apply_action(a, plain.choose(a, legal_actions(a)))
+            apply_action(b, control.choose(b, legal_actions(b)))
+        assert [p.vp for p in a.players] == [p.vp for p in b.players]

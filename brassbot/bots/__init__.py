@@ -2,6 +2,7 @@
 
 from .base import Bot
 from .book import BookBot
+from .commit import CommitBot
 from .heuristic import HeuristicBot
 from .mcts import MCTSBot
 from .simple import GreedyBot, RandomBot
@@ -12,6 +13,7 @@ REGISTRY: dict[str, type[Bot]] = {
     HeuristicBot.name: HeuristicBot,
     MCTSBot.name: MCTSBot,
     BookBot.name: BookBot,
+    CommitBot.name: CommitBot,
 }
 
 
@@ -46,4 +48,4 @@ def make(spec: str, seed: int = 0) -> Bot:
     return cls(seed=seed, **weights)
 
 
-__all__ = ["Bot", "RandomBot", "GreedyBot", "HeuristicBot", "MCTSBot", "BookBot", "REGISTRY", "make"]
+__all__ = ["Bot", "RandomBot", "GreedyBot", "HeuristicBot", "MCTSBot", "BookBot", "CommitBot", "REGISTRY", "make"]

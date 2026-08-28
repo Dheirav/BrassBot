@@ -492,6 +492,48 @@ The remaining 49% are candidates that genuinely change what an opponent is
 worth: draining a barrel or a coal cube out of their tile, flipping anything,
 placing a link, or ending the round.
 
+## Industry commitment: real, but worth 4 VP and not 40
+
+Rule 6 of the expert guide -- "never mix main industries, you end up mid-level in
+several and score half" -- is the failure our own numbers describe best: 4.52
+industries touched, 4.2 VP per build against an expert 8-10. Before designing a
+planning mechanism for it, `brassbot/bots/commit.py` measures whether commitment
+by itself scores better at all. It is the crudest possible version: strike every
+build of a main industry other than the chosen one off the list of legal moves.
+
+4p, vs three heuristics, held-out seeds 20000+, 300 games each:
+
+| arm | mean | win% | vs control |
+| --- | --- | --- | --- |
+| no commitment (control) | 106.25 +- 1.08 | 27% | - |
+| **manufacturer only** | **109.90 +- 0.97** | **32%** | **+3.65 +- 1.46 (2.5 sigma)** |
+| adaptive choice | 107.05 +- 1.00 | 28% | +0.80 +- 1.48 (0.5 sigma) |
+
+At 80 games the other two fixed choices were clearly worse: cotton 103.7, pottery
+98.1, against a 107.9 control. The spread between industries is far larger than
+the benefit of committing at all.
+
+**The rule transfers, and the size of it is the finding.** A 2.5 sigma +3.65 VP
+is worth having, but the gap to an expert 155 is about 45 VP. Industry mixing is
+not what is costing us that, and a planning mechanism built to fix it should be
+budgeted against 4 VP, not 40.
+
+### Choosing the industry adaptively is worse than not choosing
+
+The adaptive arm commits to whichever main industry the hand and board already
+support, weighting tiles already built above cards held. It gains nothing
+(+0.80, 0.5 sigma) and loses to simply always playing manufacturer.
+
+The reason is that it often commits to cotton or pottery, and those are worse
+industries in a 4-player game *regardless of what you were dealt*. The guide says
+manufacturer is the 3-4 player industry; that is a fixed strategic fact about the
+action budget, not a read on your hand, and an adaptive chooser that treats it as
+a read throws the fact away. A mechanism here should encode "manufacturer at 4p",
+not "work out what to commit to".
+
+Untested at 2p and 3p, where the guide names cotton as the 2-player industry --
+so the constant almost certainly differs by format, like the weight profiles do.
+
 ## Sequencing was tested directly, and the test failed
 
 `brassbot/bots/book.py` forces the expert's Canal Era plan and hands off to the
