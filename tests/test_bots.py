@@ -283,7 +283,8 @@ def test_commit_bot_with_no_commitment_is_the_plain_heuristic():
 
     for seed in (0, 3):
         a, b = new_game(4, seed=seed), new_game(4, seed=seed)
-        plain, control = make("heuristic"), make("commit:commit=-1")
+        plain = make("heuristic:commit=-1")
+        control = make("commit:commit=-1")
         while not a.finished:
             assert repr(plain.choose(a, legal_actions(a))) == \
                    repr(control.choose(b, legal_actions(b)))

@@ -88,12 +88,18 @@ Held-out seeds (0-79), 80 games each, seats rotated, per-format weights applied.
 
 | fmt | pool | mean | SD | P10 | max | VP/action | win% |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 107.0 +- 0.9 | 15.3 | 90 | 141 | **3.45** | 25% |
-| 4p | vs greedy | 101.6 +- 2.0 | 17.6 | 81 | 140 | 3.28 | 91% |
-| 3p | mirror | 113.3 +- 1.0 | 15.3 | 94 | 151 | 3.24 | 33% |
-| 3p | vs greedy | 104.9 +- 2.6 | 22.9 | 79 | 148 | 3.00 | 95% |
-| 2p | mirror | **120.1 +- 1.7** | 22.1 | 98 | 170 | 3.08 | 50% |
-| 2p | vs greedy | 115.5 +- 2.3 | 20.3 | 91 | 163 | 2.96 | 100% |
+| 4p | mirror | 107.0 +- 0.8 | 14.3 | 90 | 158 | **3.45** | 25% |
+| 4p | vs greedy | 104.6 +- 1.7 | 15.1 | 85 | 129 | 3.37 | 99% |
+| 3p | mirror | 113.7 +- 1.2 | 18.2 | 94 | 159 | 3.25 | 33% |
+| 3p | vs greedy | 106.0 +- 2.3 | 20.2 | 81 | 147 | 3.03 | 98% |
+| 2p | mirror | **119.6 +- 1.3** | 16.9 | 96 | 156 | 3.07 | 50% |
+| 2p | vs greedy | 114.7 +- 2.0 | 17.8 | 93 | 171 | 2.94 | 100% |
+
+Industry commitment is shipped in these numbers (`HeuristicBot.DEFAULTS["commit"]`
+= manufacturer). The mirror column barely moves and should not: commitment buys a
+*relative* edge, and in a mirror every seat gets it -- the same reason the beer
+fix left the mirror at exactly 107.0. It shows up head to head, where it was
+measured: vs greedy at 4p goes 101.6 -> 104.6 and 91% -> 99% wins.
 
 ### A mirror cannot measure a symmetric change
 

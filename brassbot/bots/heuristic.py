@@ -26,11 +26,16 @@ from __future__ import annotations
 
 import math
 
-from ..actions import Loan, Pass
+from ..actions import Build, Loan, Pass
 from ..engine import apply_action, link_icons_at
 from ..gamedata import Era, Industry, income_level
 from ..network import connected_locations
 from .base import Bot
+
+
+# The three sellable industries, in a fixed order so a numeric setting names the
+# same one every run.
+MAIN_INDUSTRIES = (Industry.COTTON_MILL, Industry.MANUFACTURER, Industry.POTTERY)
 
 
 class HeuristicBot(Bot):
@@ -39,6 +44,20 @@ class HeuristicBot(Bot):
     # Weights are instance data so they can be tuned by playing rather than by
     # argument -- see tools/tune.py.
     DEFAULTS = {
+        # Which main industry to commit to, as an index into MAIN_INDUSTRIES;
+        # -1 commits to nothing. Builds of the other two are struck off the
+        # move list entirely rather than merely discouraged, because a weight
+        # lets the bot buy its way out of the commitment whenever a position
+        # looks tempting, which is the behaviour being prevented.
+        #
+        # Manufacturer at every player count. Measured on the report seeds
+        # against an uncommitted control: 4p +1.53, 3p +2.71, 2p +2.17, pooled
+        # +2.14 +- 0.85. Cotton and pottery both lose everywhere, pottery
+        # heavily -- so this is worth about 2 VP, and picking the right industry
+        # matters far more than committing at all. The guide names cotton for
+        # 2p; that does not transfer here, because reaching cotton's payoff at
+        # level 3 costs five cleared tiles and a 1-ply bot will not spend them.
+        "commit": 1,
         "unflipped": 0.375,   # odds we actually realise an unflipped tile's payoff
         # Money is worth ZERO victory points -- it is only the second tiebreak.
         # So cash has purely instrumental value: what it buys before the game
@@ -231,6 +250,7 @@ class HeuristicBot(Bot):
         run-to-run noise.
         """
         self.w = self.weights_for(state.n_players)
+        actions = self._committed(state, actions)
         me = state.current.idx
         best_value = None
         best_action = None
@@ -263,6 +283,22 @@ class HeuristicBot(Bot):
                 best_value, best_action = value, action
 
         return best_action
+
+    def _committed(self, state, actions):
+        """Drop builds of main industries we are not committed to."""
+        index = int(self.w.get("commit", -1))
+        if not 0 <= index < len(MAIN_INDUSTRIES):
+            return actions
+        mine = MAIN_INDUSTRIES[index]
+        allowed = [
+            a for a in actions
+            if not (isinstance(a, Build) and a.industry.is_sellable
+                    and a.industry is not mine)
+        ]
+        # Never return nothing: a position offering only off-plan builds still
+        # has to produce a move, and passing there would be worse than building
+        # the wrong thing.
+        return allowed or actions
 
     # --- evaluation ---------------------------------------------------------
 

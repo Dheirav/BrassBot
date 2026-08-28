@@ -21,10 +21,7 @@ the very behaviour under test.
 from ..actions import Build
 from ..gamedata import Industry
 from ..network import distances_from, player_network
-from .heuristic import HeuristicBot
-
-# Fixed order so a numeric spec (commit=0,1,2) names the same industry every run.
-MAIN_INDUSTRIES = (Industry.COTTON_MILL, Industry.MANUFACTURER, Industry.POTTERY)
+from .heuristic import MAIN_INDUSTRIES, HeuristicBot
 
 
 class CommitBot(HeuristicBot):
@@ -33,7 +30,6 @@ class CommitBot(HeuristicBot):
     arm, and the test suite pins that equivalence."""
 
     name = "commit"
-    DEFAULTS = {**HeuristicBot.DEFAULTS, "commit": -1}
 
     def _adaptive(self, state):
         """Pick the main industry this game's board actually rewards.
@@ -109,12 +105,11 @@ class CommitBot(HeuristicBot):
         return self._commitment
 
     def choose(self, state, actions):
+        """Only the adaptive arm (-2) still lives here. Fixed commitment moved
+        into HeuristicBot once it was measured, so this class is now just the
+        research variant kept for the record."""
         index = int(self.weights_for(state.n_players)["commit"])
-        mine = None
-        if index == -2:
-            mine = self._latched(state)
-        elif 0 <= index < len(MAIN_INDUSTRIES):
-            mine = MAIN_INDUSTRIES[index]
+        mine = self._latched(state) if index == -2 else None
         if mine is not None:
             allowed = [
                 a for a in actions
