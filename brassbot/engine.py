@@ -318,7 +318,17 @@ def legal_networks(state: GameState) -> list[Network]:
         # reachable *solely* through the other new link), never invents one, and
         # sits alongside the caps below.
         made = 0
-        for a, b in combinations(reachable_lines[:DOUBLE_RAIL_CANDIDATES], 2):
+        # Ranked before truncating. C(12,2) is 66 pairs against a cap of 40, and
+        # taking the first 40 in enumeration order meant a pair could be dropped
+        # purely for sorting late by link id. An agent lost its best rail action
+        # that way -- both links were offered singly and paired with worse
+        # partners, but the 10 VP pair of the two together never appeared, which
+        # is exactly the move the expert line wants and exactly when the board is
+        # dense enough for it to matter.
+        pairs = list(combinations(reachable_lines[:DOUBLE_RAIL_CANDIDATES], 2))
+        pairs.sort(key=lambda ab: -sum(
+            link_icons_at(state, end) for link in ab for end in link.ends))
+        for a, b in pairs:
             if made >= MAX_DOUBLE_RAIL:
                 break
             ends = list(a.ends) + list(b.ends)

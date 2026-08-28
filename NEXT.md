@@ -448,6 +448,34 @@ Worth noting what the agents were actually right about. Their claim was about th
 guide, not about us, and the distinction matters -- "an expert source is wrong"
 does not imply "we copied the error".
 
+## Open question: are unused merchant locations still merchant *spaces*?
+
+Two agents independently reported the same thing, and it is unresolved because
+our sources do not settle it.
+
+`GameData.merchants_for(n)` filters merchant locations by `min_players`
+(warrington 3, nottingham 4), and `state.merchants` is built from it. Two things
+then read that filtered dict:
+
+- `is_connected_to_merchant` searches from `state.merchants`, so at 2p a coal
+  mine connected only via Warrington or Nottingham cannot sell to the market;
+- `link_icons_at` returns the printed 2 icons only for locations in that dict, so
+  `derby-nottingham` at 3p and `stoke_on_trent-warrington` at 2p score **0**.
+
+**Our own docstring asserts the opposite of our own code.** It reads "Merchant
+*spaces* count even when they hold no merchant tile (as at 2-3 players)". One of
+the two is wrong and the code has been winning by default.
+
+The agents quote the rulebook as "connected to any merchant space (even those
+without merchant tiles)" and as naming Warrington and Nottingham in the
+coal-purchase icon list. `docs/rules_reference_eog.txt` does not contain those
+passages, so this cannot be confirmed from what is in the repo.
+
+It matters: at 2p it makes the whole north-east dead for market coal and worth
+nothing in link VP, and fixing it would move every 2p and 3p number. **Left
+unchanged deliberately, pending a real source.** Do not "fix" it on the strength
+of this note.
+
 ## Delta evaluation, and what it actually bought
 
 The evaluation cloned the state and valued all four seats for every candidate
