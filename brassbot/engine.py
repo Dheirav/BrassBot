@@ -138,8 +138,12 @@ def _card_build_options(state: GameState, player: int, card: Card):
         network = player_network(state, player)
         industries = card.industries if card.kind is CardKind.INDUSTRY else set(Industry)
         towns = network if network else state.data.towns
-        for town_id in towns:
-            for industry in industries:
+        # Sorted because both containers are sets, whose iteration order depends
+        # on per-process string hash randomisation. Unsorted, the same seed
+        # produced a different game in a different process -- fatal for a bot
+        # that is meant to be deterministic, and for any saved move index.
+        for town_id in sorted(towns):
+            for industry in sorted(industries, key=lambda i: i.name):
                 yield town_id, industry
 
 
@@ -194,8 +198,37 @@ def _canal_era_blocked(state: GameState, player: int, town: str, overbuilt: Tile
 
 # --- legal moves ------------------------------------------------------------
 
+def _expendability(state: GameState, player: int):
+    """Rank hand indices by how willing we should be to spend the card.
+
+    Loan, Develop, Network and Sell all discard a card of your choice, but the
+    generators offer a single variant to keep the branching factor down -- so
+    whichever card sorts first here is the one the bot gives up. It used to be
+    hand[0], i.e. whatever the shuffle happened to put first, which threw away
+    the exact location card the plan needed often enough to be noticed in play.
+    """
+    hand = state.players[player].hand
+    counts: dict = {}
+    for card in hand:
+        key = (card.kind, card.town, card.industries)
+        counts[key] = counts.get(key, 0) + 1
+
+    def key(i: int) -> tuple:
+        card = hand[i]
+        k = (card.kind, card.town, card.industries)
+        full = 0
+        if card.town is not None:
+            slots = state.tiles.get(card.town, ())
+            full = 0 if any(t is None for t in slots) else 1
+        # ascending sort, so most-expendable first: spend duplicates, then cards
+        # naming a town with no space left, and hold wilds until last.
+        return (card.is_wild, -counts[k], -full, i)
+
+    return key
+
+
 def _unique_hand_indices(state: GameState, player: int) -> list[int]:
-    """One index per distinct card: identical cards give identical actions."""
+    """One index per distinct card, most expendable first."""
     seen: set = set()
     out = []
     for i, card in enumerate(state.players[player].hand):
@@ -203,6 +236,7 @@ def _unique_hand_indices(state: GameState, player: int) -> list[int]:
         if key not in seen:
             seen.add(key)
             out.append(i)
+    out.sort(key=_expendability(state, player))
     return out
 
 
@@ -454,23 +488,7 @@ def legal_scouts(state: GameState) -> list[Scout]:
     #
     # Cards are ranked cheapest-first: duplicates in hand are the cheapest thing
     # to spend, then location cards whose town has no slot left.
-    hand = p.hand
-    counts: dict = {}
-    for card in hand:
-        key = (card.kind, card.town, card.industries)
-        counts[key] = counts.get(key, 0) + 1
-
-    def expendable(i: int) -> tuple:
-        card = hand[i]
-        key = (card.kind, card.town, card.industries)
-        full = 0
-        if card.town is not None:
-            slots = state.tiles.get(card.town, ())
-            full = 0 if any(t is None for t in slots) else 1
-        # higher = more willing to discard
-        return (-counts[key], -full, i)
-
-    order = sorted(range(len(hand)), key=expendable)
+    order = sorted(range(len(p.hand)), key=_expendability(state, p.idx))
     out = []
     for start in range(min(MAX_SCOUT_VARIANTS, max(1, len(order) - 2))):
         pick = order[start:start + 3]
