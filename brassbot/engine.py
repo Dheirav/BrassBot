@@ -728,11 +728,17 @@ def _end_round(state: GameState) -> None:
         for p in state.players:
             _collect_income(state, p)
 
+    # Turn order is re-determined at the end of EVERY round, the last one of an
+    # era included, and carries into the next era. This assignment used to sit
+    # below the early return, so the order computed above was thrown away at the
+    # boundary: over 20 games the Rail Era opened in the Canal Era's order 20
+    # times and in the correct spend-sorted order none. It also made spending in
+    # the final Canal round strategically free, since nothing could punish it.
+    state.turn_order = order
+
     if final_round:
         _end_era(state)
         return
-
-    state.turn_order = order
     state.turn_pos = 0
     state.round += 1
 

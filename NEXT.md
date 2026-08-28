@@ -961,9 +961,43 @@ Two chess ideas were then tried against the same target:
 | quiescence (finish a pending sale before scoring) | 133.9 vs 132.8 control -- +1.1, 0.3 sigma, not a gain |
 | transposition table | not built; measured **22%** of scored states are repeats |
 
-So turn-order management remains untried *and* unexplained: the guide claims it
-matters, nothing here has ever used it, and we now know the pruning function is
-not what stops the planner finding it.
+### Turn-order management is measured, and it is not worth building
+
+An agent played a full 4p game managing turn order deliberately and reported the
+numbers. **Do not build this into the bot.**
+
+It achieved four back-to-back actions **three times**, produced ~43 VP across
+those twelve actions, and attributed **~0 VP to the actions being adjacent**.
+Every combination it needed to protect fitted inside a single two-action turn.
+The rule that matters is "two actions per turn", not "four in a row" -- four only
+pays for a combo spanning three or more actions, or a slot you must take twice
+before anyone reacts, and neither arose in 31 actions.
+
+The two halves of the loop are also wildly asymmetric:
+
+- **"Spend least, go first" is free and reliable** -- three attempts, three
+  successes. Loan and Sell both cost nothing, so a cheap round costs no tempo.
+- **"Spend most, go last" is not controllable at 4p** -- three successes in nine
+  attempts, all early. Out-spending three liquid opponents late means buying
+  market coal, which raises the price for your own next purchase. The agent drove
+  coal from GBP1 to GBP8 chasing this, finished a rail round **GBP2 short** of a
+  double rail that would have flipped a brewery and lifted three of its links,
+  and lost by 13.
+
+**Going first is worth buying; going last is not worth paying for.** The agent
+finished last, on 94 VP at 3.03 VP/action, below the shipped heuristic's 3.47.
+
+Its useful residue is two things that cost nothing: batch Sell actions into
+rounds where you also Loan, and take loans *before* flips (see below).
+
+### Loans before flips: free, unconditional, and nothing does it
+
+"Loans move income by LEVELS, flips move it by SPACES" is worth more than the
+footnote it has. Sweeping the whole income track -- 60 spaces x 7 flip sizes,
+420 combinations -- **loan-first is never worse, and is better by one income
+level in 41% of cases and by two in 11 more**. No bot here orders its actions
+this way. Unlike the turn-order loop this is unconditional, so it is the better
+target of the two.
 
 ### Still to do on it
 

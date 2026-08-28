@@ -18,6 +18,7 @@ from brassbot.engine import (
     link_icons_at,
     score_era,
     _end_era,
+    _end_round,
 )
 from brassbot.gamedata import Era, Industry, income_level
 from brassbot.resources import beer_plans, coal_plans, iron_plans
@@ -532,3 +533,24 @@ def test_a_tile_sellable_at_two_merchants_is_offered_at_both(game):
     reached = {(s.merchant, s.mslot)
                for sell in legal_sells(game) for s in sell.sales}
     assert len(reached) > 1, f"only one merchant slot ever offered: {reached}"
+
+
+def test_turn_order_carries_across_the_era_boundary(game):
+    """Order is re-determined at the end of every round, the era's last one
+    included, and carries into the next era.
+
+    The assignment used to sit after an early return taken on the final round,
+    so the Rail Era opened in the Canal Era's order every time -- and spending
+    in the last Canal round became free of any tempo penalty.
+    """
+    game.era = Era.CANAL
+    game.round = game.rounds_this_era
+    game.turn_order = [0, 1, 2, 3]
+    spends = [40, 5, 30, 12]          # seat 1 spent least, then 3, then 2, then 0
+    for seat, spent in enumerate(spends):
+        game.players[seat].spent = spent
+        game.players[seat].money = 200
+    _end_round(game)
+    assert game.turn_order == [1, 3, 2, 0], (
+        f"expected the spend-sorted order, got {game.turn_order}"
+    )
