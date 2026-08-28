@@ -925,6 +925,35 @@ average of 3.2. The heuristic sits at 3.47.
 Horizon 12 with width 16 is no better than horizon 8 with width 12 and costs
 twice as much, so the useful settings are small.
 
+### The planner does NOT discover turn-order management
+
+Brass sets next round's order by money spent, least first, so acting last while
+spending little buys four actions back to back -- long enough to run build ->
+connect -> beer -> sell without an opponent draining the coal or beer partway.
+The engine models this correctly and *nothing in any bot uses it*: no reference
+to `spent`, `turn_order` or `turn_pos` in the evaluation, and none of the 71
+learned features touch it.
+
+A sequence searcher ought to find it unprompted. It does not. 16 seeds, 4p:
+
+| | VP | longest own-action run | four-runs/game | spend acting last vs otherwise |
+| --- | --- | --- | --- | --- |
+| heuristic | 110.1 | 3.38 | 0.94 | 4.8 vs 5.4 |
+| planner | 132.4 | 3.25 | **0.75** | 5.4 vs 5.5 |
+
+It scores 22 VP more while taking *fewer* double turns, and its spending is flat
+whether or not it is acting last. Whatever the planner found, this is not it.
+
+**Why, and it is a real limit on the design.** The beam scores finished lines by
+final VP, but it *prunes* partial lines with `position_value` -- the same myopic
+evaluation. A plan that gives up value now to buy tempo later is cut at the
+pruning step, before the payoff is anywhere in view. So the planner escapes the
+evaluation's myopia in what it *rewards* and inherits it in what it *keeps*.
+
+That points at the next real lever: the pruning function, not the search. It also
+leaves turn-order management genuinely untried -- the guide claims it matters, no
+bot here has ever used it, and nothing yet measures what it is worth.
+
 ### Still to do on it
 
 **It is a ceiling, not a bot yet.** Two things stand between them:
