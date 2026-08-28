@@ -88,12 +88,19 @@ Held-out seeds (0-79), 80 games each, seats rotated, per-format weights applied.
 
 | fmt | pool | mean | SD | P10 | max | VP/action | win% |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 98.2 +- 0.9 | 15.6 | 79 | 146 | **3.17** | 25% |
-| 4p | vs greedy | 101.3 +- 2.1 | 18.7 | 78 | 144 | 3.27 | 94% |
-| 3p | mirror | 100.2 +- 1.1 | 16.9 | 81 | 145 | 2.86 | 33% |
-| 3p | vs greedy | 101.0 +- 2.2 | 19.7 | 78 | 136 | 2.88 | 96% |
-| 2p | mirror | **104.9 +- 1.8** | 23.0 | 82 | 148 | 2.69 | 50% |
-| 2p | vs greedy | 105.9 +- 2.3 | 21.0 | 77 | 144 | 2.72 | 98% |
+| 4p | mirror | 107.0 +- 0.9 | 15.3 | 90 | 141 | **3.45** | 25% |
+| 4p | vs greedy | 101.6 +- 2.0 | 17.6 | 81 | 140 | 3.28 | 91% |
+| 3p | mirror | 113.3 +- 1.0 | 15.3 | 94 | 151 | 3.24 | 33% |
+| 3p | vs greedy | 104.9 +- 2.6 | 22.9 | 79 | 148 | 3.00 | 95% |
+| 2p | mirror | **120.1 +- 1.7** | 22.1 | 98 | 170 | 3.08 | 50% |
+| 2p | vs greedy | 115.5 +- 2.3 | 20.3 | 91 | 163 | 2.96 | 100% |
+
+Re-measured after two engine fixes found by agents playing full games (the
+empty-network build exception, and choosing the discard instead of spending
+hand[0]). Mirror play gained most -- 4p 98.2 -> 107.0, 3p 100.2 -> 113.3, 2p
+104.9 -> 120.1 -- because both fixes help every seat at once. The vs-greedy
+column moved far less: greedy was already losing, so a better subject mostly
+converts margin it did not need.
 
 Effect of per-format weights (mean, before -> after):
 
@@ -102,6 +109,9 @@ Effect of per-format weights (mean, before -> after):
 | 2p | 88.8 -> **104.9** | 78.2 -> **105.9** |
 | 3p | 102.1 -> 100.2 | 90.3 -> **101.0** |
 | 4p | 98.6 -> 98.2 | 99.4 -> 101.3 |
+
+(Measured before the two engine fixes above, and kept at those numbers: this
+table records what the weights were worth, not where the bot now stands.)
 
 2p gained most, which is what the tuner predicted (+15.5 on validation) and what
 the format called for: **2p wanted `unflipped` cut by half and `sell_ready`
@@ -150,7 +160,8 @@ Trajectory of the 4p mirror through this work:
 | with the fabricated money-VP rule (not comparable) | 68.6 | 2.21 |
 | after correcting scoring | 43.6 | 1.41 |
 | + sell-chain terms, re-tune | 93.1 | 3.00 |
-| + money horizon, mat potential, era boundary | **98.2** | **3.17** |
+| + money horizon, mat potential, era boundary | 98.2 | 3.17 |
+| + empty-network build rule, chosen discard | **107.0** | **3.45** |
 
 ### Behaviour against expert benchmarks
 
@@ -181,12 +192,13 @@ above 200**.
 
 | target | VP/action | where we are |
 | --- | --- | --- |
-| club average | 3.2 | **we are here (3.00 mirror, 3.32 vs greedy)** |
+| club average | 3.2 | **we are here (3.45 mirror, 3.28 vs greedy)** |
 | strong 4p winner | 4.8-5.2 | +60 VP away |
 | tournament ceiling | 5.9 | - |
 
-Best single game so far: **150** (vs greedy), **139** (mirror) -- inside the
-range of real tournament winning scores, but not yet the average.
+Best single game so far at 4p: **141** (mirror), **140** (vs greedy); across all
+formats **170** (2p mirror) -- inside the range of real tournament winning
+scores, but not yet the average.
 
 ## Link scoring — settled
 
