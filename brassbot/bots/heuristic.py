@@ -79,8 +79,9 @@ class HeuristicBot(Bot):
         # and +2.98 at 2p. 2p has 39 actions to 4p's 31 and can afford the
         # investment; 4p cannot.
         #
-        # Kept at 0 pending a proper per-format test: the 2p gain is only 1.6
-        # sigma, which is not enough to ship a profile override on.
+        # Kept at 0. The 2p gain looked like +2.98 at 1.6 sigma, and the proper
+        # per-format test was then run by an agent: 160 games head to head at 2p,
+        # 119.6 against 119.6 at a 49.4% win rate. It does not replicate.
         "canal_double": 0.0,
         # Value, as the Canal Era closes, of owning an unflipped level 2+ coal
         # mine that will survive the wipe.

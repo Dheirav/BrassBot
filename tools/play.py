@@ -20,11 +20,6 @@ from brassbot.actions import Build, Develop, Loan, Network, Pass, Scout, Sell
 from brassbot.bots import make
 import brassbot.engine as _engine
 from brassbot.engine import apply_action, legal_actions
-
-# A person playing plans around their hand, so offer the discard choices the
-# rules give them. The bots leave this at 1 because their evaluation does not
-# read the hand and so cannot use them -- see MAX_DISCARD_VARIANTS in engine.py.
-_engine.MAX_DISCARD_VARIANTS = 3
 from brassbot.gamedata import Era, Industry, income_level
 from brassbot.network import is_connected_to_merchant
 from brassbot.resources import plan_cost
@@ -197,6 +192,17 @@ def show(state):
 
 
 def main(argv=None):
+    # A person playing plans around their hand, so offer them the discard
+    # choices the rules give them. The bots leave this at 1 because their
+    # evaluation does not read the hand and cannot use them.
+    #
+    # Set HERE and not at import. At module scope it fired for anything that did
+    # `from tools.play import describe` -- which every analysis script does, to
+    # get move descriptions -- silently giving the BOT a 3x larger move list
+    # too. An agent found all three of its logged games flipped result between
+    # the two settings. An import must not change how the game plays.
+    _engine.MAX_DISCARD_VARIANTS = 3
+
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
