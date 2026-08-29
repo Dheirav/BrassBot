@@ -974,6 +974,30 @@ Deliberate, and each one is somewhere a stronger bot may later want a real choic
 
 ## Next up
 
+### We have been comparing our table average against their winners
+
+Reported tournament scores -- 142-184, median 158 -- are **winning** scores. Our
+headline mirror number is the mean across **all four seats**, three of which lost.
+Comparing them overstates the gap by about 30%.
+
+| | 4p mirror, 200 games |
+| --- | --- |
+| all seats (the number quoted everywhere) | 110.7 |
+| **winning seat only** | **125.2** (median 125, best **157**) |
+| human tournament winners | 142-184, median 158 |
+
+**So the gap to a median tournament win is ~33 VP, not ~47**, and our best mirror
+game already reaches 157 against a tournament median of 158.
+
+Both numbers are worth keeping and they answer different questions. The all-seats
+mean is the right measure for "did this change help", because it is what a mirror
+can detect. The winning-seat mean is the right measure for "how far from expert
+play", because that is what the human data records. Quoting one against the other
+is the mistake.
+
+Caught by an agent auditing the benchmarks, in the last line it produced before
+an API error killed it.
+
 ### Where the bot stands
 
 | format | mirror | vs greedy | best single game |

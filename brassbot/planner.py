@@ -23,7 +23,8 @@ from dataclasses import dataclass, field
 
 from .bots.heuristic import HeuristicBot
 from .actions import Sell
-from .engine import apply_action, legal_actions, legal_sells
+from .engine import apply_action, legal_actions, legal_sells, link_icons_at
+from .gamedata import Era
 from .network import connected_locations
 
 
@@ -51,7 +52,7 @@ class BeamPlanner:
     def __init__(self, seat: int, width: int = 24, branch: int = 12,
                  evaluator: HeuristicBot | None = None,
                  cheap_opponents: bool = False, keep_per_root: int = 0,
-                 quiesce: int = 2):
+                 quiesce: int = 2, vp_blend: float = 1.0):
         self.seat = seat
         self.width = width
         self.branch = branch
@@ -102,6 +103,22 @@ class BeamPlanner:
         # sale pending. "Quiet" here means no unflipped tile of ours that a Sell
         # action could cash in right now.
         self.quiesce = quiesce
+        # How much of a plan's score is an actual VP projection rather than the
+        # hand-tuned evaluation.
+        #
+        # The evaluation is ~60% proxy: at one node it read 112.6 where banked VP
+        # was 45. Those proxies -- income x rounds, merchant_access at 2.4 a
+        # town, beer_capacity at 3, liquidity at 8 -- move in units of 2 to 6,
+        # while the VP differences they decide are 1 to 5. So the proxy wins the
+        # comparison, and a beam then optimises the proxy for eight plies. It
+        # also means the Canal-Era double is invisible as a reason to build,
+        # because the evaluation only applies it once a tile has flipped.
+        #
+        # Projecting what the scoring rules would actually pay makes the real
+        # objective the thing being searched, with the evaluation left as a
+        # tie-breaker for everything VP cannot see yet (money, income, unflipped
+        # tiles).
+        self.vp_blend = vp_blend
 
     def _opponent_move(self, state, actions):
         if not self.cheap_opponents:
@@ -263,10 +280,38 @@ class BeamPlanner:
                     break
         return chosen[:self.width]
 
+    def projected_vp(self, state) -> float:
+        """What the remaining scorings would pay on this board, as it stands.
+
+        Links score at the end of the era they are in -- canal links are removed
+        at the boundary and never score again. A flipped level 2+ tile in the
+        Canal Era scores at BOTH scorings, which is what makes building one worth
+        twice its face and is exactly what the evaluation cannot express until
+        after the tile has already flipped.
+        """
+        data = state.data
+        total = float(state.players[self.seat].vp)
+        for link_id, owner in state.links.items():
+            if owner == self.seat:
+                for end in data.link_by_id[link_id].ends:
+                    total += link_icons_at(state, end)
+        for _town, _slot, tile in state.all_tiles():
+            if tile.owner != self.seat or not tile.flipped:
+                continue
+            vp = data.tile(tile.industry, tile.level).vp
+            if state.era is Era.CANAL and tile.level >= 2:
+                vp *= 2
+            total += vp
+        return total
+
     def _potential(self, plan) -> float:
-        """Rank partial plans. Final VP once the game is over, and the
-        evaluation's estimate while it is still running."""
-        if plan.state.finished:
+        """Rank plans by what they would actually score, with the evaluation as
+        a tie-breaker for what VP cannot see yet."""
+        state = plan.state
+        if state.finished:
             return float(plan.score)
-        self.ev.w = self.ev.weights_for(plan.state.n_players)
-        return self.ev.position_value(plan.state, self.seat)
+        self.ev.w = self.ev.weights_for(state.n_players)
+        heur = self.ev.position_value(state, self.seat)
+        if not self.vp_blend:
+            return heur
+        return self.vp_blend * self.projected_vp(state) + (1 - self.vp_blend) * heur

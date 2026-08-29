@@ -39,6 +39,8 @@ class PlannerBot(Bot):
         "keep_per_root": 0,
         # Extra actions spent finishing a pending sale before a line is scored.
         "quiesce": 2,
+        # 1.0 scores plans by projected VP, 0.0 by the hand-tuned evaluation.
+        "vp_blend": 1.0,
     }
 
     def __init__(self, seed: int = 0, **params):
@@ -55,7 +57,8 @@ class PlannerBot(Bot):
         planner = BeamPlanner(seat=me, width=int(self.p["width"]),
                               branch=int(self.p["branch"]),
                               keep_per_root=int(self.p["keep_per_root"]),
-                              quiesce=int(self.p["quiesce"]))
+                              quiesce=int(self.p["quiesce"]),
+                              vp_blend=float(self.p["vp_blend"]))
 
         # Each sampled world votes for the first action of its best line, scored
         # by what that line reaches. Summing scores rather than counting votes
