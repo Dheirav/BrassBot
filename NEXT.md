@@ -568,6 +568,34 @@ kept as weights at 0 rather than deleted.
 | `hand_reach` | value network towns your industry cards could build in | 101.72 (-9.0) |
 | `merchant_access_cap` | cap merchant access at the tiles actually waiting to sell | **97.53 (-13.2)** |
 
+### And it is not because the other weights were fitted without them
+
+The obvious defence of these terms is that `DEFAULTS` was tuned as a *set*, so
+every weight's value compensates for what the others miss -- `merchant_access` is
+2.4 partly because nothing else credits connectivity. Add a term that also
+credits connectivity and the bot is paid twice, over-invests, and loses. On that
+account each term above was tested unfairly: added, with the other twenty held
+fixed.
+
+So `hand_reach`, the best-argued of them, was given the fair test. Seeded at 0.3
+(coordinate descent scales multiplicatively and cannot move a weight off zero)
+and the **whole vector re-tuned around it**, 174 candidates over 26 minutes on
+the tuning block, validated on a third block:
+
+| | |
+| --- | --- |
+| best on tuning seeds | 118.8 |
+| validation, starting weights | 108.0 |
+| validation, re-tuned weights | 108.9 (+0.8, noise +-2.4) |
+
+**Not an improvement, and the tuner never raised `hand_reach` above the 0.3 it
+was seeded with.** Free to re-balance everything around the new term, it found no
+configuration that uses it.
+
+The equilibrium defence is therefore wrong, and that is worth knowing: these
+terms do not fail because of how they were tested. The evaluation is at a flat
+optimum and 174 candidates could not find a way out of it.
+
 `hand_reach` was the most carefully argued of the three and lost monotonically at
 every weight. It was the only term in this evaluation ever to read the hand --
 `wild_card` and `hand_breadth` both ship at 0, which is why offering a choice of
