@@ -623,6 +623,48 @@ already hold; never when it prices the prerequisite for something you do not.**
 `beer_capacity` prices barrels you have. `merchant_access` prices a road to a
 sale you have not built yet.
 
+## The pottery gap: measured, unexplained, and worth about 40 VP
+
+Four independent agents, across all three player counts, reported the same
+thing without being asked: **our bots never build pottery.** One won 129-116
+against the planner taking **41 of its 129 points from three pottery builds**;
+another took 21 VP; a third watched a bot spend Stoke's contested iron/pottery
+slot on a 5 VP iron works.
+
+It is not availability, and it is not the commitment filter, which is now off:
+
+| | over 6 games |
+| --- | --- |
+| decisions | 744 |
+| decisions where a pottery build was legal | **317 (43%)** |
+| pottery builds actually made | **5** |
+| median rank of the best pottery build among all candidates | **#36** |
+
+Pottery is offered constantly and ranked into oblivion. It is the highest VP per
+tile in the game -- L1 10, L3 11, L5 20 -- and the only level-1 tile that can be
+built in the Rail Era, where no wipe can take it.
+
+**One promising explanation was tested and is wrong.** The two weights that
+price a sellable tile are inverted at 4p and only at 4p:
+
+| format | `unflipped` (cannot sell yet) | `sell_ready` (can sell now) |
+| --- | --- | --- |
+| 2p | 0.1875 | 0.478 |
+| 3p | 0.2812 | 0.3187 |
+| **4p** | **0.375** | **0.3187** |
+
+The comment says a sellable tile "is worth almost nothing until it can actually
+be sold, and nearly its full value once it can", and at 4p it is worth *less*
+once it can. Pottery is the tile whose entire value is being sellable, so this
+looked like the cause. It is not: sweeping `sell_ready` gives 110.13 at 0.45,
+111.39 at 0.6 (+0.69, 0.9 sigma) and 107.99 at 0.8. No effect worth having.
+
+So the gap is real, large, independently observed four times, and **its cause is
+still unknown**. That makes it the best-evidenced open question in this document.
+Candidates not yet tested: pottery's cost (GBP17 for L1, the most expensive
+opening tile), its iron requirement, or that its VP arrives only through a Sell
+that the one-ply evaluation cannot see two actions ahead.
+
 ## Delta evaluation, and what it actually bought
 
 The evaluation cloned the state and valued all four seats for every candidate
