@@ -141,6 +141,19 @@ class HeuristicBot(Bot):
         # so Sell is never legal, so money becomes the cheapest VP and it loans
         # instead. Flat is deliberate.
         "merchant_access_cap": 0.0,
+        # A link is paid at the END of an era, by which time almost everything
+        # standing has flipped -- 96% of our tiles at rail scoring, 74% at canal.
+        # But link_icons_at counts only tiles flipped ALREADY, so the estimate a
+        # link is chosen on barely predicts what it pays: correlation 0.11 in the
+        # Rail Era, 0.41 in the Canal. These credit an unflipped neighbour's
+        # link_vp at roughly its chance of flipping in time.
+        #
+        # This is the largest term in player_value and it had no weight at all --
+        # `value += link_icons_at(...)`, coefficient hardcoded to 1.0 -- so every
+        # weight sweep and the 174-candidate re-tune searched a vector that did
+        # not contain it.
+        "link_flip_canal": 0.7,
+        "link_flip_rail": 0.9,
         # What our network lets the cards in our HAND actually do.
         #
         # An industry card may only build inside your network; a location card
@@ -491,10 +504,13 @@ class HeuristicBot(Bot):
             for seat, bucket in enumerate(buckets) if seat != me
             for town, t in bucket
         )
-        # Ours matter to them only as link icons, which unflipped tiles do not
-        # contribute.
-        mine_flipped = tuple((town, t.industry, t.level)
-                             for town, t in buckets[me] if t.flipped)
+        # Ours used to matter to them only as link icons, which unflipped tiles
+        # did not contribute -- so unflipped ones were narrowed out. Now that a
+        # link is credited for its unflipped neighbours, an opponent's value can
+        # read them, and leaving them out would make the reuse unsound. Costs
+        # some of the 51% cache hit rate; measured as identical in strength.
+        mine_flipped = tuple((town, t.industry, t.level, t.flipped)
+                             for town, t in buckets[me])
         merchant_beer = tuple(slot.beer for slot in state.merchant_slots())
         return (state.round, state.era, state.rounds_this_era,
                 others, mine_flipped, merchant_beer, len(state.links))
@@ -606,12 +622,20 @@ class HeuristicBot(Bot):
 
         # Links: icons in adjacent locations, exactly as they would score.
         network = set(claimed_towns)
+        flip_odds = (self.w["link_flip_canal"] if state.era is Era.CANAL
+                     else self.w["link_flip_rail"])
         for link_id, owner in state.links.items():
             if owner == seat:
                 ends = data.link_by_id[link_id].ends
                 network.update(ends)
                 for end in ends:
                     value += link_icons_at(state, end)
+                    if flip_odds and end not in data.merchants:
+                        for tile in state.tiles.get(end, ()):
+                            if tile is not None and not tile.flipped:
+                                value += (flip_odds
+                                          * data.tile(tile.industry,
+                                                      tile.level).link_vp)
 
         # What the hand can actually build, given where the network reaches.
         if self.w["hand_reach"]:

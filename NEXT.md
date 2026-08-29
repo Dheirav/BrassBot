@@ -1053,6 +1053,47 @@ yardstick's 5.9 VP/action ceiling gives ~183 at 4p -- the two agree, which is th
 best evidence we have that 5.9 is real. 200+ is a 2p target (39 actions x 5.9),
 not a 4p one.
 
+### Links are valued by what has already flipped, and that was the biggest leak
+
+A link is paid at the END of an era, by which point almost everything standing
+has flipped -- **96% of our tiles at rail scoring, 74% at canal**. But
+`link_icons_at` counts only tiles flipped *already*, so the number a link is
+chosen on barely predicts what it pays: **correlation 0.11 in the Rail Era**,
+0.41 in the Canal.
+
+Crediting an unflipped neighbour's `link_vp` at roughly its chance of flipping in
+time (`link_flip_canal` 0.7, `link_flip_rail` 0.9) is worth, head to head against
+the old evaluation:
+
+| block | delta | win rate |
+| --- | --- | --- |
+| report 0+ | **+10.38** | 25% -> 50% |
+| validation 20000+ | **+11.91** | 25% -> 53% |
+| 4p mirror | 110.70 -> **112.29** | - |
+
+Found by an agent, which measured +8.4 / +10.7 / +11.9 across three disjoint
+blocks; the numbers above are an independent re-run. The weight curve is smooth
+and single-peaked, the two eras contribute additively, and the shape it produces
+is the one the expert game has: industry:link moves 47:53 to **39:61** against
+the coached game's 43:57, and it reproduces "place coal where your own links
+already are" without being told. Runtime cost is zero.
+
+**This corrects the central conclusion recorded above it.** Six weight
+experiments and a 174-candidate re-tune found nothing, and that was read as the
+evaluation being at a flat optimum with the remaining gap in sequencing. But the
+link term had **no weight at all** -- `value += link_icons_at(state, end)`, the
+coefficient hardcoded to 1.0 -- so every one of those searches ran over a
+21-weight vector that did not contain the largest term in the function. The
+optimum was flat in the parameters that existed, not in the evaluation.
+
+Two sequencing claims made here also failed measurement when an agent checked
+them. **Sell batching is not an opportunity**: when a Sell is legal the maximum
+tiles flippable in one action is 1.02 in canal and 1.18 in rail, so there is
+almost nothing to batch. And **pottery is not free VP**: the `mat_potential`
+cause was found (building pottery L1 is charged for the 1 VP filler tile it
+uncovers) and the fix measured over 300 paired games -- pottery builds 0.26 ->
+1.05, score **-0.79 +- 0.65**. The mechanism fires and the points are not there.
+
 ### What is settled, and will not be revisited without new evidence
 
 Seven levers have been measured and closed. Each has numbers in this document.
