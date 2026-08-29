@@ -81,6 +81,53 @@ that our move order was not deterministic. Playing the game surfaced four engine
 bugs that thousands of self-play games never did, because self-play cannot notice
 that a legal option was never offered.
 
+## Brewery, not manufacturer -- tested, and the headline number is misleading
+
+An agent scored 150 at 4p and attributed it to a loop the guide never mentions:
+each double rail eats a beer, so it flips the brewery that supplied it, and the
+doubles double your link output at the same time. Two more games were played to
+test it deliberately. **Both scored 140** (4.52 VP/action), with **no manufacturer
+built in either**.
+
+**The 9.6 VP per double-rail action replicates, and it is gross rather than
+marginal.** Measured at 9.4 and 10.5 across nine doubles. But those same links
+were placeable with single actions: what a double actually buys over two singles
+is **one action, for GBP5 and a beer**. The freed action was worth about 3 VP at
+the margin, so the true value of a double is **+2 to +3 VP**, not 9.6. The scarce
+resource is dense link positions, not double-rail actions -- doubles scored 9-13
+early and 4 late, and both games ended holding unplaceable link tiles.
+
+**The loop's second half is real but leaks at 4p.** In the clean game all four
+doubles ran on own beer and flipped three of its own breweries for 19 VP. In the
+contested game opponents drank 4 of its 8 barrels and two doubles ran on
+opponents' breweries. A connected brewery gets drained and flips *either way* --
+the loop does not create the flip, it lets you choose the moment and convert the
+barrel into two links.
+
+**Why brewery beats manufacturer anyway**, on this evidence:
+
+- brewery `link_vp` is **2**, the top tier, against manufacturer L2/L3 at 1 and 0
+  -- and link VP is where a 4p game is won;
+- a brewery flips with **no Sell action and no merchant connection**: any
+  consumer flips it, including your own rail links and opponents' sales. A
+  manufacturer needs both a merchant link and a Sell;
+- it is cheaper, GBP7-12 against GBP10+.
+
+The guide's real principle -- pick the industry costing the fewest actions --
+points at brewery once double rails exist to drink the beer.
+
+Two plays outscored the loop per action and belong in any recipe: **an iron works
+into an empty market flips on build and pays for itself** (net -GBP4 for 5 VP in
+one game), and **pottery sold on your own beer** (one Sell flipping pottery L2 +
+L3 + a brewery for 22 VP).
+
+Rules point checked, since the plan depended on it: **unspent beer stays on a
+surviving level 2+ brewery across the era boundary.** No source lists a step
+removing it, and the merchant step is worded "place 1 beer barrel on each *empty*
+beer barrel space". Our engine does this. Noted that both consulted summaries
+also omit canal-link removal, so their silence is weaker evidence than their
+positive statements.
+
 ## The 4-player recipe, concretely
 
 He is specific about what to do at our target player count, and it is *cheap* —
