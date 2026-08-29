@@ -522,6 +522,40 @@ not evidence about the bot until you have checked the bot was offered the
 alternative** -- rule 8's "fails" verdict was partly the sell cap, and rule 7's
 was entirely the beer ordering.
 
+## The Canal-Era double, and why crediting it at the build does nothing
+
+The largest leak an agent measured: **26 of 39 canal builds (67%) are level 1,
+mean level 1.44**, banking 14 VP a game that the era wipe then throws in the box.
+A level 2+ tile flipped in the Canal Era survives and scores AGAIN at the Rail
+Era's scoring, so those actions spent on level-2 tiles would bank roughly 37.
+
+The doubling was only ever applied to a tile that had *already* flipped, so it
+was never a reason to build the level-2 tile. Crediting it at build time moved
+the mean canal build level from **1.44 to 1.46** -- nothing.
+
+**Because a Build always places `lowest_level`.** You cannot build a level-2 tile
+while a level-1 sits on top of that mat; developing the level-1 away is the only
+route to it. So the credit has to go on the *develop*, not the build. Moving it
+there moved the build level to **1.85**, which is the mechanism working.
+
+It still does not pay at 4p. Over 200 games an arm:
+
+| format | actions | baseline | with the credit | delta |
+| --- | --- | --- | --- | --- |
+| 4p | 31 | 110.17 | **106.81** | **-3.36 (2.6 sigma)** |
+| 3p | 35 | 115.06 | 115.32 | +0.26 |
+| 2p | 39 | 121.11 | 124.09 | +2.98 (1.6 sigma) |
+
+The split follows the action budget exactly: developing costs actions and iron,
+2p has 39 actions to spend and 4p has 31. Kept as a weight, `canal_double`, at
+0 -- the 2p gain is 1.6 sigma, which is not enough to ship a profile override on,
+but it is the most promising per-format lead we have.
+
+**The general lesson is about where a term can act.** Valuing an outcome the bot
+has no legal route to reach changes nothing; the credit has to land on the action
+that unlocks the route. That is worth checking before pricing anything else the
+bot "should" prefer.
+
 ## Delta evaluation, and what it actually bought
 
 The evaluation cloned the state and valued all four seats for every candidate

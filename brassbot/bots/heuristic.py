@@ -65,6 +65,23 @@ class HeuristicBot(Bot):
         # opportunistic tile it actually is. Those are different questions and
         # the hard filter conflated them.
         "commit": -1,
+        # How much of the Canal-Era double to credit when valuing a level 2+
+        # tile you could build, or unlock by developing. A level 2+ tile flipped
+        # in the Canal Era survives the wipe and scores AGAIN at the Rail Era's
+        # scoring, so in principle it is worth twice its VP.
+        #
+        # OFF at 4p, and the reason is the action budget rather than the rule.
+        # Crediting it moves the mean canal build level 1.44 -> 1.85, so the
+        # mechanism works -- a Build always places `lowest_level`, so developing
+        # the level-1 away is the only way to reach a level 2, and this is what
+        # pays for that develop. But developing costs actions and iron, and over
+        # 200 games an arm it is worth -3.36 VP at 4p (2.6 sigma), +0.26 at 3p
+        # and +2.98 at 2p. 2p has 39 actions to 4p's 31 and can afford the
+        # investment; 4p cannot.
+        #
+        # Kept at 0 pending a proper per-format test: the 2p gain is only 1.6
+        # sigma, which is not enough to ship a profile override on.
+        "canal_double": 0.0,
         "unflipped": 0.375,   # odds we actually realise an unflipped tile's payoff
         # Money is worth ZERO victory points -- it is only the second tiebreak.
         # So cash has purely instrumental value: what it buys before the game
@@ -485,12 +502,29 @@ class HeuristicBot(Bot):
                 continue
 
             levels = income_level(p.income_space + spec.income) - p.income
-            promise = spec.vp + levels * rounds * self.w["income"]
+
+            # A level 2+ tile flipped during the Canal Era survives the wipe and
+            # scores AGAIN at the end of the Rail Era. That doubling was credited
+            # only once the tile had already flipped, so it was never a reason to
+            # BUILD the level-2 tile -- and the bot duly put 67% of its canal
+            # builds into level 1, mean level 1.44, banking 14 VP a game that the
+            # era wipe then threw in the box. It enters the Rail Era on 41.7 VP
+            # against an expert 70-80, the worst band on the yardstick.
+            #
+            # Scaled by the room left to flip in, so a level-2 tile built on the
+            # last canal round is not credited with a double it cannot collect.
+            left_in_era = max(0, state.rounds_this_era - state.round)
+            vp = spec.vp
+            if (self.w["canal_double"] and state.era is Era.CANAL
+                    and tile.level >= 2 and self.w["flip_horizon"]):
+                vp *= 1 + self.w["canal_double"] * min(
+                    1.0, left_in_era / self.w["flip_horizon"])
+
+            promise = vp + levels * rounds * self.w["income"]
 
             # Discount by how long this tile has left to flip before it is
             # either wiped (level 1, at the end of the Canal Era) or the game
             # simply ends.
-            left_in_era = max(0, state.rounds_this_era - state.round)
             if state.era is Era.CANAL and tile.level >= 2:
                 horizon = left_in_era + state.rounds_this_era  # survives the wipe
             else:
@@ -578,11 +612,29 @@ class HeuristicBot(Bot):
         # spent its LAST action of a game on a develop worth +0.5 of pure mat
         # potential over passing, and took 1.5 Rail Era develops a game against
         # an expert 0.
+        # What the mat can still produce, and in the Canal Era that is worth
+        # double for a level 2+ tile -- it survives the wipe and scores again.
+        #
+        # This is the half that matters. A Build always places `lowest_level`,
+        # so the bot CANNOT build a level-2 tile while a level-1 sits on top of
+        # the mat: crediting the level-2 tile at build time changed its canal
+        # build level by 0.02, because the tile was never available to choose.
+        # Developing the level-1 away is what unlocks it, so that is where the
+        # doubling has to be visible.
+        canal_room = 0.0
+        if (self.w["canal_double"] and state.era is Era.CANAL
+                and self.w["flip_horizon"]):
+            canal_room = self.w["canal_double"] * min(
+                1.0, max(0, state.rounds_this_era - state.round)
+                / self.w["flip_horizon"])
         lowest = {i: p.lowest_level(i) for i in Industry}
         for industry, level in lowest.items():
-            if level is not None:
-                value += (data.tile(industry, level).vp
-                          * self.w["mat_potential"] * spendable)
+            if level is None:
+                continue
+            vp = data.tile(industry, level).vp
+            if level >= 2:
+                vp *= 1 + canal_room
+            value += vp * self.w["mat_potential"] * spendable
 
         # Stranded canal-only tiles block an entire industry in the Rail Era.
         if state.era is Era.RAIL:
