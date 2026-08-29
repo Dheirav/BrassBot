@@ -556,6 +556,37 @@ has no legal route to reach changes nothing; the credit has to land on the actio
 that unlocks the route. That is worth checking before pricing anything else the
 bot "should" prefer.
 
+## Two more terms that lose, and what they teach
+
+Both suggested to attack real leaks, both measured over 200 games an arm, both
+kept as weights at 0 rather than deleted.
+
+| term | idea | 4p mirror |
+| --- | --- | --- |
+| baseline | - | **110.70 +- 0.53** |
+| `rail_bootstrap` | value a surviving level 2+ coal mine as the Canal Era closes | 109.19 (-1.5) |
+| `merchant_access_cap` | cap merchant access at the tiles actually waiting to sell | **97.53 (-13.2)** |
+
+**`rail_bootstrap`** attacks a real blindness: every link is removed at the era
+boundary, so nothing is connected, so no coal is reachable, and an agent opened
+the Rail Era with no legal rail link at all while every Birmingham link went in
+three rounds. But it prices a **stock**, and this codebase has now lost points to
+that five separate times. The diagnosis stands; pricing a holding is not the fix.
+
+**`merchant_access_cap`** is the more interesting failure. Capping access by what
+is waiting to sell looks like exactly the fix that made `beer_capacity` work --
+and it costs 13 VP, because the two are not the same shape. **You need the
+merchant connection BEFORE the tile that uses it.** Crediting access only once a
+tile is waiting inverts the causality and re-opens the trap in
+`docs/diagnosis.md`: with no credit for building toward a sale, the bot never
+starts the chain, Sell never becomes legal, and money becomes the cheapest VP.
+The flatness is deliberate.
+
+The distinction to carry forward: **cap a term when it prices something you
+already hold; never when it prices the prerequisite for something you do not.**
+`beer_capacity` prices barrels you have. `merchant_access` prices a road to a
+sale you have not built yet.
+
 ## Delta evaluation, and what it actually bought
 
 The evaluation cloned the state and valued all four seats for every candidate

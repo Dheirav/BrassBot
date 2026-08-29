@@ -82,6 +82,22 @@ class HeuristicBot(Bot):
         # Kept at 0 pending a proper per-format test: the 2p gain is only 1.6
         # sigma, which is not enough to ship a profile override on.
         "canal_double": 0.0,
+        # Value, as the Canal Era closes, of owning an unflipped level 2+ coal
+        # mine that will survive the wipe.
+        #
+        # Every link is removed at the era boundary, so nothing is connected, so
+        # no coal is reachable, so a rail link cannot be paid for. An agent
+        # opened the Rail Era with NO legal rail link at all and burned round 1
+        # bootstrapping a mine -- while every Birmingham rail link was gone by
+        # rail round 3. A surviving mine is the difference between taking premium
+        # links immediately and being locked out of them.
+        #
+        # Deliberately narrow. This repo's hardest-won lesson is "price the flow,
+        # not the stock" -- terms that valued a holding caused hoarding and cost
+        # 10-25 VP. This one only fires in the last rounds of the Canal Era, so
+        # there is nothing to hoard toward for long, and it prices what the mine
+        # ENABLES rather than the cubes it holds.
+        "rail_bootstrap": 0.0,
         "unflipped": 0.375,   # odds we actually realise an unflipped tile's payoff
         # Money is worth ZERO victory points -- it is only the second tiebreak.
         # So cash has purely instrumental value: what it buys before the game
@@ -111,6 +127,19 @@ class HeuristicBot(Bot):
         # Credit for merchant connectivity itself, so building *toward* a sale
         # registers as progress rather than as spending money for nothing.
         "merchant_access": 2.4,
+        # Cap merchant_access at the tiles waiting to be sold, plus one. OFF:
+        # it costs **13.2 VP** (110.70 -> 97.53 over 200 games), the largest
+        # regression measured on this evaluation.
+        #
+        # The cap looked principled -- beer_capacity is capped at the tiles
+        # actually waiting for exactly this reason -- and it is wrong here for a
+        # reason worth keeping. You need the merchant connection BEFORE the tile
+        # that uses it, so crediting access only once something is waiting
+        # inverts the causality and re-opens the trap in docs/diagnosis.md: with
+        # no credit for building toward a sale, the bot never starts the chain,
+        # so Sell is never legal, so money becomes the cheapest VP and it loans
+        # instead. Flat is deliberate.
+        "merchant_access_cap": 0.0,
         # Cash is only worth what it buys before the game ends, and it scores
         # nothing at the final whistle. So its value has to decay to zero as the
         # actions run out -- otherwise the bot happily finishes holding money it
@@ -546,6 +575,18 @@ class HeuristicBot(Bot):
             else:
                 value += promise * self.w["unflipped"]
 
+        # A coal source that will survive into the Rail Era, valued only as the
+        # boundary approaches.
+        if self.w["rail_bootstrap"] and state.era is Era.CANAL:
+            near = max(0, state.rounds_this_era - state.round)
+            if near <= 2:
+                ready = any(
+                    tile.industry is Industry.COAL_MINE and tile.level >= 2
+                    and not tile.flipped and tile.resources > 0
+                    for _town, tile in own)
+                if ready:
+                    value += self.w["rail_bootstrap"] * (3 - near)
+
         # Links: icons in adjacent locations, exactly as they would score.
         for link_id, owner in state.links.items():
             if owner == seat:
@@ -566,7 +607,17 @@ class HeuristicBot(Bot):
 
         # Merchant access is the gateway to every sale, so it is worth something
         # in its own right, before any particular tile is ready to sell.
-        value += len(connected_towns) * self.w["merchant_access"]
+        #
+        # Capped by what there is to sell, plus one for the connection you build
+        # BEFORE the tile. Flat credit per connected town paid for links into
+        # towns that finish empty: it ranked a 2 VP link above a 3 VP one, and
+        # bought a fourth link into a one-slot town. Same shape as beer_capacity,
+        # which is capped at the tiles actually waiting for exactly this reason
+        # -- an access you cannot use is not access.
+        reach = len(connected_towns)
+        if self.w["merchant_access_cap"]:
+            reach = min(reach, waiting + 1)
+        value += reach * self.w["merchant_access"]
 
         # Beer on our own breweries: each barrel is one more tile a Sell action
         # can flip. Own beer needs no connection, which is what makes it the
