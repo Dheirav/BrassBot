@@ -40,7 +40,20 @@ class PlannerBot(Bot):
         # Extra actions spent finishing a pending sale before a line is scored.
         "quiesce": 2,
         # 1.0 scores plans by projected VP, 0.0 by the hand-tuned evaluation.
-        "vp_blend": 1.0,
+        #
+        # 0.0, and 1.0 was shipped for an hour by mistake. Measured over 24
+        # games: 133.7 at 0.0, 131.7 at 0.5, and an agent's five games at 1.0
+        # averaged 116. At 1.0 the heuristic is multiplied by zero, so the whole
+        # objective is link icons plus tiles ALREADY flipped -- which means an
+        # unflipped tile is worth nothing, a level-2 tile is worth exactly what a
+        # level-1 is until it flips, a brewery is worth nothing until someone
+        # drinks it, and a second sellable lined up for the same Sell scores 0.
+        # Every one of those is a reason the bot stopped doing the thing.
+        #
+        # The projection is not wrong, it is incomplete: it needs a term for
+        # tiles not yet flipped but still flippable, carrying the Canal-Era
+        # double, before it can replace the evaluation rather than blind it.
+        "vp_blend": 0.0,
     }
 
     def __init__(self, seed: int = 0, **params):
