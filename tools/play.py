@@ -18,7 +18,13 @@ import sys
 
 from brassbot.actions import Build, Develop, Loan, Network, Pass, Scout, Sell
 from brassbot.bots import make
+import brassbot.engine as _engine
 from brassbot.engine import apply_action, legal_actions
+
+# A person playing plans around their hand, so offer the discard choices the
+# rules give them. The bots leave this at 1 because their evaluation does not
+# read the hand and so cannot use them -- see MAX_DISCARD_VARIANTS in engine.py.
+_engine.MAX_DISCARD_VARIANTS = 3
 from brassbot.gamedata import Era, Industry, income_level
 from brassbot.network import is_connected_to_merchant
 from brassbot.resources import plan_cost

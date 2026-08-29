@@ -12,6 +12,7 @@ and expensive to debug later:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace
 from itertools import combinations
 
 from .actions import Action, Build, Develop, Loan, Network, Pass, Sale, Sell, Scout
@@ -51,6 +52,24 @@ MAX_DOUBLE_RAIL = 40
 # of move generation -- only this many lines are considered for pairing.
 DOUBLE_RAIL_CANDIDATES = 12
 MAX_SELL_COMBOS = 24
+# How many different cards an action may be offered discarding. The rulebook
+# says "discard any card from your hand" for Loan, Network, Develop, Sell and
+# Pass, and only one variant was generated -- the most expendable by
+# _expendability, whose last tiebreak is raw hand order. Four agents reported
+# losing the exact card their plan needed.
+#
+# Default 1, and the reason is worth knowing before raising it. Offering a
+# second choice costs 40% of runtime (200 games, 29s -> 41s) and changes NOTHING
+# for our bots: the evaluation ships with wild_card and hand_breadth at 0, so it
+# never reads the hand, and the two variants score bit-identically (8.733942 vs
+# 8.733942 on a real position). The bot cannot see the difference it is paying
+# for.
+#
+# tools/play.py raises it, because a human or an agent DOES plan around their
+# hand and the choice is theirs by the rules. Raising it for the bot only pays
+# once the evaluation values cards -- which is the actual missing piece.
+MAX_DISCARD_VARIANTS = 1
+
 # Distinct sets of cards a Scout may throw away. Raised from 3: Scout is a rare
 # action, so widening it is nearly free in search time, and all three of the old
 # sliding windows could discard the one card a plan needed -- which is what an
@@ -651,7 +670,7 @@ def legal_actions(state: GameState) -> list[Action]:
     cards = _unique_hand_indices(state, state.current.idx)
     if cards:
         out.append(Pass(cards[0]))
-    return out
+    return _with_discard_variants(state, out)
 
 
 # --- applying ---------------------------------------------------------------
@@ -695,6 +714,27 @@ def apply_action(state: GameState, action: Action) -> None:
     state.actions_left -= 1
     if state.actions_left == 0:
         _end_turn(state)
+
+
+def _with_discard_variants(state: GameState, actions: list[Action]) -> list[Action]:
+    """Offer the same action discarding a different card.
+
+    Loan, Network, Develop, Sell and Pass discard "any card from your hand", and
+    only the single most expendable one was ever offered. Build is excluded: its
+    card is what makes the build legal, and legal_builds already enumerates one
+    per distinct card. Scout picks its own triples.
+    """
+    player = state.current.idx
+    cards = _unique_hand_indices(state, player)
+    if len(cards) < 2:
+        return actions
+    extra: list[Action] = []
+    for alt in cards[1:MAX_DISCARD_VARIANTS]:
+        for action in actions:
+            if isinstance(action, (Loan, Network, Develop, Sell, Pass)) \
+                    and action.card != alt:
+                extra.append(replace(action, card=alt))
+    return actions + extra
 
 
 def _apply_build(state: GameState, player: int, action: Build) -> None:

@@ -487,11 +487,34 @@ bug both hid.
 
 | choice | who makes it now | cost seen in play |
 | --- | --- | --- |
-| which card to discard for Loan / Network / Develop / Sell / Pass | `_expendability`, ties broken by shuffle order | an agent's Network ate the one `brewery` card its next build needed; no legal ordering saved it |
+| which card to discard for Loan / Network / Develop / Sell / Pass | **the player, in `tools/play.py`; still `_expendability` for the bots** | four agents lost the card their plan needed; see below |
 | which 3 cards to Scout | 3 sliding windows of 56 possible triples | all three offered options discarded the card the plan needed |
 | which industry Gloucester's develop bonus clears | highest-VP next tile (was enum order, i.e. always coal) | removed one of two identical coal L2s, unlocking nothing |
 | whether to take merchant beer | always taken when available | rulebook says *may*; sometimes you want your own brewery drained so it flips |
 | which second link a double rail reaches | pairs built from lines reachable *before* the action | refused `(burton-stone, stone-uttoxeter)`, legal in the real game because the first link makes the second coal-reachable |
+
+### The discard choice is now offered, and the bot cannot use it
+
+Four agents reported losing the exact card their plan needed, so `legal_actions`
+now emits a variant per discardable card for Loan, Network, Develop, Sell and
+Pass. `MAX_DISCARD_VARIANTS` controls how many; `tools/play.py` sets it to 3.
+
+**For the bots it is left at 1, because they are blind to it.** The evaluation
+ships with `wild_card` and `hand_breadth` at 0, so it never reads the hand: the
+two loan variants of a real position both score **8.733942**. Offering the choice
+costs 40% of runtime (200 games, 29s -> 41s) and changes not one game -- 110.70
++- 0.53 either way, identical to the decimal.
+
+That identity is also how the first attempt at this measurement was caught. It
+set the constant in the parent process, where it never reached the pool workers,
+so both arms ran the same configuration -- and the giveaway was the two arms
+agreeing to two decimals. Had they differed by noise it would have been reported
+as a real null. Vary anything that is not a function argument by building two
+trees, not by assigning to a module.
+
+The finding underneath: **a legal choice is worth nothing to a bot whose
+evaluation cannot see what it is choosing between.** Hand-aware terms are the
+prerequisite, not more branching.
 
 All are documented branching-factor caps rather than oversights, and each costs
 search time to lift. But the pattern to remember is that **a behaviour number is
