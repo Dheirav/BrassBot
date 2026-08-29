@@ -565,7 +565,15 @@ kept as weights at 0 rather than deleted.
 | --- | --- | --- |
 | baseline | - | **110.70 +- 0.53** |
 | `rail_bootstrap` | value a surviving level 2+ coal mine as the Canal Era closes | 109.19 (-1.5) |
+| `hand_reach` | value network towns your industry cards could build in | 101.72 (-9.0) |
 | `merchant_access_cap` | cap merchant access at the tiles actually waiting to sell | **97.53 (-13.2)** |
+
+`hand_reach` was the most carefully argued of the three and lost monotonically at
+every weight. It was the only term in this evaluation ever to read the hand --
+`wild_card` and `hand_breadth` both ship at 0, which is why offering a choice of
+discard changed not one game in 200. Paying for *reach* turns out to buy links
+into towns you might build in, and the actions go on connections that never
+convert. Perception was not the missing piece.
 
 **`rail_bootstrap`** attacks a real blindness: every link is removed at the era
 boundary, so nothing is connected, so no coal is reachable, and an agent opened

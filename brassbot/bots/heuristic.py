@@ -140,6 +140,22 @@ class HeuristicBot(Bot):
         # so Sell is never legal, so money becomes the cheapest VP and it loans
         # instead. Flat is deliberate.
         "merchant_access_cap": 0.0,
+        # What our network lets the cards in our HAND actually do.
+        #
+        # An industry card may only build inside your network; a location card
+        # builds anywhere. So the strategic value of a link -- as opposed to the
+        # icons it scores -- is precisely that it brings towns into range of the
+        # industry cards you are holding. Nothing else in this evaluation reads
+        # the hand at all: wild_card and hand_breadth both ship at 0, which is
+        # also why offering a choice of discard changed not one game.
+        #
+        # Counted as empty slots in our network that an industry card in hand
+        # could fill, capped by the hand size. OFF: it loses, monotonically --
+        # 110.70 at 0, 108.79 at 0.3, 105.76 at 0.8, 101.72 at 2.0 over 200 games
+        # an arm. It fires (2-5 points of credit mid-game), it is simply wrong:
+        # paying for reach buys links into towns you MIGHT build in, and the
+        # actions go on connections that never convert.
+        "hand_reach": 0.0,
         # Cash is only worth what it buys before the game ends, and it scores
         # nothing at the final whistle. So its value has to decay to zero as the
         # actions run out -- otherwise the bot happily finishes holding money it
@@ -588,10 +604,30 @@ class HeuristicBot(Bot):
                     value += self.w["rail_bootstrap"] * (3 - near)
 
         # Links: icons in adjacent locations, exactly as they would score.
+        network = set(claimed_towns)
         for link_id, owner in state.links.items():
             if owner == seat:
-                for end in data.link_by_id[link_id].ends:
+                ends = data.link_by_id[link_id].ends
+                network.update(ends)
+                for end in ends:
                     value += link_icons_at(state, end)
+
+        # What the hand can actually build, given where the network reaches.
+        if self.w["hand_reach"]:
+            held: set = set()
+            for card in p.hand:
+                if card.industries:
+                    held |= set(card.industries)
+            if held:
+                openings = 0
+                for town_id in network:
+                    town = data.towns.get(town_id)
+                    if town is None:
+                        continue
+                    for i, slot in enumerate(town.slots):
+                        if state.tiles[town_id][i] is None and (slot & held):
+                            openings += 1
+                value += min(openings, len(p.hand)) * self.w["hand_reach"]
 
         # Credit for sites others could have raced us to -- counted ONCE per town.
         #
