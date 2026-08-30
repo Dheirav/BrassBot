@@ -357,7 +357,8 @@ def legal_networks(state: GameState) -> list[Network]:
         # are reachable, which is the late Rail Era on an empty board, where
         # doubles matter most.
         firsts = sorted(reachable_lines,
-                        key=lambda l: -sum(link_icons_at(state, e) for e in l.ends)
+                        key=lambda l: -sum(prospective_link_icons(state, e)
+                                           for e in l.ends)
                         )[:DOUBLE_RAIL_CANDIDATES]
 
         seen_pairs: set = set()
@@ -381,7 +382,8 @@ def legal_networks(state: GameState) -> list[Network]:
                 seen_pairs.add(key)
                 pairs.append((a, b, probe))
         pairs.sort(key=lambda ab: -sum(
-            link_icons_at(state, end) for link in ab[:2] for end in link.ends))
+            prospective_link_icons(state, end)
+            for link in ab[:2] for end in link.ends))
 
         for a, b, probe in pairs:
             if made >= MAX_DOUBLE_RAIL:
@@ -884,6 +886,23 @@ def _collect_income(state: GameState, p) -> None:
         lost = min(p.vp, owed)
         p.vp -= lost
         p.vp_penalties += lost
+
+
+def prospective_link_icons(state: GameState, location: str) -> int:
+    """What a link beside this location will be worth once the board settles.
+
+    `link_icons_at` counts only tiles that have already flipped, which is the
+    rule for scoring. It is the wrong ranking for *choosing* which links to
+    consider: 96% of tiles have flipped by rail scoring, so ranking by what is
+    lit right now prefers pairs beside finished tiles and drops pairs beside
+    tiles that are merely not finished YET. Crediting unflipped neighbours was
+    worth +11 VP in the evaluation; this is the same correction applied to move
+    generation, where it decides which candidates survive truncation.
+    """
+    if location in state.data.merchants:
+        return MERCHANT_LINK_ICONS.get(location, 0)
+    return sum(spec_for(state, tile).link_vp
+               for tile in state.tiles.get(location, ()) if tile is not None)
 
 
 def link_icons_at(state: GameState, location: str) -> int:
