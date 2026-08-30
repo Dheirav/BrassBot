@@ -81,6 +81,30 @@ that our move order was not deterministic. Playing the game surfaced four engine
 bugs that thousands of self-play games never did, because self-play cannot notice
 that a legal option was never offered.
 
+## The pottery ladder needs two towns, not three -- the slot recycles
+
+Pottery L1 is a **level-1 tile**, so the Canal/Rail teardown removes it and
+**frees the slot**. An agent used that deliberately: pottery L1 at Stafford in the
+Canal Era for 10 VP, then pottery **L5 in the same Stafford slot** in the Rail Era
+for 20, with L3 at Coventry for 11. **41 VP from three builds across only two
+pottery towns**, on a board with just four pottery slots.
+
+That matters because the ladder cannot be skipped -- L1 and L3 have
+`can_develop = 0`, so you must physically build each rung. Needing only two towns
+instead of three turns pottery from "usually blocked" into a line you can commit
+to from turn one.
+
+Two supports for it, both measured in the same game:
+
+- **Gloucester is the pottery player's merchant.** Selling pottery there consumes
+  its barrel and triggers the free develop, and our bonus logic correctly spends
+  that on pottery L4 -- the rung that uncovers the 20 VP L5. That free half-action
+  is what makes L5 reachable inside sixteen Rail-Era actions.
+- **Nobody contests it.** Five agents across three player counts now report that
+  our bots never build a single pottery tile. In this game Belper's pottery slot
+  was untouched by anyone for the entire game, and Stafford's was free until canal
+  round 4.
+
 ## Brewery, not manufacturer -- tested, and the headline number is misleading
 
 An agent scored 150 at 4p and attributed it to a loop the guide never mentions:
