@@ -25,7 +25,15 @@ from brassbot.network import is_connected_to_merchant
 from brassbot.resources import plan_cost
 from brassbot.state import new_game
 
-SEAT = 0
+# Seats played from the command line rather than by a bot. Normally just yours;
+# with several, two agents can share one game file and take turns, with our bots
+# filling the remaining seats.
+HUMANS = (0,)
+
+
+def seat_of(state) -> int:
+    """Whichever human seat is to move -- the perspective everything renders from."""
+    return state.current.idx if state.current.idx in HUMANS else HUMANS[0]
 
 
 def _card(state, seat: int, idx: int) -> str:
@@ -132,6 +140,7 @@ def describe(state, action) -> str:
 
 
 def render(state) -> str:
+    SEAT = seat_of(state)
     p = state.players[SEAT]
     out = [f"=== {state.era.value.upper()} era, round {state.round}/"
            f"{state.rounds_this_era} | actions left this turn: {state.actions_left} ==="]
@@ -170,7 +179,7 @@ def render(state) -> str:
 
 def advance(state, bots):
     """Run the game on until it is our turn, or it ends."""
-    while not state.finished and state.current.idx != SEAT:
+    while not state.finished and state.current.idx not in HUMANS:
         actions = legal_actions(state)
         if not actions:
             break
@@ -178,11 +187,18 @@ def advance(state, bots):
 
 
 def show(state):
+    SEAT = seat_of(state)
+    if len(HUMANS) > 1:
+        who = state.current.idx
+        print(f"=== TO MOVE: seat {who}"
+              + ("  (a bot seat -- run show again shortly)" if who not in HUMANS
+                 else "  (yours if you are seat %d)" % who) + " ===")
     if state.finished:
         scores = [p.vp for p in state.players]
         print(f"GAME OVER. Final scores by seat: {scores}")
-        print(f"You (seat 0) scored {scores[SEAT]}. "
-              f"Best opponent: {max(s for i, s in enumerate(scores) if i != SEAT)}.")
+        for seat in HUMANS:
+            others = max(s for i, s in enumerate(scores) if i != seat)
+            print(f"Seat {seat} scored {scores[seat]}. Best other seat: {others}.")
         return
     print(render(state))
     actions = legal_actions(state)
@@ -208,6 +224,9 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("new"); n.add_argument("--seed", type=int, default=1)
     n.add_argument("--players", type=int, default=4); n.add_argument("--out", required=True)
+    n.add_argument("--humans", default="0",
+                   help="comma-separated seats played from the command line, "
+                        "e.g. 0,1 to let two agents share the game")
     n.add_argument("--opponent", default="heuristic",
                    help="bot spec for the other seats, e.g. planner")
     s = sub.add_parser("show"); s.add_argument("file")
@@ -215,6 +234,8 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.cmd == "new":
+        global HUMANS
+        HUMANS = tuple(sorted(int(x) for x in args.humans.split(",") if x != ""))
         state = new_game(args.players, seed=args.seed)
         bots = [make(args.opponent, seed=args.seed * 10 + i)
                 for i in range(args.players)]
@@ -222,7 +243,8 @@ def main(argv=None):
         with open(args.out, "wb") as fh:
             # The opponent spec is saved with the game: `move` rebuilds the
             # bots from scratch each invocation and must rebuild the same ones.
-            pickle.dump((state, args.seed, args.players, args.opponent), fh)
+            pickle.dump((state, args.seed, args.players, args.opponent,
+                         sorted(HUMANS)), fh)
         show(state)
         return 0
 
@@ -231,6 +253,7 @@ def main(argv=None):
         # Older saves predate the opponent field.
         state, seed, players = loaded[:3]
         opponent = loaded[3] if len(loaded) > 3 else "heuristic"
+        HUMANS = tuple(loaded[4]) if len(loaded) > 4 else (0,)
     bots = [make(opponent, seed=seed * 10 + i) for i in range(players)]
 
     if args.cmd == "move":
@@ -242,7 +265,7 @@ def main(argv=None):
         apply_action(state, actions[args.index])
         advance(state, bots)
         with open(args.file, "wb") as fh:
-            pickle.dump((state, seed, players, opponent), fh)
+            pickle.dump((state, seed, players, opponent, sorted(HUMANS)), fh)
     show(state)
     return 0
 
