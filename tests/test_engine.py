@@ -644,3 +644,39 @@ def test_a_sale_can_choose_to_spend_your_own_beer(game):
     assert game.tiles["birmingham"][1].resources < before, (
         "the own-beer sale did not draw on our own brewery"
     )
+
+
+def test_an_own_beer_sale_must_actually_run_on_own_beer(game):
+    """The own-beer variant only makes sense when own beer can pay for the sale.
+
+    _resolve_sale used to fall back to merchant beer when own beer fell short,
+    which made the feasibility check true for essentially every sale -- so
+    legal_sells emitted a duplicate of each one. MAX_SELL_COMBOS is 24, so half
+    the budget went on exact duplicates and every three-tile sale became
+    unreachable.
+    """
+    player = game.current.idx
+    p = game.players[player]
+    p.money = 200
+    only_card(game, player, Card(CardKind.LOCATION, town="birmingham"))
+    place(game, "birmingham", 0, player, Industry.COTTON_MILL, 1)
+    for link in game.data.links:
+        if link.canal:
+            game.links[link.id] = player
+    # no brewery of our own anywhere, so no sale can run on own beer
+    assert not any(s.own_beer for s in legal_sells(game)), (
+        "offered an own-beer sale to a player who owns no beer"
+    )
+
+
+def test_double_rail_ranks_its_first_links_before_truncating(game):
+    """The candidate pool was sliced before it was sorted, so the twelve lines
+    kept were simply the ones sorting earliest by link id."""
+    game.era = Era.RAIL
+    game.players[game.current.idx].money = 300
+    nets = [n for n in legal_networks(game) if len(n.lines) == 2]
+    if nets:
+        icons = [sum(link_icons_at(game, e)
+                     for i in n.lines for e in game.data.link_by_id[i].ends)
+                 for n in nets]
+        assert icons[0] >= icons[-1], "pairs are not ranked best-first"

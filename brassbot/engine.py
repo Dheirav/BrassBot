@@ -350,8 +350,15 @@ def legal_networks(state: GameState) -> list[Network]:
         # is exactly the move the expert line wants and exactly when the board is
         # dense enough for it to matter.
         # Candidate FIRST links, ranked by the icons they would score.
-        firsts = sorted(reachable_lines[:DOUBLE_RAIL_CANDIDATES],
-                        key=lambda l: -sum(link_icons_at(state, e) for e in l.ends))
+        # Sort THEN slice. Slicing first kept the twelve lines that sort earliest
+        # by link id and merely reordered those, so a high-icon line could be
+        # dropped before it was ever ranked -- the exact defect the comment below
+        # claims to have fixed for `pairs`. It bites once more than twelve lines
+        # are reachable, which is the late Rail Era on an empty board, where
+        # doubles matter most.
+        firsts = sorted(reachable_lines,
+                        key=lambda l: -sum(link_icons_at(state, e) for e in l.ends)
+                        )[:DOUBLE_RAIL_CANDIDATES]
 
         seen_pairs: set = set()
         pairs = []
@@ -558,10 +565,6 @@ def _resolve_sale(state: GameState, player: int, sale: Sale, commit: bool,
     need = spec.beer_to_sell or 0
     merchant = None if own_beer else (sale.merchant, sale.mslot)
     plans = beer_plans(state, player, sale.town, need, merchant, 1)
-    if not plans and own_beer:
-        # Our own barrels could not cover it; a merchant's may.
-        plans = beer_plans(state, player, sale.town, need,
-                           (sale.merchant, sale.mslot), 1)
     if not plans:
         return False
     if not commit:
