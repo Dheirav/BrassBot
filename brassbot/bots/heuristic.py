@@ -125,6 +125,28 @@ class HeuristicBot(Bot):
         # it buys liquidity without rewarding hoarding.
         "liquidity": 8,
         "liquidity_scale": 8.438,
+        # How much of a still-available loan counts as liquidity.
+        #
+        # `liquidity` exists because being broke "removes almost every action
+        # from the list" -- but that is only true once you can no longer LOAN.
+        # With a loan in hand, GBP0 is one action from GBP30, and the curve is
+        # steep enough near zero that it dominates: measured on a real position,
+        # pottery L1 (10 VP, the best tile in the game) ranked 50th of 51
+        # candidates, and 6.15 of the 10.67 point gap was liquidity alone. Give
+        # the same seat GBP45 and the identical build ranks 10th.
+        #
+        # That also links the two symptoms: the bot takes 1.4 Canal-Era loans
+        # against an expert 4-6, never rises much above GBP30 early, and so can
+        # never afford the expensive tiles -- which is why it has never once
+        # built pottery in 80 measured seats.
+        #
+        # OFF, and it fails in the opposite direction to the intent: crediting an
+        # available loan makes the bot FEEL liquid, so it loans LESS (13.6 -> 9.5
+        # a game at full credit) while pottery stays at exactly 0.00 builds. And
+        # even removing liquidity entirely closes only 6.15 of the 10.67 gap, so
+        # no single term is the blocker. The cause is the cash position itself,
+        # not the way any one term prices it.
+        "liquidity_loan": 0.0,
         # Negative income is not merely less money. If you cannot pay it you
         # sell industry tiles at half cost and lose their VP outright, and if
         # you still cannot pay you lose a VP per pound. It compounds, so it is
@@ -739,8 +761,14 @@ class HeuristicBot(Bot):
         spendable = min(1.0, rounds / self.w["money_horizon"]) if self.w["money_horizon"] else 1.0
         per_pound = self.w["money"] + self.w["money_compounding"] * rounds
         value += p.money * per_pound * spendable
+        effective = max(0, p.money)
+        if self.w["liquidity_loan"]:
+            penalty = state.data.constants["loan_income_penalty_levels"]
+            if p.income - penalty >= state.data.constants["min_income_level"]:
+                effective += (self.w["liquidity_loan"]
+                              * state.data.constants["loan_amount"])
         value += self.w["liquidity"] * spendable * (
-            1.0 - math.exp(-max(0, p.money) / self.w["liquidity_scale"]))
+            1.0 - math.exp(-effective / self.w["liquidity_scale"]))
 
         value += p.income * rounds * self.w["income"]
         if p.income < 0:

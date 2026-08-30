@@ -91,6 +91,48 @@ cuts against how nine of this session's ten weight experiments were run.
 The 4p mirror reads 111.19 against 112.29 before, which is the expected shape:
 the gain is a relative edge and a mirror cannot see one.
 
+### Why the bot never builds pottery: it cannot afford it
+
+Five agents across three player counts reported that our bots never build a
+pottery tile. Measured over 20 games and 80 seats: **0 built, 0 developed, and
+all 80 pottery mats finish pristine at [1,1,1,1,1]**. The track is frozen shut,
+because L1 has `can_develop = 0` -- you cannot develop past it, only build
+through it -- so one build it will not make locks out an industry worth 41 VP in
+an agent's game.
+
+**The cause is cash, not valuation.** On a real position (canal round 2, seat
+holding GBP19), the best pottery build ranks **50th of 51 candidates**. Decomposing
+the 10.67 point gap by zeroing one weight at a time:
+
+| term zeroed | gap closes by |
+| --- | --- |
+| `liquidity` | **6.15** |
+| `mat_potential` | 2.62 |
+| `merchant_access` | 2.40 |
+| `income` | 1.80 |
+| `unflipped` | *widens by 4.6 -- it favours pottery* |
+
+Pottery L1 costs GBP18 plus an iron and the seat holds GBP19, so building empties
+the purse, and `liquidity` is an exponential that treats broke as near-fatal. The
+coal mine it takes instead costs **net GBP1**. Re-ranking the identical position
+with more money settles it: **GBP19 -> rank 50, GBP45 -> rank 10, GBP60 -> rank 9.**
+
+This links a symptom the yardstick has flagged from the beginning. The bot takes
+**1.4 Canal-Era loans against an expert 4-6**, so it never rises much above GBP30
+early, so the game's best tiles are permanently out of reach.
+
+**Two fixes tried, both failed.** Pricing the tile better -- the `mat_potential`
+correction -- measured **-0.79**, because it moves 2.62 of a 10.67 gap. And
+crediting an available loan as liquidity, on the argument that GBP0 with a loan in
+hand is one action from GBP30, fails in the opposite direction: the bot feels
+liquid, **loans less** (13.6 -> 9.5 a game) and still builds no pottery. Even
+removing `liquidity` entirely leaves a 4.5 point gap, so no single term is the
+blocker.
+
+The open question is therefore not "how should pottery be priced" but "how does
+the bot end up with enough cash to build anything expensive" -- and forcing more
+Canal-Era loans directly was already tried, and cost 25 VP.
+
 ### The one method that has produced gains
 
 Ten changes to the evaluation have been measured this session. Nine were terms
