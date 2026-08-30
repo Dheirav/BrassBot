@@ -31,8 +31,17 @@ from brassbot.state import new_game
 HUMANS = (0,)
 
 
+# The seat everything renders from. With two agents sharing a game, rendering
+# from "whoever is to move" showed each of them the other's hand, money and mat
+# every time they polled to see whose turn it was -- both duelling agents
+# reported it and one wrote its own viewer to avoid reading the leak.
+VIEW = None
+
+
 def seat_of(state) -> int:
-    """Whichever human seat is to move -- the perspective everything renders from."""
+    """The seat whose private information may be shown."""
+    if VIEW is not None:
+        return VIEW
     return state.current.idx if state.current.idx in HUMANS else HUMANS[0]
 
 
@@ -186,6 +195,30 @@ def advance(state, bots):
         apply_action(state, bots[state.current.idx].choose(state, actions))
 
 
+def group_key(action):
+    """What makes two offered moves the SAME decision.
+
+    Move lists run to ~200 lines, most of them the same decision paid for
+    differently -- one build with three coal sources, one action with three
+    discardable cards. An agent reads ~4,500 tokens per poll and polls ~75 times
+    a game, so the duplicates are most of the cost of playing. Grouping halves
+    it without removing a single option: every index stays valid.
+    """
+    t = type(action).__name__
+    if t == "Build":
+        return (t, action.town, action.slot, action.industry.value)
+    if t == "Network":
+        return (t, action.lines)
+    if t == "Develop":
+        return (t, tuple(i.value for i in action.industries))
+    if t == "Sell":
+        return (t, tuple((x.town, x.slot, x.merchant, x.mslot)
+                         for x in action.sales), action.own_beer)
+    if t == "Scout":
+        return (t, action.card, action.extra)
+    return (t,)
+
+
 def show(state):
     # Before seat_of: once the game is finished `state.current` indexes
     # turn_order past its end, so asking whose turn it is raises IndexError and
@@ -213,9 +246,20 @@ def show(state):
         return
     print(render(state))
     actions = legal_actions(state)
-    print(f"\nLEGAL MOVES ({len(actions)}) -- reply with: tools/play.py move <file> <n>")
+    groups: dict = {}
     for i, a in enumerate(actions):
-        print(f"  {i:>3}: {describe(state, a)}")
+        groups.setdefault(group_key(a), []).append((i, a))
+    print(f"\nLEGAL MOVES: {len(groups)} decisions ({len(actions)} with variants)."
+          "  play one with: move <file> <n>."
+          "  '+12,13' = same decision, different card or resource source.")
+    for members in groups.values():
+        i, a = members[0]
+        line = f"  {i:>3}: {describe(state, a)}"
+        if len(members) > 1:
+            # Terse on purpose: this suffix repeats on most lines, and the whole
+            # point of grouping is the tokens an agent spends reading.
+            line += "  +" + ",".join(str(j) for j, _ in members[1:])
+        print(line)
 
 
 def main(argv=None):
@@ -241,7 +285,11 @@ def main(argv=None):
     n.add_argument("--opponent", default="heuristic",
                    help="bot spec for the other seats, e.g. planner")
     s = sub.add_parser("show"); s.add_argument("file")
+    s.add_argument("--seat", type=int, default=None,
+                   help="render from this seat; required in a multi-agent game "
+                        "so you are not shown an opponent's hand")
     m = sub.add_parser("move"); m.add_argument("file"); m.add_argument("index", type=int)
+    m.add_argument("--seat", type=int, default=None)
     args = ap.parse_args(argv)
 
     if args.cmd == "new":
@@ -265,6 +313,8 @@ def main(argv=None):
         state, seed, players = loaded[:3]
         opponent = loaded[3] if len(loaded) > 3 else "heuristic"
         HUMANS = tuple(loaded[4]) if len(loaded) > 4 else (0,)
+    global VIEW
+    VIEW = getattr(args, "seat", None)
     bots = [make(opponent, seed=seed * 10 + i) for i in range(players)]
 
     if args.cmd == "move":
