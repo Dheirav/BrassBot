@@ -152,6 +152,22 @@ class HeuristicBot(Bot):
         # `value += link_icons_at(...)`, coefficient hardcoded to 1.0 -- so every
         # weight sweep and the 174-candidate re-tune searched a vector that did
         # not contain it.
+        # How far the rival term rises toward 1.0 as the game closes.
+        #
+        # `rival` is fixed at 0.225 all game, but what it is worth changes. Early,
+        # a point of your own compounds and a point of theirs does not, so
+        # discounting them is right. On the FINAL action only the ranking matters:
+        # denying a point is worth exactly as much as scoring one, so the correct
+        # weight there is 1.0. A constant cannot express that. An agent won a duel
+        # by one point precisely here -- its best-looking tile also gave the
+        # leader three, and it played a worse tile that gave them none.
+        #
+        # OFF: measured -0.91 at 0.5 and -0.18 at 1.0 over 200 games an arm, both
+        # inside noise. The argument is sound and the situation is rare. Note the
+        # bot was never blind to it -- position_value computes best_rival AFTER
+        # the candidate action, so it already sees a build that hands an opponent
+        # icons. Weighting that fully simply does not come up often enough.
+        "rival_endgame": 0.0,
         "link_flip_canal": 0.7,
         "link_flip_rail": 0.9,
         # What our network lets the cards in our HAND actually do.
@@ -410,7 +426,14 @@ class HeuristicBot(Bot):
             rivals = [self.player_value(state, i, context, owned[i])
                       for i in range(state.n_players) if i != me]
             best_rival = max(rivals) if rivals else 0.0
-        return mine - self.w["rival"] * best_rival
+        rival = self.w["rival"]
+        if self.w["rival_endgame"]:
+            # Ramp toward 1.0 as the actions run out.
+            left = self.rounds_left(state)
+            total = state.rounds_this_era * (2 if state.era is Era.CANAL else 1)
+            closeness = 1.0 - (left / total if total else 0.0)
+            rival += self.w["rival_endgame"] * (1.0 - rival) * closeness
+        return mine - rival * best_rival
 
     @classmethod
     def _contest(cls, state) -> dict:

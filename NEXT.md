@@ -53,6 +53,22 @@ a median tournament win is roughly 30 VP.
    tokens since the move list was collapsed.
 4. `docs/options-swot.md` weighs the larger bets, including the port.
 
+### The one method that has produced gains
+
+Ten changes to the evaluation have been measured this session. Nine were terms
+reasoned out from a symptom -- canal double-scoring, a surviving coal mine,
+capped merchant access, hand reach, raising `unflipped`, an endgame rival ramp
+-- and every one landed at or below zero.
+
+The one that worked came from a different method: **measure what a term is
+actually paid, and compare it to what the bot thinks it is worth.** An agent
+found link value correlated 0.11 with what links actually scored, because the
+estimate counted only neighbours that had already flipped. Fixing the estimator
+was worth +11 VP.
+
+Before adding a term, ask whether its estimate can be checked against outcomes.
+If it can, check it. If it cannot, the odds here are about one in ten.
+
 ### Two rules for anyone measuring here
 
 **A mirror cannot see a symmetric change.** If it helps every seat, the mirror
