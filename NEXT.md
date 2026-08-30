@@ -2,6 +2,65 @@
 
 Live handover document. Current state, then what to pick up.
 
+## Read this first
+
+The rest of this document is a research journal, ordered by discovery. Sections
+marked SUPERSEDED or RESOLVED were true when written and are not now. This block
+is the current state; `docs/architecture.md` is where the code lives.
+
+### Where the bot stands, 200 games a cell, report seeds
+
+| fmt | pool | all seats | winning seat | P10 | best | VP/action | win% |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 4p | mirror | 112.3 +- 0.5 | 129.3 | 13.2 | 96 | 161 | 3.62 | 25% |
+| 4p | vs greedy | 111.0 +- 1.0 | 111.0 | 14.7 | 94 | 144 | 3.58 | 98% |
+| 3p | mirror | 119.9 +- 0.6 | 136.4 | 15.9 | 100 | 158 | 3.43 | 33% |
+| 3p | vs greedy | 111.1 +- 1.6 | 111.1 | 23.3 | 80 | 158 | 3.18 | 96% |
+| 2p | mirror | 127.2 +- 1.0 | 141.5 | 20.4 | 106 | 164 | 3.26 | 50% |
+| 2p | vs greedy | 116.0 +- 2.0 | 116.0 | 27.8 | 86 | 178 | 2.98 | 96% |
+
+The planner (beam search) reaches about 133 head to head at 4p. Human tournament
+**winners** score 142-184, median 158.
+
+Compare **winning seat** against tournament figures: those are winners' scores,
+and quoting our table average against them overstates the gap by ~30%. The gap to
+a median tournament win is roughly 30 VP.
+
+### What is true now
+
+- **The biggest evaluation win was link valuation.** Links were scored only by
+  neighbours that had already flipped, when 96% flip by rail scoring. Crediting
+  unflipped neighbours is worth **+11 VP head to head**.
+- **Only agents playing find rules bugs.** Seventeen so far, none from self-play,
+  which cannot notice a legal move that was never offered. Roughly a third of
+  what agents report does not survive checking, so verify before fixing.
+- **The planner is the only search that pays**, about +25 VP head to head over
+  the heuristic it was measured against -- though its beam collapses to one
+  distinct first action by ply 2-4, so it is closer to "re-rank the one-ply
+  shortlist" than to an eight-ply search.
+- **Weight terms invented to patch a symptom lose.** Nine tried, all at or below
+  zero. The one that worked came from measuring what a link is actually paid and
+  comparing it to what the bot thought it was worth.
+
+### Open, in the order I would take them
+
+1. Re-tune the full vector now that `link_flip_canal` and `link_flip_rail` exist;
+   the last re-tune ran without them and the weights around them were fitted to
+   compensate for their absence.
+2. Re-measure the planner: its +25 was against the pre-fix evaluation, and the
+   heuristic it is compared against is now 11 VP stronger.
+3. More agent playtests. Highest measured yield, and a poll now costs 41% fewer
+   tokens since the move list was collapsed.
+4. `docs/options-swot.md` weighs the larger bets, including the port.
+
+### Two rules for anyone measuring here
+
+**A mirror cannot see a symmetric change.** If it helps every seat, the mirror
+mean does not move. Measure head to head.
+
+**At 24 games an arm the smallest visible effect is 8.7 VP.** A 3 VP effect needs
+about 200. Most changes worth having are invisible at small n.
+
 ## Goal
 
 A bot that plays 4-player Brass: Birmingham as strongly as possible.
@@ -397,6 +456,11 @@ term against this table before spending an afternoon measuring it.
 
 ## The sell-batching problem needs search, not a weight
 
+> **SUPERSEDED by measurement.** Batching is barely an opportunity: when a Sell
+> is legal, the most tiles flippable in one action is 1.02 in canal and 1.18 in
+> rail. There is almost nothing to batch, so this is not where the points are.
+
+
 A Sell action can flip several tiles at once, but each needs its own beer.
 Measured: **1.00 tiles per sell**, 2.5 tiles sellable on a turn, and **73% of
 turns leave sellable tiles stranded**. Experts batch 2-3.
@@ -623,7 +687,15 @@ already hold; never when it prices the prerequisite for something you do not.**
 `beer_capacity` prices barrels you have. `merchant_access` prices a road to a
 sale you have not built yet.
 
-## The pottery gap: measured, unexplained, and worth about 40 VP
+## The pottery gap: measured, explained, and NOT recoverable by valuation
+
+> **RESOLVED.** The cause is `mat_potential`: building pottery L1 is charged for
+> the 1 VP filler tile it uncovers, so a 10 VP build prices at 0.25 x 9 = 2.25
+> against it. An agent built the fix and measured it over 300 paired games --
+> pottery builds rose 0.26 -> 1.05 and the score moved **-0.79 +- 0.65**. The
+> mechanism fires and the points are not there. Agents gain from pottery because
+> they sequence a sale around it; the bot cannot.
+
 
 Four independent agents, across all three player counts, reported the same
 thing without being asked: **our bots never build pottery.** One won 129-116
@@ -853,6 +925,13 @@ the weight profiles -- untested at 2p and 3p.
 
 ## Sequencing was tested directly, and the test failed
 
+> **SUPERSEDED.** The conclusion drawn from this and the sections near it -- that
+> the evaluation is exhausted and the gap is sequencing -- was over-read. The
+> sweeps behind it ran over a weight vector that did not contain the largest term
+> in the evaluation, because the link term's coefficient was hardcoded. Weighting
+> it was then worth +11 VP. See "Links are valued by what has already flipped".
+
+
 `brassbot/bots/book.py` forces the expert's Canal Era plan and hands off to the
 ordinary bot for the Rail Era, isolating sequencing from everything else.
 
@@ -941,6 +1020,11 @@ each player's discard pile. What is missing is not inference, it is using the
 known deck distribution to judge how contested a site is.
 
 ## Search cannot escape the evaluation, and play-outs do not rescue it
+
+> **Still true about search, but do not read it as "the evaluation is finished".**
+> The evaluation had an unweighted term worth +11 VP when fixed, found after this
+> was written.
+
 
 MCTS gains +9 VP over the heuristic while changing its strategy **not at all** --
 same 4 of 11 profile bands, same tile levels, same 1.17 tiles per sell. Its prior
@@ -1042,11 +1126,8 @@ an API error killed it.
 
 ### Where the bot stands
 
-| format | mirror | vs greedy | best single game |
-| --- | --- | --- | --- |
-| 4p | 107.7 +- 0.8 | 106.8 | 164 |
-| 3p | 113.5 +- 1.2 | 105.9 | 153 |
-| 2p | 119.4 +- 1.3 | 114.9 | 158 |
+> Superseded by the table in "Read this first", which is measured after the link
+> fix. These figures predate it: 4p 107.7, 3p 113.5, 2p 119.4.
 
 MCTS reaches ~119 at 4p. Human tournament play runs 142-184, median 158, and the
 yardstick's 5.9 VP/action ceiling gives ~183 at 4p -- the two agree, which is the
@@ -1102,7 +1183,7 @@ Seven levers have been measured and closed. Each has numbers in this document.
 | --- | --- |
 | more MCTS iterations | saturates by 300; 5x compute buys nothing |
 | deeper search (narrow beam) | depth 10 plays *worse* than depth 4; breadth wins |
-| evaluation weights | flat optimum everywhere tried, income included |
+| evaluation weights | *see correction*: flat in the weights that existed, but the link term had none, and weighting it was worth +11 |
 | industry commitment | real but ~2 VP; manufacturer at every count |
 | the guide's industry advice | cotton loses at every count, 2p included |
 | learned value function | better offline ranking, ~18 VP worse in play |
@@ -1114,8 +1195,9 @@ each one applies a myopic evaluation further away rather than fixing it.
 
 ### What actually produced points
 
-Eleven rules bugs, all found by LLM agents playing full games through
-`tools/play.py`, none by self-play. Self-play cannot notice that a legal option
+Seventeen rules bugs, all found by LLM agents playing full games through
+`tools/play.py`, none by self-play. About a third of what agents report does not
+survive checking, so verify before fixing. Self-play cannot notice that a legal option
 was never offered. Three of our own "the bot fails this expert rule" verdicts
 turned out to be the move generator instead.
 
@@ -1432,4 +1514,3 @@ distinct choices.
 - Ids are snake_case everywhere (`stoke_on_trent`, `farm_northern`, `coal_mine`).
 - Income *advances* are in track spaces; income *level* is what the space pays.
   Never conflate them — the track is deliberately nonlinear.
-- Not a git repo yet.

@@ -72,6 +72,9 @@ PYTHONPATH=. .venv/bin/python tools/playout.py heuristic -s 3
 
 ## Layout
 
+For how the pieces fit together and where to change what, see
+`docs/architecture.md`.
+
 | Path | What |
 | --- | --- |
 | `brassbot/gamedata.py` | The printed components: tiles, board, markets, income track |
