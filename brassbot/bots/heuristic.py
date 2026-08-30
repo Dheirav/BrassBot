@@ -122,8 +122,23 @@ class HeuristicBot(Bot):
         "links_held": 0.3,  # mild preference for link tiles still in reserve
         # Being broke is not just "less money": it removes almost every action
         # from the list. This term is steep near zero and flat once solvent, so
-        # it buys liquidity without rewarding hoarding.
+        # it buys liquidity without rewarding hoarding. It is the most
+        # load-bearing weight in the evaluation: setting it to 0 costs -40.8 VP.
         "liquidity": 8,
+        # Outcome data says this scale is ~3.5x too short. Option-gating stops
+        # dead at £20 -- +£10 adds 17 legal actions at £0-4 and exactly 0 above
+        # £30 -- but the OUTCOME value of a pound does not stop: an exogenous
+        # grant still pays 0.24 VP/£ to a seat sitting on £97, and the curve
+        # fits x^0.6 with no saturation. Stretching to 30 duly measured
+        # +2.48 +- 0.59 over 700 held-out games.
+        #
+        # It is still 8.438, because that measurement predates `loan_bias` and
+        # the two are SUBSTITUTES, not additions -- both are ways of saying
+        # "cash is underpriced". Seat-balanced in the current tree, 30 scores
+        # -0.82 +- 0.59 with loan_bias present and +1.19 +- 0.89 with it
+        # removed. loan_bias is the better-evidenced half (+1.86 +- 0.94, 60%
+        # win share), so it carries the correction and this stays put. If
+        # loan_bias is ever dropped, stretch this instead.
         "liquidity_scale": 8.438,
         # How much of a still-available loan counts as liquidity.
         #
@@ -153,6 +168,12 @@ class HeuristicBot(Bot):
         # charged on top of the linear income term rather than folded into it.
         "debt": 0.0633,
         "pass_bias": -0.5,   # only to break ties between equal-looking positions
+        # The loan's income penalty is charged 3 * rounds_left * income while the
+        # £30 is priced flat, so the bot dislikes loans most in the Canal Era --
+        # exactly where forcing one measures best. Handing the over-charge back
+        # at the point of choice is worth +2.9 VP; the curve peaks sharply and
+        # turns negative by 2.5, so do not raise it. See docs/diagnosis.md.
+        "loan_bias": 1.5,
         # A sellable tile is worth almost nothing until it can actually be sold,
         # and nearly its full value once it can. Without this split the bot
         # never starts the build -> connect -> beer -> sell chain, because every
@@ -261,8 +282,22 @@ class HeuristicBot(Bot):
         # 100.4 against 104.8 versus greedy. Skipping pottery turns out to cost
         # less than the iron climb gains, which matches the expert view that the
         # full pottery line eats 10 of your 16 rail actions. Kept on the
-        # measurement, against the theory.
-        "mat_potential": 0.25,
+        # measurement, against the theory. Note the edge cannot actually fire
+        # under commit: with a main industry chosen, cotton and pottery builds
+        # are struck from the move list, so their terms are dead constants --
+        # zeroing both changes play not at all.
+        #
+        # The level was halved after measuring what the term is paid: the next
+        # tile is built 41.6% of the time and banks 1.97 VP against its 5.54
+        # face, so 0.25 over-priced it roughly twofold. No better SHAPE exists
+        # -- within (industry, era, round), the correlation between this
+        # estimate and the VP that industry goes on to bank is +0.014, and
+        # best-of-next-2, best-of-next-3 and sum-remaining are all under 0.05.
+        # Only the level carries information. What the term really buys is
+        # Develop, whose entire credit is mat potential; halving it trades
+        # 0.8 develops a game for builds and raises VP entering the Rail Era
+        # from 35.5 to 39.3.
+        "mat_potential": 0.125,
         # How many rounds a tile realistically needs in order to flip. An
         # unflipped tile is a promise, and a promise is only worth something if
         # there is still time to collect on it.
@@ -289,7 +324,17 @@ class HeuristicBot(Bot):
         # monotonically 0.92 -> 1.06 -> 1.15, and nothing showed harm. Treat it as
         # directionally right and statistically unproven; ~400 games per arm would
         # settle it.
-        "beer_capacity": 3.0,
+        # A barrel is priced as "one more tile a Sell can flip", capped at the
+        # tiles actually waiting. Instrumenting 300 games shows only 28.3% of own
+        # barrels go there: 25.3% pay for our OWN rail links, 34.5% are drunk by
+        # rivals' links, 7.1% by rivals' sales, 5.8% wasted. So 3.0 overpriced
+        # the sale channel; the sweep is single-peaked at 1.5.
+        "beer_capacity": 1.5,
+        # A double rail's beer cannot come from a merchant, so a barrel is the
+        # only way to buy one -- and the sale cap pays nothing for it. The cap
+        # binds on 76.6% of Rail-Era decisions holding beer. This credits one
+        # barrel beyond the cap when a double rail is actually possible.
+        "beer_rail": 3.0,
         # The hand was invisible to this evaluation entirely, which made a wild
         # card worth zero. Scout then read as: three cards gone (0), two wilds
         # gained (0), one action spent -- a pure loss. The bot scouted 0.2 times
@@ -411,6 +456,8 @@ class HeuristicBot(Bot):
             value = self.position_value(probe, me, reachable, shared)
             if isinstance(action, Pass):
                 value += self.w["pass_bias"]
+            elif isinstance(action, Loan):
+                value += self.w["loan_bias"]
             if best_value is None or value > best_value + 1e-9:
                 best_value, best_action = value, action
 
@@ -745,6 +792,9 @@ class HeuristicBot(Bot):
         # Beer is worth what it lets you flip, so it is worth nothing beyond the
         # tiles there are to flip.
         value += min(own_beer, waiting) * self.w["beer_capacity"]
+        if (self.w["beer_rail"] and state.era is Era.RAIL
+                and own_beer > waiting and p.links_left >= 2):
+            value += self.w["beer_rail"]
 
         # What the hand still lets us do. Both weights ship at 0, so this is
         # skipped entirely rather than computed and multiplied away -- it was
