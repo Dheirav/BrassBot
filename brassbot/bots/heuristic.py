@@ -50,7 +50,12 @@ class HeuristicBot(Bot):
         # lets the bot buy its way out of the commitment whenever a position
         # looks tempting, which is the behaviour being prevented.
         #
-        # OFF. It was measured at +2.14 +- 0.85 pooled and shipped on that, then
+        # ON (manufacturer), restored by the re-tune over the completed vector.
+        # It measured ~0 alone after the engine fixes, and is part of a vector
+        # that measures +4.28 head to head, so it is carried rather than
+        # defended on its own evidence.
+        #
+        # The single-term history, still accurate alone:
         # re-measured after seventeen engine fixes over 200 games an arm and is
         # now worth nothing anywhere: 2p +0.77 (0.4 sigma), 3p -1.70, 4p -0.03.
         # The fixes changed the game enough to erase it.
@@ -64,13 +69,19 @@ class HeuristicBot(Bot):
         # pottery as a COMMITMENT, which loses heavily, and never as the
         # opportunistic tile it actually is. Those are different questions and
         # the hard filter conflated them.
-        "commit": -1,
+        "commit": 1,
         # How much of the Canal-Era double to credit when valuing a level 2+
         # tile you could build, or unlock by developing. A level 2+ tile flipped
         # in the Canal Era survives the wipe and scores AGAIN at the Rail Era's
         # scoring, so in principle it is worth twice its VP.
         #
-        # OFF at 4p, and the reason is the action budget rather than the rule.
+        # ON at 0.5, put there by the re-tune that ran once the link terms
+        # existed. On its own it measured -3.36 VP; in a vector that also pays
+        # for the icons a level-2 tile switches on, it earns its place. Note
+        # what that means: a term can be worthless alone and useful in company,
+        # which is why single-term sweeps are weak evidence either way.
+        #
+        # The original single-term finding, kept because it is still true alone:
         # Crediting it moves the mean canal build level 1.44 -> 1.85, so the
         # mechanism works -- a Build always places `lowest_level`, so developing
         # the level-1 away is the only way to reach a level 2, and this is what
@@ -82,7 +93,7 @@ class HeuristicBot(Bot):
         # Kept at 0. The 2p gain looked like +2.98 at 1.6 sigma, and the proper
         # per-format test was then run by an agent: 160 games head to head at 2p,
         # 119.6 against 119.6 at a 49.4% win rate. It does not replicate.
-        "canal_double": 0.0,
+        "canal_double": 0.5,
         # Value, as the Canal Era closes, of owning an unflipped level 2+ coal
         # mine that will survive the wipe.
         #
@@ -105,7 +116,7 @@ class HeuristicBot(Bot):
         # ends. Held low deliberately; the liquidity term carries "can I still
         # act", and leftover cash at the final whistle is wasted.
         "money": 0.045,
-        "income": 0.1125,      # per income level, per remaining round
+        "income": 0.08438,     # per income level, per remaining round
         "blocked": 6,      # per industry blocked by a stranded canal-only tile
         "rival": 0.225,        # how much the best opponent's position counts against us
         "links_held": 0.3,  # mild preference for link tiles still in reserve

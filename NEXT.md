@@ -53,6 +53,44 @@ a median tournament win is roughly 30 VP.
    tokens since the move list was collapsed.
 4. `docs/options-swot.md` weighs the larger bets, including the port.
 
+### Re-tuning once the vector was complete: +4, not the +11.8 it claimed
+
+The 174-candidate re-tune that found nothing ran before `link_flip_canal` and
+`link_flip_rail` existed. Run again with them in the vector -- 194 candidates,
+60 games each, two passes -- it moved three weights and reported **+11.8 on its
+validation block**.
+
+Measured independently, head to head against the previous defaults, 200 games a
+block:
+
+| block | delta |
+| --- | --- |
+| validation 20000+ (the tuner's own) | **+3.46** |
+| report 0+ (unseen by the tuner) | **+4.28** |
+
+**Real, replicated, and about a third of the claim.** Shipped. The lesson is not
+that the tuner lies -- it validates on a block it did not tune on, which is why
+it caught earlier failures -- but that its own validation still flatters, because
+the *choice* of what to validate was made using nearby data. Re-measure a tuned
+vector in a separate harness before believing the size.
+
+What it changed, and why it matters:
+
+| weight | was | now |
+| --- | --- | --- |
+| `canal_double` | 0.0 | **0.5** |
+| `commit` | -1 (off) | **1** (manufacturer) |
+| `income` | 0.1125 | 0.08438 |
+
+**Both restored terms measured at or below zero on their own** -- `canal_double`
+at -3.36, `commit` at ~0. In a vector that now pays for the link icons a level-2
+tile switches on, they earn their place. A term can be worthless alone and useful
+in company, so a single-term sweep is weak evidence in either direction. That
+cuts against how nine of this session's ten weight experiments were run.
+
+The 4p mirror reads 111.19 against 112.29 before, which is the expected shape:
+the gain is a relative edge and a mirror cannot see one.
+
 ### The one method that has produced gains
 
 Ten changes to the evaluation have been measured this session. Nine were terms
