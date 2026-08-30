@@ -144,7 +144,7 @@ def render(state) -> str:
     p = state.players[SEAT]
     out = [f"=== {state.era.value.upper()} era, round {state.round}/"
            f"{state.rounds_this_era} | actions left this turn: {state.actions_left} ==="]
-    out.append(f"YOU (seat 0): {p.money} money, income {p.income}, {p.vp} VP, "
+    out.append(f"YOU (seat {SEAT}): {p.money} money, income {p.income}, {p.vp} VP, "
                f"{p.links_left} link tiles left")
     out.append("  hand: " + ", ".join(sorted(repr(c) for c in p.hand)))
     mat = ", ".join(f"{i.value}:L{p.lowest_level(i)}" for i in state.data.tiles
@@ -187,6 +187,17 @@ def advance(state, bots):
 
 
 def show(state):
+    # Before seat_of: once the game is finished `state.current` indexes
+    # turn_order past its end, so asking whose turn it is raises IndexError and
+    # the final scores are never printed. An agent finished a duel and could not
+    # read the result.
+    if state.finished:
+        scores = [p.vp for p in state.players]
+        print(f"\n=== GAME OVER === scores {scores}")
+        for seat in HUMANS:
+            others = max(s for i, s in enumerate(scores) if i != seat)
+            print(f"Seat {seat} scored {scores[seat]}. Best other seat: {others}.")
+        return
     SEAT = seat_of(state)
     if len(HUMANS) > 1:
         who = state.current.idx
