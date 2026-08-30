@@ -1291,6 +1291,21 @@ A sequence searcher ought to find it unprompted. It does not. 16 seeds, 4p:
 It scores 22 VP more while taking *fewer* double turns, and its spending is flat
 whether or not it is acting last. Whatever the planner found, this is not it.
 
+**The era boundary is already accounted for, in the evaluation not the search.**
+A horizon of 8 own actions reaches the Canal/Rail wipe only from canal round 5,
+so during rounds 1-4 -- when the industry line is chosen -- the plan cannot see
+it. Doubling the horizon to 16, which reaches the boundary from round 1, changes
+**nothing**: 137.7 +-2.4 at 96% wins against 137.7 +-2.3 at 96%, for twice the
+runtime. The leaf already encodes the wipe through `scores_twice` (a flipped
+level 2+ tile in canal is worth double) and `flip_horizon` (a level-1 tile that
+cannot flip in time is worth nothing), so watching the wipe happen adds no
+information.
+
+This is the third suspected blind spot this session that turned out to be handled
+already -- after market timing, which is visible through money, and the rival
+term, which is computed after the candidate action. Check whether the bot is
+actually blind before building it eyes.
+
 **The beam collapse was investigated and is benign.** Distinct first actions
 alive in a width-12 beam fall 8 -> 5.0 -> 2.7 -> 1.9 by ply four, with 57% of
 searches down to one by then -- which is why `horizon=14` plays move-identically
