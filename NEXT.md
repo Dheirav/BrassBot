@@ -12,7 +12,7 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 | fmt | pool | all seats | winning seat | P10 | best | VP/action | win% |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 112.3 +- 0.5 | 129.3 | 13.2 | 96 | 161 | 3.62 | 25% |
+| 4p | mirror | 113.7 +- 0.5 | 129.3 | 13.2 | 96 | 161 | 3.62 | 25% |
 | 4p | vs greedy | 111.0 +- 1.0 | 111.0 | 14.7 | 94 | 144 | 3.58 | 98% |
 | 3p | mirror | 119.9 +- 0.6 | 136.4 | 15.9 | 100 | 158 | 3.43 | 33% |
 | 3p | vs greedy | 111.1 +- 1.6 | 111.1 | 23.3 | 80 | 158 | 3.18 | 96% |
@@ -38,20 +38,53 @@ a median tournament win is roughly 30 VP.
   the heuristic it was measured against -- though its beam collapses to one
   distinct first action by ply 2-4, so it is closer to "re-rank the one-ply
   shortlist" than to an eight-ply search.
-- **Weight terms invented to patch a symptom lose.** Nine tried, all at or below
-  zero. The one that worked came from measuring what a link is actually paid and
-  comparing it to what the bot thought it was worth.
+- **Weight terms invented to patch a symptom lose.** Eleven tried, all at or
+  below zero. Every term that has ever worked came instead from measuring what
+  the term is actually PAID and comparing it to what the bot believes: links,
+  beer, the loan charge, the mat.
+- **One action is worth 4.59 +- 0.67 VP** (canal 5.33, rail 3.78), measured by
+  overriding a single decision with a Pass on paired seeds. That is the exchange
+  rate to price any term against. One evaluation unit is worth **0.76 VP**
+  (`VP lost = 0.764 x eval deficit`, R2 = 0.999 over three generic
+  perturbations). A random legal move recovers 42% of an action's value, so the
+  whole evaluation is worth 2.68 VP per decision over a die roll -- and the
+  bot's #1 pick beats its own #2 by **0.30 +- 0.56**, i.e. nothing. The top of
+  the 53-candidate shortlist is flat, which is the beam-collapse finding
+  arrived at from the other side, and it is why so many term ideas measure zero:
+  they re-order candidates that are worth the same.
+
+### The 1-vs-3 harness flatters any change by about +0.5 VP
+
+Three deliberately near-neutral **placebos** measured **+0.74, +0.39, +0.47** on
+the report block. The odd seat out gains simply by not contending for the same
+slots as three copies of itself, roughly in proportion to how much its play
+differs. Signs survive this; sizes do not.
+
+Use the seat-balanced **2v2** (six pairings, every seat variant in half of them)
+before believing a magnitude. It has repeatedly cut a 1v3 result by 2-3x, and
+once to nothing:
+
+| change | 1v3 | 2v2, seat-balanced |
+| --- | --- | --- |
+| all three of the below together | -- | **+2.73 +- 0.91**, 57.5% win share |
+| `loan_bias` 1.5 | +2.85 +- 0.59 | **+1.86 +- 0.94**, 60.0% |
+| `mat_potential` 0.25 -> 0.125 | +2.66 +- 0.68 | **+1.0**, 54.8% |
+| beer split | +3.01 +- 0.53 | **+1.60 +- 0.54**, 55.6% |
 
 ### Open, in the order I would take them
 
-1. Re-tune the full vector now that `link_flip_canal` and `link_flip_rail` exist;
-   the last re-tune ran without them and the weights around them were fitted to
-   compensate for their absence.
+1. Re-tune the full vector again. `loan_bias` and `beer_rail` are new since the
+   last one, and `mat_potential` moved; the weights around them were fitted to
+   compensate for their absence. Tune with the 2v2 harness, not 1v3.
 2. Re-measure the planner: its +25 was against the pre-fix evaluation, and the
-   heuristic it is compared against is now 11 VP stronger.
-3. More agent playtests. Highest measured yield, and a poll now costs 41% fewer
+   heuristic it is compared against is now well over 11 VP stronger.
+3. A **double rail returns 8.73 VP for one action against 4.08 for a single**,
+   and the bot takes 3.84 singles to 2.46 doubles a game. That mix looks wrong,
+   but `canal_double` is a tuned weight, so move it in a re-tune rather than
+   bolting it on.
+4. More agent playtests. Highest measured yield, and a poll now costs 41% fewer
    tokens since the move list was collapsed.
-4. `docs/options-swot.md` weighs the larger bets, including the port.
+5. `docs/options-swot.md` weighs the larger bets, including the port.
 
 ### Re-tuning once the vector was complete: +4, not the +11.8 it claimed
 
@@ -1635,3 +1668,99 @@ distinct choices.
 - Ids are snake_case everywhere (`stoke_on_trent`, `farm_northern`, `coal_mine`).
 - Income *advances* are in track spaces; income *level* is what the space pays.
   Never conflate them — the track is deliberately nonlinear.
+
+## Terms audited against outcomes: what is settled
+
+Four agents instrumented self-play, booked every VP back to the action that
+earned it, and regressed outcomes on what each term estimates. Recorded so that
+none of this is re-litigated from argument.
+
+**Changed.**
+
+- `loan_bias` **1.5, new.** The evaluation charges a Loan ~4.5 units below its
+  preferred move and the realised cost of taking one is **zero** -- a ~3.4 VP
+  over-charge, the largest miss in the vector. Mechanism: the income penalty is
+  charged `3 x rounds_left x income` while the £30 is priced flat, so the bot
+  dislikes loans most in the Canal Era, exactly where forcing one measures best
+  (forced canal Loan +1.32 vs control, rail -0.71). The curve peaks sharply:
+  2.5 is -0.39 and 4.0 is **-6.30** (the bot loops on loans). Do not raise it.
+- `mat_potential` **0.25 -> 0.125.** The next mat tile is built 41.6% of the
+  time and banks 1.97 VP against a 5.54 face. See the comment in `heuristic.py`
+  for why no better *shape* exists.
+- `beer_capacity` **3.0 -> 1.5** plus `beer_rail` **3.0**. Only 28.3% of own
+  barrels reach a sale, and a double rail's beer cannot come from a merchant, so
+  the sale cap paid nothing for it. Beware the single block: seat-balanced it
+  read +0.27 +- 0.96 on report and +2.21 +- 0.65 on validation, pooling to
+  **+1.60 +- 0.54**. Win share was 55.0% and 55.6% across the same two blocks --
+  at this sample size win share is the steadier statistic of the two.
+
+**Leave alone -- measured, not argued.**
+
+- `blocked` **= 6** is correctly sized (outcomes say -4.32 +- 0.64 VP per
+  blocked industry) and nearly inert: cotton is blocked in **800 of 800** seats,
+  so 6 of the charge is a constant that cancels in every comparison. Sweeping it
+  0 -> 9 moves the score by less than 0.3.
+- `links_held` **= 0.3** prices a constraint that never binds: `links_left` is
+  14 at the end of all 800 seat-games, because links return at era scoring. The
+  term is really a -0.3 toll on every Network action. Correcting it gains
+  nothing (0.0 reads -0.80 and -0.18 in 2v2).
+- `rival` **= 0.225** should be ~4x higher by outcomes (the best opponent's
+  position predicts nearly as strongly as your own), but the whole range
+  0.0 -> 1.0 is flat, because **51% of candidate moves cannot change any
+  opponent's value by construction**. Same reason the endgame ramp measured
+  null.
+- `liquidity_scale` **= 8.438** is ~3.5x too short against outcomes and
+  stretching it to 30 measured **+2.48 +- 0.59** over 700 held-out games -- but
+  that was on a snapshot predating `loan_bias`, and the two are **substitutes,
+  not additions**. Seat-balanced in the current tree, 30 scores **-0.82 +- 0.59
+  with `loan_bias` present** and **+1.19 +- 0.89 with it removed**. `loan_bias`
+  is the better-evidenced half, so it carries the correction. The general
+  lesson: `income`, `money`, `money_horizon`, `liquidity`, `liquidity_scale` and
+  `loan_bias` are six ways of saying "cash is underpriced" and only one should
+  be turned -- every combination the audit tried scored below the best single
+  change.
+- `income` **= 0.08438** is 2-3x low and linear where outcomes scale as
+  `rounds_left^1.34`, but raising it loses monotonically (0.17 -> -4.2,
+  0.3 -> -15.8). Wrong against outcomes, not correctable by its own weight: the
+  windfall value of free income is not the price at which income should be
+  bought with an action and cash. Same for `money`, whose measured value is 6-7x
+  its weight and which scores **-21.5** if priced there.
+- `debt` **= 0.0633** guards an event costing 23 VP across 320 seat-games, 21 of
+  them in a single seat, while firing at 11.4% of decisions and adding 75% on
+  top of the income charge. Oversized and wrongly motivated, but `debt=0` is
+  only +0.92 +- 0.53. Not worth a change.
+- `merchant_access` **= 2.4** is correctly sized, and its connectivity gate is
+  load-bearing: removing the gate costs -2.05.
+- `flip_horizon` is badly mis-calibrated in the Rail Era and worth **+0.01** to
+  fix, because every rail tile shares the same horizon so it cannot re-order
+  candidates.
+- The `sell_ready`/`unflipped` inversion is **not a bug**: not-ready tiles flip
+  97.7% of the time against 94.4% for ready ones.
+
+**Tried and rejected, with numbers.**
+
+- `scout_bias` 1.0 replicated on the tune block (+2.31) *and* validation
+  (+3.31), then died on report (**+0.36 +- 0.75**). Both non-report blocks
+  flattering at once is exactly what the three-block split exists to catch.
+- **Banning Develop in the Rail Era is null** (+0.06 +- 0.55), though a forced
+  rail Develop is worth only +0.92 over a Pass. The forced arm measures develops
+  the bot did not want; the ones it picks are already worth its alternatives.
+- Per-industry realisation rates for `mat_potential`: **-4.27 +- 1.94**.
+- Zeroing the cotton and pottery mat terms changes play **bit-for-bit not at
+  all**: under `commit` those builds are struck from the move list, so 3.75 of
+  the 8.36 mat credit is a dead constant. This is very likely why the earlier
+  pottery correction measured -0.79 -- with the industry banned, it had nothing
+  to act on.
+
+**Where the score comes from** (200 games, enablement ledger -- each point split
+among the actions that were strictly required for it):
+
+| type | VP/game | per action |
+| --- | --- | --- |
+| Sell | 15.8 | **6.21** |
+| Build | 40.7 | 3.63 |
+| Network | 26.2 | 2.30 |
+| Develop | 2.7 | 1.11 |
+| Loan / Scout / Pass | 0 | 0 |
+
+**23.3% of the bot's score is flipped by an opponent's action, not its own.**
