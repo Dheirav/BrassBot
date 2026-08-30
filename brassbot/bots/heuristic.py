@@ -70,6 +70,38 @@ class HeuristicBot(Bot):
         # opportunistic tile it actually is. Those are different questions and
         # the hard filter conflated them.
         "commit": 1,
+        # How hard to steer away from a sellable industry that is not the one
+        # `commit` names. A PENALTY, not a filter: the hard filter deleted those
+        # builds before the evaluation ever saw them, which is why the cotton
+        # and pottery mat terms measured bit-for-bit inert, and why every
+        # pottery fix had nothing to act on. Committing and playing
+        # opportunistically are different questions, and the filter answered
+        # only the first. 0 keeps the old hard ban.
+        #
+        # Measured, and it is 0 on merit rather than by default. The ban IS
+        # binding -- at bias 0.5 pottery goes 0.00 -> 0.42 builds a seat-game
+        # and cotton 0.00 -> 0.50, and at bias 4 the behaviour collapses back to
+        # the ban -- so the bot will build these tiles the moment it is allowed
+        # to. It just should not: bias 1 pooled **-0.10 +- 0.33 over 1,680
+        # seat-balanced games** on four blocks (+1.29, -0.45, -0.66, +0.15;
+        # heterogeneity chi2 3.7/3, so the blocks genuinely agree on nothing).
+        # The agents' 21-41 VP of uncontested pottery does not transfer.
+        #
+        # Set to 1 on that reasoning rather than on a measured gain, because at
+        # measured-neutral cost a penalty strictly dominates a filter. A filter
+        # cannot take an opportunity by construction; a penalty declines it
+        # unless it clears the bar, which is the same thing when the bar is
+        # right and better when it is not. Against a DIFFERENT opponent the sign
+        # is consistently positive -- 4p/3p/2p vs greedy +0.42, +0.39, +3.63,
+        # the largest on the least contested board -- though none of those
+        # clears 2 sigma on its own. A mirror is where rigidity costs least,
+        # because every seat shares the blind spot.
+        #
+        # It also keeps the question ASKABLE. With the filter on, the cotton and
+        # pottery mat terms are bit-for-bit inert and every experiment about
+        # valuing them measures exactly zero -- which cost a day of pottery
+        # investigations that could not have found anything.
+        "off_plan_bias": 1,
         # How much of the Canal-Era double to credit when valuing a level 2+
         # tile you could build, or unlock by developing. A level 2+ tile flipped
         # in the Canal Era survives the wipe and scores AGAIN at the Rail Era's
@@ -117,6 +149,19 @@ class HeuristicBot(Bot):
         # act", and leftover cash at the final whistle is wasted.
         "money": 0.045,
         "income": 0.08438,     # per income level, per remaining round
+        # Income is charged linearly in rounds remaining. Measured by granting
+        # income levels at four points in the game, its value scales as
+        # rounds_left^1.34 -- it compounds, because early pounds buy tiles that
+        # themselves pay income. +5 levels is worth +18.7 VP at canal round 1
+        # and +2.2 at rail round 5. So the linear form under-rewards Canal-Era
+        # income and over-rewards Rail-Era income.
+        #
+        # This is the EXPONENT, not the level. Raising `income` loses
+        # monotonically (0.17 -> -4.2) because it inflates income everywhere,
+        # including late where it is already over-priced. The curve is
+        # normalised at a full game's horizon, so early income keeps the value
+        # it has now and late income is discounted: a pure reshape.
+        "income_curve": 1.0,
         "blocked": 6,      # per industry blocked by a stranded canal-only tile
         "rival": 0.225,        # how much the best opponent's position counts against us
         "links_held": 0.3,  # mild preference for link tiles still in reserve
@@ -458,15 +503,29 @@ class HeuristicBot(Bot):
                 value += self.w["pass_bias"]
             elif isinstance(action, Loan):
                 value += self.w["loan_bias"]
+            if self.w["off_plan_bias"] and self._off_plan(action):
+                value -= self.w["off_plan_bias"]
             if best_value is None or value > best_value + 1e-9:
                 best_value, best_action = value, action
 
         return best_action
 
-    def _committed(self, state, actions):
-        """Drop builds of main industries we are not committed to."""
+    def _off_plan(self, action):
+        """Is this a build of a sellable industry we are not committed to?"""
         index = int(self.w.get("commit", -1))
         if not 0 <= index < len(MAIN_INDUSTRIES):
+            return False
+        return (isinstance(action, Build) and action.industry.is_sellable
+                and action.industry is not MAIN_INDUSTRIES[index])
+
+    def _committed(self, state, actions):
+        """Drop builds of main industries we are not committed to.
+
+        Only when `off_plan_bias` is 0. Above that the steer is a penalty
+        applied in `choose`, so an exceptional off-plan tile can still be taken.
+        """
+        index = int(self.w.get("commit", -1))
+        if not 0 <= index < len(MAIN_INDUSTRIES) or self.w["off_plan_bias"]:
             return actions
         mine = MAIN_INDUSTRIES[index]
         allowed = [
@@ -655,6 +714,7 @@ class HeuristicBot(Bot):
         # VP -- a coal mine is worth 1 VP and 4 income spaces, so valuing only
         # the VP makes every build look like a waste of money.
         rounds = self.rounds_left(state)
+        income_rounds = self.income_horizon(state, rounds)
         for town, tile in own:
             spec = data.tile(tile.industry, tile.level)
             if tile.flipped:
@@ -685,7 +745,7 @@ class HeuristicBot(Bot):
                 vp *= 1 + self.w["canal_double"] * min(
                     1.0, left_in_era / self.w["flip_horizon"])
 
-            promise = vp + levels * rounds * self.w["income"]
+            promise = vp + levels * income_rounds * self.w["income"]
 
             # Discount by how long this tile has left to flip before it is
             # either wiped (level 1, at the end of the Canal Era) or the game
@@ -820,7 +880,7 @@ class HeuristicBot(Bot):
         value += self.w["liquidity"] * spendable * (
             1.0 - math.exp(-effective / self.w["liquidity_scale"]))
 
-        value += p.income * rounds * self.w["income"]
+        value += p.income * self.income_horizon(state, rounds) * self.w["income"]
         if p.income < 0:
             value += p.income * rounds * self.w["debt"]
         value += p.links_left * self.w["links_held"]
@@ -867,6 +927,16 @@ class HeuristicBot(Bot):
                     value -= self.w["blocked"]
 
         return value
+
+    def income_horizon(self, state, rounds: int) -> float:
+        """`rounds`, bent by `income_curve` and normalised so a full game's
+        horizon is unchanged. See the weight's comment for why the exponent is
+        the correctable error and the level is not."""
+        curve = self.w["income_curve"]
+        if curve == 1.0 or rounds <= 0:
+            return rounds
+        full = 2 * state.rounds_this_era
+        return rounds ** curve / full ** (curve - 1.0)
 
     @staticmethod
     def rounds_left(state) -> int:
