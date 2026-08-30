@@ -39,6 +39,19 @@ class PlannerBot(Bot):
         "keep_per_root": 0,
         # Extra actions spent finishing a pending sale before a line is scored.
         "quiesce": 2,
+        # Candidate first actions searched in separate beams.
+        #
+        # ON, purely for speed: play is identical and it runs 21% faster (24
+        # games, same mean 137.7, same 96% win rate; and 0 of 31 own moves differ
+        # on each of two full games). Each root beam starts from one plan and
+        # grows, which expands fewer nodes than one beam that immediately has
+        # branch x width children.
+        #
+        # It was built expecting a strength gain, on the theory that a shared
+        # beam collapsing to one first action by ply 4 was cutting good lines.
+        # It is not: given its own beam, each root reaches the same conclusion.
+        # The collapse is convergence, not loss.
+        "roots": 4,
         # 1.0 scores plans by projected VP, 0.0 by the hand-tuned evaluation.
         #
         # 0.0, and 1.0 was shipped for an hour by mistake. Measured over 24
@@ -71,7 +84,8 @@ class PlannerBot(Bot):
                               branch=int(self.p["branch"]),
                               keep_per_root=int(self.p["keep_per_root"]),
                               quiesce=int(self.p["quiesce"]),
-                              vp_blend=float(self.p["vp_blend"]))
+                              vp_blend=float(self.p["vp_blend"]),
+                              roots=int(self.p["roots"]))
 
         # Each sampled world votes for the first action of its best line, scored
         # by what that line reaches. Summing scores rather than counting votes

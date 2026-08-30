@@ -52,7 +52,7 @@ class BeamPlanner:
     def __init__(self, seat: int, width: int = 24, branch: int = 12,
                  evaluator: HeuristicBot | None = None,
                  cheap_opponents: bool = False, keep_per_root: int = 0,
-                 quiesce: int = 2, vp_blend: float = 1.0):
+                 quiesce: int = 2, vp_blend: float = 1.0, roots: int = 0):
         self.seat = seat
         self.width = width
         self.branch = branch
@@ -119,6 +119,20 @@ class BeamPlanner:
         # tie-breaker for everything VP cannot see yet (money, income, unflipped
         # tiles).
         self.vp_blend = vp_blend
+        # Search this many candidate first actions in SEPARATE beams, and take
+        # whichever reaches the best line. 0 keeps the single shared beam.
+        #
+        # A shared beam prunes globally by value, so one first action's
+        # continuations sweep the whole width: measured over 26 decisions, the
+        # distinct first actions alive fall 8 -> 5.0 -> 2.7 -> 1.9 by ply four,
+        # and 57% of searches have committed to one by then. Everything after
+        # that refines a choice already made, which is why horizon 14 plays
+        # move-identically to horizon 8.
+        #
+        # This is NOT keep_per_root, which reserved slots inside one width-12
+        # beam and so left each root one plan deep (115.4 against 132.2). Each
+        # root here gets a beam of its own.
+        self.roots = roots
 
     def _opponent_move(self, state, actions):
         if not self.cheap_opponents:
@@ -185,8 +199,11 @@ class BeamPlanner:
         """
         root = state.clone()
         self._advance_opponents(root)
-        beam = [Plan(state=root, seat=self.seat)]
-        steps = 0
+        return self._grow(Plan(state=root, seat=self.seat), horizon)
+
+    def _grow(self, start, horizon: int | None):
+        beam = [start]
+        steps = len(start.actions)
 
         while beam and not all(p.state.finished for p in beam):
             if horizon is not None and steps >= horizon:

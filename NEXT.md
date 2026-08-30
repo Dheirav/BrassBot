@@ -1291,7 +1291,17 @@ A sequence searcher ought to find it unprompted. It does not. 16 seeds, 4p:
 It scores 22 VP more while taking *fewer* double turns, and its spending is flat
 whether or not it is acting last. Whatever the planner found, this is not it.
 
-**Why it happens is still unknown.** The obvious explanation -- that the beam
+**The beam collapse was investigated and is benign.** Distinct first actions
+alive in a width-12 beam fall 8 -> 5.0 -> 2.7 -> 1.9 by ply four, with 57% of
+searches down to one by then -- which is why `horizon=14` plays move-identically
+to `horizon=8`. That looked like the search cutting good lines before they pay.
+It is not. Giving each candidate first action **its own beam** and comparing
+their best lines produces *identical play*: same mean 137.7, same 96% win rate
+over 24 games, and 0 of 31 own moves different on each of two full games. The
+beam converges early because the first action really is decided by then. Kept on
+anyway, since the per-root form runs 21% faster.
+
+**Why the planner does not find turn-order management is still unknown.** The obvious explanation -- that the beam
 prunes partial lines with the myopic `position_value` and so cuts tempo plays
 before they pay -- was tested and is wrong. Reserving beam slots per distinct
 first action, so no candidate is eliminated early, scores **115.4 at a 46% win
