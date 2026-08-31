@@ -10,14 +10,18 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 ### Where the bot stands, 200 games a cell, report seeds
 
-| fmt | pool | all seats | winning seat | P10 | best | VP/action | win% |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 113.7 +- 0.5 | 129.3 | 13.2 | 96 | 161 | 3.62 | 25% |
-| 4p | vs greedy | 111.0 +- 1.0 | 111.0 | 14.7 | 94 | 144 | 3.58 | 98% |
-| 3p | mirror | 119.9 +- 0.6 | 136.4 | 15.9 | 100 | 158 | 3.43 | 33% |
-| 3p | vs greedy | 111.1 +- 1.6 | 111.1 | 23.3 | 80 | 158 | 3.18 | 96% |
-| 2p | mirror | 127.2 +- 1.0 | 141.5 | 20.4 | 106 | 164 | 3.26 | 50% |
-| 2p | vs greedy | 116.0 +- 2.0 | 116.0 | 27.8 | 86 | 178 | 2.98 | 96% |
+| fmt | pool | all seats | SD | P10 | best | win% |
+| --- | --- | --- | --- | --- | --- | --- |
+| 4p | mirror | 113.3 +- 0.5 | 13.9 | 96 | 153 | 25% |
+| 4p | vs greedy | 122.4 +- 1.2 | 16.9 | 99 | 159 | 98% |
+| 3p | mirror | 129.5 +- 0.7 | -- | -- | 182 | 33% |
+| 3p | vs greedy | 123.7 +- 1.5 | 21.7 | 98 | 182 | 98% |
+| 2p | mirror | 132.4 +- 1.1 | -- | -- | 179 | 50% |
+| 2p | vs greedy | 122.0 +- 1.7 | 23.6 | 98 | 172 | 99% |
+
+The old version of this table had eight headers over nine columns, so one figure
+was unlabelled. The mirror win% is mechanical -- 25/33/50% is what identical
+seats must produce -- and is a sanity check, not a result.
 
 The planner (beam search) reaches about 133 head to head at 4p. Human tournament
 **winners** score 142-184, median 158.
@@ -64,27 +68,77 @@ Use the seat-balanced **2v2** (six pairings, every seat variant in half of them)
 before believing a magnitude. It has repeatedly cut a 1v3 result by 2-3x, and
 once to nothing:
 
-| change | 1v3 | 2v2, seat-balanced |
-| --- | --- | --- |
-| all three of the below together | -- | **+2.73 +- 0.91**, 57.5% win share |
-| `loan_bias` 1.5 | +2.85 +- 0.59 | **+1.86 +- 0.94**, 60.0% |
-| `mat_potential` 0.25 -> 0.125 | +2.66 +- 0.68 | **+1.0**, 54.8% |
-| beer split | +3.01 +- 0.53 | **+1.60 +- 0.54**, 55.6% |
+| change | 1v3 | 2v2, seat-balanced | verified, 3 blocks |
+| --- | --- | --- | --- |
+| `loan_bias` 1.5 | +2.85 +- 0.59 | +1.86 +- 0.94 | **+1.22 +- 0.35** |
+| beer split | +3.01 +- 0.53 | +1.60 +- 0.54 | **+1.93 +- 0.35** |
+| `mat_potential` 0.25 -> 0.125 | +2.66 +- 0.68 | +1.0 | **-1.44 +- 0.38** |
+
+The last column is three fresh blocks of 480 games, measured in the tree the
+change actually ships in. `mat_potential` was shipped on the middle column and
+had to be reverted: by the time it was re-measured, `loan_bias`, `beer_rail`,
+`off_plan_bias` and a generation fix had all landed. **Anything measured against
+a snapshot has to be re-measured in the tree it will ship in.** At 2p the same
+change is +2.97, so it lives in `PROFILES` now.
+
+A null control run alongside these returned **-0.17 +- 0.37** with normal
+heterogeneity, so the harness itself is sound and these numbers mean what they
+say.
+
+### The per-format profiles were fitted by the biased tuner, and one cost 10 VP
+
+`PROFILES` overrode `unflipped` at 0.1875 for 2p and 0.2812 for 3p against a
+default of 0.375. Removing both is **+10.08 +- 0.62 at 2p** and **+2.34 +- 0.57
+at 3p**, three blocks each. That is the largest single change in the project and
+it is a deletion. They were fitted when the tuner still scored one seat against
+three copies of the baseline -- a harness that pays ~+0.5 for any change -- which
+is enough for coordinate descent to adopt an override that loses ten points.
+
+`tuned_2p.json` and `tuned_3p.json` advertise `held_up=True` and +10.8 at 2p.
+Evaluated properly: the income cut both files agree on is worth **nothing**
+(-0.17 at 2p, +0.17 at 3p), adopting either wholesale would have undone the
+confirmed beer fix, and what looked like their gain was mostly this same
+override being reverted. Two runs of a biased tuner agreeing is not evidence.
+
+**Rule: prefer a DEFAULTS value over a profile entry unless the split has been
+measured seat-balanced.**
 
 ### Open, in the order I would take them
 
-1. Re-tune the full vector again. `loan_bias` and `beer_rail` are new since the
-   last one, and `mat_potential` moved; the weights around them were fitted to
-   compensate for their absence. Tune with the 2v2 harness, not 1v3.
-2. Re-measure the planner: its +25 was against the pre-fix evaluation, and the
-   heuristic it is compared against is now well over 11 VP stronger.
-3. A **double rail returns 8.73 VP for one action against 4.08 for a single**,
-   and the bot takes 3.84 singles to 2.46 doubles a game. That mix looks wrong,
-   but `canal_double` is a tuned weight, so move it in a re-tune rather than
-   bolting it on.
-4. More agent playtests. Highest measured yield, and a poll now costs 41% fewer
-   tokens since the move list was collapsed.
+1. **Audit the rest of the vector for more biased-tuner leftovers.** Every
+   weight whose current value came from a 1v3 tuning run is suspect the way
+   `unflipped` was, and that one was worth 10 VP at 2p. Cheapest possible test:
+   revert a weight to its pre-tuning value and duel it seat-balanced. This is
+   now the highest-yield lead in the project.
+2. Re-tune the full vector through the fixed tuner. Note it will be far stingier
+   -- a 2 sigma gate on a paired difference is a much higher bar than the old
+   "beat one baseline noise estimate", so expect most weights kept. Budget
+   overnight: the duel needs roughly double the games for the same precision.
+3. Re-measure the planner: its +25 was against the pre-fix evaluation, and the
+   heuristic it is compared against is far stronger now.
+4. More agent playtests. Highest measured yield for rules bugs, and a poll costs
+   41% fewer tokens since the move list was collapsed.
 5. `docs/options-swot.md` weighs the larger bets, including the port.
+
+**Do not** chase the action ledger's double-rail gap (8.73 VP an action against
+4.08 for a single). It is a selection effect: when a double is on offer the bot
+already takes it 82% of the time, and only 36 of 338 rail singles had one
+available. The gate is beer (41.9% of the misses) and cash (35.5%), which is
+what `beer_rail` and `loan_bias` address. Measured, dead end, recorded.
+
+### A single positive block is not a lead
+
+Three separate ideas -- `scout_bias`, `income_curve`, `off_plan_bias` -- each
+measured well on their first block and pooled to nothing over four or five:
++0.36, +0.31 +- 0.30, -0.10 +- 0.33. At 240 games the standard error is about
++-0.9, so a first reading of +1.3 is simply what noise looks like. Measure on
+three blocks from the start; it costs no more than measuring once and then
+chasing the result.
+
+The corollary bit twice in one day: `liquidity_scale` measured +2.48 alone and
+-0.82 once `loan_bias` existed, because both price the same thing; and
+`mat_potential` measured +2.66, then -1.44, then +6.57 at 2p. **A weight is a
+number conditional on the rest of the vector and on the player count.**
 
 ### Re-tuning once the vector was complete: +4, not the +11.8 it claimed
 
