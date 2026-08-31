@@ -69,7 +69,14 @@ class HeuristicBot(Bot):
         # pottery as a COMMITMENT, which loses heavily, and never as the
         # opportunistic tile it actually is. Those are different questions and
         # the hard filter conflated them.
-        "commit": 1,
+        # Re-tuned through the seat-balanced duel, then confirmed: the six
+        # weights below move together for **+7.14 +- 0.34 over four blocks**
+        # (66.5%% win share, chi2 4.9/3). Individually they sum to +10.3, so
+        # they overlap -- adopt them as a unit, not piecemeal.
+        # commit -> pottery (index 2) is +2.21 +- 0.36. Five agents called
+        # pottery the best VP per action on the board; the bot could not
+        # discover that until off_plan_bias turned the ban into a penalty.
+        "commit": 2,
         # How hard to steer away from a sellable industry that is not the one
         # `commit` names. A PENALTY, not a filter: the hard filter deleted those
         # builds before the evaluation ever saw them, which is why the cotton
@@ -226,7 +233,9 @@ class HeuristicBot(Bot):
         "sell_ready": 0.3187,
         # Credit for merchant connectivity itself, so building *toward* a sale
         # registers as progress rather than as spending money for nothing.
-        "merchant_access": 2.4,
+        # 2.4 -> 1.8 is +1.62 +- 0.38, against an audit that had called 2.4
+        # correctly sized. The audit predates loan_bias and off_plan_bias.
+        "merchant_access": 1.8,
         # Cap merchant_access at the tiles waiting to be sold, plus one. OFF:
         # it costs **13.2 VP** (110.70 -> 97.53 over 200 games), the largest
         # regression measured on this evaluation.
@@ -267,7 +276,9 @@ class HeuristicBot(Bot):
         # the candidate action, so it already sees a build that hands an opponent
         # icons. Weighting that fully simply does not come up often enough.
         "rival_endgame": 0.0,
-        "link_flip_canal": 0.7,
+        # 0.7 -> 0.35 is +1.10 +- 0.37. Halving the canal half of the term
+        # that was itself worth +11 VP when it was introduced.
+        "link_flip_canal": 0.35,
         "link_flip_rail": 0.9,
         # What our network lets the cards in our HAND actually do.
         #
@@ -284,12 +295,21 @@ class HeuristicBot(Bot):
         # an arm. It fires (2-5 points of credit mid-game), it is simply wrong:
         # paying for reach buys links into towns you MIGHT build in, and the
         # actions go on connections that never convert.
-        "hand_reach": 0.0,
+        # 0 -> 0.5 is **+3.60 +- 0.36 (10 sigma)**, the largest single term in
+        # the re-tune -- and it measured ZERO twice before, once in a run
+        # whose commit reads "the gap is not what the evaluation can see".
+        # The term did not change; the vector around it did. Making the hand
+        # visible was worth nothing until loan_bias, beer_rail and
+        # off_plan_bias existed. The sharpest example in the repo of a weight
+        # being a number conditional on the rest of the vector.
+        "hand_reach": 0.5,
         # Cash is only worth what it buys before the game ends, and it scores
         # nothing at the final whistle. So its value has to decay to zero as the
         # actions run out -- otherwise the bot happily finishes holding money it
         # can never spend. Ramps down over this many remaining rounds.
-        "money_horizon": 4,
+        # 4 -> 8 is +0.85 +- 0.38, which the grant curve wanted all along:
+        # money decays gradually from the first round, not off a cliff at 4.
+        "money_horizon": 8,
         # A pound early is worth more than a pound late, for the same reason a
         # point of income is: it compounds. Cash in the Canal Era buys tiles that
         # flip, score TWICE (level 2+ survives the wipe and scores again), and
@@ -351,7 +371,8 @@ class HeuristicBot(Bot):
         # late in canal and not yet flipped is deleted having scored nothing --
         # measured at 1.36 tiles per player per game, mostly brewery I. Level 2+
         # tiles survive the wipe and have the whole Rail Era to flip in.
-        "flip_horizon": 3.0,
+        # 3.0 -> 1.5 is +1.25 +- 0.37.
+        "flip_horizon": 1.5,
         # Beer you own, per barrel still on your own breweries.
         #
         # A Sell action can flip several tiles at once, but every tile needs its
@@ -454,7 +475,17 @@ class HeuristicBot(Bot):
         # enough for coordinate descent to adopt an override that loses. Prefer
         # a DEFAULTS value over a profile entry unless the split is measured
         # seat-balanced; see NEXT.md.
-        2: {"sell_ready": 0.478, "mat_potential": 0.125},
+        # commit stays on manufacturer at 2p. The 4p re-tune moved it to
+        # pottery for +2.21 there, and reverting it here is **+6.26 +- 1.03**:
+        # 2p has 39 actions and almost no contention, so you do not need the
+        # focus a commitment buys, and manufacturer converts faster than a
+        # pottery ladder you must climb rung by rung.
+        #
+        # The rest of that re-tune stays at 2p. Reverting any ONE of the other
+        # five also measures positive (1.1-2.6 sigma) but reverting all six is
+        # -0.36 +- 0.94 -- they sum to +17.8 individually and cancel jointly,
+        # so the single-weight numbers are not additive and were not acted on.
+        2: {"sell_ready": 0.478, "mat_potential": 0.125, "commit": 1},
     }
 
     def __init__(self, seed: int = 0, **weights):
