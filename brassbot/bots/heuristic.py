@@ -445,8 +445,16 @@ class HeuristicBot(Bot):
         # within 0.05 at 2p. Two players have 39 actions against 31 and hardly
         # contend for slots, so the mat ladder is a different proposition there:
         # you can afford to climb it, and nobody takes the tile you were saving.
-        2: {"sell_ready": 0.478, "unflipped": 0.1875, "mat_potential": 0.125},
-        3: {"unflipped": 0.2812},
+        # `unflipped` used to be overridden here too -- 0.1875 at 2p and 0.2812
+        # at 3p against a default of 0.375 -- and both were costing real points:
+        # removing them is **+10.08 +- 0.62** at 2p and **+2.34 +- 0.57** at 3p,
+        # three blocks each, heterogeneity 0.9/2 and 1.1/2. They were fitted by
+        # the tuner back when it scored one seat against three copies of the
+        # baseline, a harness that pays roughly +0.5 for any change at all --
+        # enough for coordinate descent to adopt an override that loses. Prefer
+        # a DEFAULTS value over a profile entry unless the split is measured
+        # seat-balanced; see NEXT.md.
+        2: {"sell_ready": 0.478, "mat_potential": 0.125},
     }
 
     def __init__(self, seed: int = 0, **weights):
