@@ -486,6 +486,17 @@ class HeuristicBot(Bot):
         # -0.36 +- 0.94 -- they sum to +17.8 individually and cancel jointly,
         # so the single-weight numbers are not additive and were not acted on.
         2: {"sell_ready": 0.478, "mat_potential": 0.125, "commit": 1},
+        # From the first honest 3p tune: **+4.77 +- 0.50 over three blocks**
+        # (9.5 sigma, chi2 1.1/2) on top of the 4p vector. These live here and
+        # not in DEFAULTS because halving `income` measures null at 4p, where
+        # the rest of the vector is fitted around 0.08438.
+        #
+        # wild_card is the largest of the three at 3p (+3.36 +- 0.54) and
+        # measures -0.33 at 4p, where it was dropped from the tuned vector as
+        # dead weight. income (+2.25) and liquidity_scale (+1.99) are cash
+        # knobs and substitute for each other: together they are only +2.51,
+        # the same pattern as liquidity_scale against loan_bias.
+        3: {"income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1},
     }
 
     def __init__(self, seed: int = 0, **weights):
