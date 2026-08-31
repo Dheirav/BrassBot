@@ -342,7 +342,7 @@ class HeuristicBot(Bot):
         # Develop, whose entire credit is mat potential; halving it trades
         # 0.8 develops a game for builds and raises VP entering the Rail Era
         # from 35.5 to 39.3.
-        "mat_potential": 0.125,
+        "mat_potential": 0.25,
         # How many rounds a tile realistically needs in order to flip. An
         # unflipped tile is a promise, and a promise is only worth something if
         # there is still time to collect on it.
@@ -439,7 +439,13 @@ class HeuristicBot(Bot):
     # numbers of merchants -- so one weight vector does not fit all three. Filled
     # in by tuning each format separately; an empty entry just means DEFAULTS.
     PROFILES: dict[int, dict] = {
-        2: {"sell_ready": 0.478, "unflipped": 0.1875},
+        # mat_potential is the sharpest format split in the vector. Halving it
+        # to 0.125 is worth **+6.57 +- 0.70** at 2p and costs -1.44 +- 0.38 at
+        # 4p and -1.81 +- 0.69 at 3p, seat-balanced, both blocks agreeing to
+        # within 0.05 at 2p. Two players have 39 actions against 31 and hardly
+        # contend for slots, so the mat ladder is a different proposition there:
+        # you can afford to climb it, and nobody takes the tile you were saving.
+        2: {"sell_ready": 0.478, "unflipped": 0.1875, "mat_potential": 0.125},
         3: {"unflipped": 0.2812},
     }
 
