@@ -170,6 +170,27 @@ class HeuristicBot(Bot):
         # it has now and late income is discounted: a pure reshape.
         "income_curve": 1.0,
         "blocked": 6,      # per industry blocked by a stranded canal-only tile
+        # `blocked` above fires ONLY once we are already in the Rail Era, so
+        # during the Canal Era the bot gets no signal that it is about to lock
+        # itself out of an industry -- by which time the only response left is a
+        # Rail-Era develop, and those measure worth nothing. 8 of the 11 level-1
+        # tiles are canal-only and developable; brewery is blocked for 44% of
+        # seats at the boundary, cotton for essentially all of them, and 0.42
+        # beer barrels a seat are destroyed sitting on level-1 breweries that the
+        # wipe removes. This charges a fraction of the same penalty during the
+        # Canal Era, ramping linearly to full weight at the boundary.
+        # 1.0 measured on three fresh blocks at every player count:
+        # **+7.87 +- 0.38 at 4p, +10.16 +- 0.51 at 3p, +16.28 +- 1.00 at
+        # 2p**, with win shares of 66%, and it is the peak at 4p and 3p
+        # (2.0 gives +7.19 and +4.37). At 2p 2.0 reads +16.70, which is the
+        # same within noise, so one global value rather than a profile split.
+        #
+        # It recovers essentially all of what the move is worth: FORCING one
+        # Canal-Era brewery develop measures +7.73 +- 0.61 over four blocks,
+        # and the weight gets +7.87. The evaluation could always express
+        # this -- it was simply never asked, because the penalty only fired
+        # in the era after the one where the answer had to be played.
+        "blocked_lookahead": 1.0,
         "rival": 0.225,        # how much the best opponent's position counts against us
         "links_held": 0.3,  # mild preference for link tiles still in reserve
         # Being broke is not just "less money": it removes almost every action
@@ -485,7 +506,14 @@ class HeuristicBot(Bot):
         # five also measures positive (1.1-2.6 sigma) but reverting all six is
         # -0.36 +- 0.94 -- they sum to +17.8 individually and cancel jointly,
         # so the single-weight numbers are not additive and were not acted on.
-        2: {"sell_ready": 0.478, "mat_potential": 0.125, "commit": 1},
+        # income/debt/wild_card come from the first honest 2p tune, measured
+        # with this profile live rather than from the tuner's own vector,
+        # which bypasses PROFILES and so also reverted commit, sell_ready
+        # and mat_potential. Alone they are +3.08, +3.03 and +2.70; together
+        # **+7.79 +- 0.89** over three blocks. Unlike the cash knobs at 3p,
+        # these stack (8.81 apart, 7.79 together).
+        2: {"sell_ready": 0.478, "mat_potential": 0.125, "commit": 1,
+            "income": 0.04219, "debt": 0.09495, "wild_card": 0.5},
         # From the first honest 3p tune: **+4.77 +- 0.50 over three blocks**
         # (9.5 sigma, chi2 1.1/2) on top of the 4p vector. These live here and
         # not in DEFAULTS because halving `income` measures null at 4p, where
@@ -981,6 +1009,16 @@ class HeuristicBot(Bot):
             for industry, level in lowest.items():
                 if level is not None and not data.tile(industry, level).rail_era:
                     value -= self.w["blocked"]
+        elif self.w["blocked_lookahead"] and state.rounds_this_era:
+            # Ramps from ~0 at the start of the era to 1 on the last round, so
+            # the charge appears while a develop can still cheaply answer it.
+            near = max(0, state.rounds_this_era - state.round)
+            urgency = 1.0 - near / state.rounds_this_era
+            if urgency > 0:
+                for industry, level in lowest.items():
+                    if level is not None and not data.tile(industry, level).rail_era:
+                        value -= (self.w["blocked"] * urgency
+                                  * self.w["blocked_lookahead"])
 
         return value
 
