@@ -105,26 +105,43 @@ measured seat-balanced.**
 
 ### Open, in the order I would take them
 
-1. **Audit the rest of the vector for more biased-tuner leftovers.** Every
-   weight whose current value came from a 1v3 tuning run is suspect the way
-   `unflipped` was, and that one was worth 10 VP at 2p. Cheapest possible test:
-   revert a weight to its pre-tuning value and duel it seat-balanced. This is
-   now the highest-yield lead in the project.
-2. Re-tune the full vector through the fixed tuner. Note it will be far stingier
+1. Re-tune the full vector through the fixed tuner. Note it will be far stingier
    -- a 2 sigma gate on a paired difference is a much higher bar than the old
    "beat one baseline noise estimate", so expect most weights kept. Budget
    overnight: the duel needs roughly double the games for the same precision.
-3. Re-measure the planner: its +25 was against the pre-fix evaluation, and the
+2. Re-measure the planner: its +25 was against the pre-fix evaluation, and the
    heuristic it is compared against is far stronger now.
-4. More agent playtests. Highest measured yield for rules bugs, and a poll costs
+3. More agent playtests. Highest measured yield for rules bugs, and a poll costs
    41% fewer tokens since the move list was collapsed.
-5. `docs/options-swot.md` weighs the larger bets, including the port.
+4. `docs/options-swot.md` weighs the larger bets, including the port.
 
 **Do not** chase the action ledger's double-rail gap (8.73 VP an action against
 4.08 for a single). It is a selection effect: when a double is on offer the bot
 already takes it 82% of the time, and only 36 of 338 rail singles had one
 available. The gate is beer (41.9% of the misses) and cash (35.5%), which is
 what `beer_rail` and `loan_bias` address. Measured, dead end, recorded.
+
+### The biased tuner's other picks were audited, and they are fine
+
+`unflipped` was the exception, not the rule. The last re-tune before the harness
+was fixed (`c7bd27e`, which reported +11.8 and delivered +4) set exactly three
+weights, and reverting each of them seat-balanced over three blocks at 4p and 2p
+costs points or does nothing:
+
+| reverted | 4p | 2p |
+| --- | --- | --- |
+| `income` 0.08438 -> 0.1125 | -0.30 +- 0.38 | -0.05 +- 0.79 |
+| `canal_double` 0.5 -> 0.0 | **-2.25 +- 0.38** | **-4.99 +- 0.71** |
+| `commit` 1 -> -1 | +0.19 +- 0.38 | -1.46 +- 0.73 |
+
+So the vector does not need distrusting wholesale, `canal_double` is strongly
+load-bearing at both counts having never been measured alone, and `commit` earns
+its place at 2p while being neutral at 4p.
+
+`income` is the third time a resource's measured windfall value has failed to
+transfer to its weight -- after `money` scoring -21.5 when priced at what a grant
+of it is worth, and the `income_curve` exponent. **What a resource is worth as a
+windfall is not the rate you should trade for it.**
 
 ### A single positive block is not a lead
 
