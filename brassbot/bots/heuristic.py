@@ -28,7 +28,7 @@ import math
 
 from ..actions import Build, Loan, Pass
 from ..cards import CardKind
-from ..engine import apply_action, link_icons_at
+from ..engine import apply_action, legal_actions, link_icons_at
 from ..gamedata import Era, Industry, income_level
 from ..network import connected_locations
 from .base import Bot
@@ -495,6 +495,37 @@ class HeuristicBot(Bot):
         # sites you have NOT claimed yet -- the risk of losing them before you
         # act. That is the other side of the board from where this sits.
         "site_urgency": 0.0,
+        # How many first actions to expand into a PAIR when we hold both actions
+        # of a turn. 0 is the one-ply bot.
+        #
+        # A turn is two of our own actions back to back -- no opponent moves
+        # between them and no cards are revealed -- so searching the pair is
+        # exact rather than approximate, needs no determinization and no opponent
+        # model. It is the cheapest possible probe of what horizon is worth: the
+        # planner shares this evaluation and beats the one-ply bot by
+        # +14.78 +- 0.73 purely by looking eight actions ahead instead of one.
+        #
+        # Every play a strong human describes is a pair -- develop then build,
+        # loan then spend, two double rails in one round -- and each is a
+        # sequence whose first half looks like a loss on its own.
+        # Measured at widths 4 / 8 / 16 on three blocks at every player count:
+        #
+        #        4p                3p                2p
+        #   4    +6.63 +- 0.42     --                --
+        #   8    +7.63 +- 0.43     +7.40 +- 0.48     +10.19 +- 0.71
+        #   16   +8.49 +- 0.43     +7.24 +- 0.50     +13.17 +- 0.68
+        #
+        # 8 everywhere, 16 at 2p in PROFILES. Three players gain NOTHING from
+        # the wider search (-0.16, at 75% more compute); two players gain +2.98,
+        # which is the format with 39 actions and almost no contention, so more
+        # of its pairs are actually available. At 4p the extra +0.86 costs 40%
+        # more time and carries the only heterogeneous chi2 in the set (5.6/2),
+        # so it is not taken.
+        #
+        # For scale: the planner, using this same evaluation on an EIGHT-action
+        # horizon with determinization, an opponent model and a beam, is +14.78.
+        # Over half of that turns out to live in the first pair of moves.
+        "pair_search": 8,
     }
 
     # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
@@ -534,7 +565,8 @@ class HeuristicBot(Bot):
         # **+7.79 +- 0.89** over three blocks. Unlike the cash knobs at 3p,
         # these stack (8.81 apart, 7.79 together).
         2: {"sell_ready": 0.478, "mat_potential": 0.125, "commit": 1,
-            "income": 0.04219, "debt": 0.09495, "wild_card": 0.5},
+            "income": 0.04219, "debt": 0.09495, "wild_card": 0.5,
+            "pair_search": 16},
         # From the first honest 3p tune: **+4.77 +- 0.50 over three blocks**
         # (9.5 sigma, chi2 1.1/2) on top of the 4p vector. These live here and
         # not in DEFAULTS because halving `income` measures null at 4p, where
@@ -599,6 +631,7 @@ class HeuristicBot(Bot):
         shared = (self.shared_signature(state, me, base_owned),
                   max(base_rivals) if base_rivals else 0.0)
 
+        scored = []
         for action in actions:
             probe = state.clone()
             apply_action(probe, action)
@@ -610,10 +643,46 @@ class HeuristicBot(Bot):
                 value += self.w["loan_bias"]
             if self.w["off_plan_bias"] and self._off_plan(action):
                 value -= self.w["off_plan_bias"]
+            scored.append((value, action))
             if best_value is None or value > best_value + 1e-9:
                 best_value, best_action = value, action
 
+        width = int(self.w["pair_search"])
+        if width > 0 and state.actions_left >= 2 and len(scored) > 1:
+            best_action = self._best_of_pair(state, me, scored, width)
         return best_action
+
+    def _best_of_pair(self, state, me, scored, width):
+        """Pick the first action of the best PAIR, not the best single action.
+
+        Both actions are ours and consecutive, so this is an exact two-ply search
+        over our own moves -- no opponent replies to model and no hidden card is
+        drawn in between. Only the top `width` first actions are expanded, which
+        is where the cost lives; the second action is searched in full.
+        """
+        best_pair, best_first = None, None
+        for _v, first in sorted(scored, key=lambda sa: -sa[0])[:width]:
+            probe = state.clone()
+            apply_action(probe, first)
+            # A first action that ends our turn cannot be paired; score it alone.
+            if probe.finished or probe.current.idx != me:
+                value = self.position_value(probe, me)
+                if best_pair is None or value > best_pair + 1e-9:
+                    best_pair, best_first = value, first
+                continue
+            for second in legal_actions(probe):
+                after = probe.clone()
+                apply_action(after, second)
+                value = self.position_value(after, me)
+                if isinstance(second, Pass):
+                    value += self.w["pass_bias"]
+                elif isinstance(second, Loan):
+                    value += self.w["loan_bias"]
+                if self.w["off_plan_bias"] and self._off_plan(second):
+                    value -= self.w["off_plan_bias"]
+                if best_pair is None or value > best_pair + 1e-9:
+                    best_pair, best_first = value, first
+        return best_first if best_first is not None else scored[0][1]
 
     def _off_plan(self, action):
         """Is this a build of a sellable industry we are not committed to?"""
