@@ -10,14 +10,38 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 ### Where the bot stands, 200 games a cell, report seeds
 
-| fmt | pool | all seats | SD | P10 | best | win% |
-| --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 113.3 +- 0.5 | 13.9 | 96 | 153 | 25% |
-| 4p | vs greedy | 122.4 +- 1.2 | 16.9 | 99 | 159 | 98% |
-| 3p | mirror | 129.5 +- 0.7 | -- | -- | 182 | 33% |
-| 3p | vs greedy | 123.7 +- 1.5 | 21.7 | 98 | 182 | 98% |
-| 2p | mirror | 132.4 +- 1.1 | -- | -- | 179 | 50% |
-| 2p | vs greedy | 122.0 +- 1.7 | 23.6 | 98 | 172 | 99% |
+| fmt | pool | all seats | best |
+| --- | --- | --- | --- |
+| 4p | mirror | 111.6 +- 0.7 | 162 |
+| 4p | vs greedy | 133.9 +- 1.3 | 169 |
+| 3p | mirror | 129.8 +- 0.7 | 168 |
+| 3p | vs greedy | 138.0 +- 1.7 | 184 |
+| 2p | mirror | 138.4 +- 1.3 | 186 |
+| 2p | vs greedy | 136.5 +- 1.9 | 191 |
+
+The mirror win rate is mechanical -- 25/33/50% is what identical seats must
+produce -- so it is a sanity check, not a result. Read the vs-greedy row for
+absolute strength: it is measured against a fixed opponent.
+
+### The planner is still 15 VP ahead, and that number is the value of LOOKAHEAD
+
+`planner` beats `heuristic` by **+14.78 +- 0.73** over three blocks (20.3 sigma,
+~80% win share). The two share an evaluation -- `planner.py` scores its leaves
+with `HeuristicBot` -- so the ONLY difference between them is that one looks
+eight actions ahead and the other looks one.
+
+Two things follow. **No amount of weight tuning can close this gap**, because
+every evaluation gain lifts both bots equally; the old +25 came down to +14.78
+partly because `blocked_lookahead` is a one-ply approximation of "an era
+boundary is coming", which an 8-action horizon sees natively. And the remaining
+~15 VP is the value of sequences a one-ply score cannot represent: the pottery
+ladder, beer held across the boundary, a loan taken because you know what next
+turn buys.
+
+That makes **distillation** the right target -- train the evaluation on what the
+planner CHOSE, so a one-ply bot inherits the horizon at no runtime cost. The
+planner is ~180x slower per move, so it cannot be the live bot for advice during
+a real game.
 
 The old version of this table had eight headers over nine columns, so one figure
 was unlabelled. The mirror win% is mechanical -- 25/33/50% is what identical
@@ -142,6 +166,58 @@ its place at 2p while being neutral at 4p.
 transfer to its weight -- after `money` scoring -21.5 when priced at what a grant
 of it is worth, and the `income_curve` exponent. **What a resource is worth as a
 windfall is not the rate you should trade for it.**
+
+### The biggest single gain: a penalty that fired an era too late
+
+`blocked` charges for an industry locked out by a stranded canal-only tile, but
+it only ever fired `if state.era is Era.RAIL`. By then the only answer left is a
+Rail-Era develop, and those measure worth nothing -- so the bot reliably acted an
+era late: 0.25 brewery develops in canal against 0.54 in rail, 44% of seats
+entering the Rail Era with brewery blocked, 0.42 barrels a seat destroyed on
+level-1 breweries the wipe removes, and 86% of seats starting the Rail Era with
+no beer at all.
+
+`blocked_lookahead` = 1.0 charges a fraction of the same penalty DURING the Canal
+Era, ramping to full weight at the boundary:
+
+| | 4p | 3p | 2p |
+| --- | --- | --- | --- |
+| gain | **+7.87 +- 0.38** | **+10.16 +- 0.51** | **+16.28 +- 1.00** |
+
+Eight of the eleven level-1 tiles are canal-only and developable, so this is not
+only about breweries.
+
+Its ceiling was known before the weight existed: FORCING one Canal-Era brewery
+develop measures **+7.73 +- 0.61** over four blocks and 2,400 games, and the
+weight recovers +7.87 of it. The evaluation could express this the whole time --
+the penalty just fired in the era after the one where the answer had to be
+played. That also explains the mat audit's "correctly sized but nearly inert":
+correctly sized, and firing after the decision it should have shaped.
+
+**Found because a player described how they play** -- develop the level-1
+breweries away before the boundary so the industry stays open and the beer
+survives. Three of their observations converged on the same action before anyone
+looked at the code.
+
+### Agent playtests: the engine is sound, strength is unmeasured
+
+Two agents played full 4p games on recorded seeds (7301, 8842) and found **no
+rules bugs**. One verified the recently-changed double-rail generation by hand --
+costs correct to the pound, and beer reachability correctly evaluated against the
+POST-action network, so a brewery reachable only because the second link is being
+placed is properly allowed.
+
+They scored 74 and 81 against bots at 101-123, but **that is not a strength
+result**: both were briefed to hunt bugs rather than win, and one was told to
+steer toward double rails and selling regardless of whether those were best. An
+agent playing to expose the move generator is not an agent playing to score.
+The earlier cohort that scored 130/119/116 was also coached from
+`docs/expert-strategy.md`, so no clean comparison exists yet in either direction.
+
+Both independently misread the interface in the same two ways, now fixed in
+`tools/play.py`: `p.vp` shows only BANKED points (every seat reads 0 mid-canal
+while one is 19 ahead), and a forced tile liquidation on an income shortfall was
+printed nowhere at all.
 
 ### A single positive block is not a lead
 
