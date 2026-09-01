@@ -69,7 +69,13 @@ class BeamPlanner:
         # three quarters of the evaluation cut a small slice of the total.
         #
         # Anything faster here has to remove clones, not arithmetic.
-        self.opponent = HeuristicBot()
+        # pair_search=0 deliberately. The shipped heuristic now searches both
+        # actions of its turn, which is right for the real bot and ruinous here:
+        # this model is invoked for 645 opponent decisions a game, inside every
+        # plan step, so a two-ply search per reply multiplies a run that already
+        # takes over three hours. The opponent model has always been an
+        # approximation; this keeps it the one that was measured.
+        self.opponent = HeuristicBot(pair_search=0)
         self.cheap_opponents = cheap_opponents
         # Slots reserved per distinct FIRST action. OFF, because it was tried
         # and it is badly wrong: 115.4 VP at a 46% win rate against 132.2 at 79%
