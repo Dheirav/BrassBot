@@ -27,6 +27,7 @@ from __future__ import annotations
 import math
 
 from ..actions import Build, Loan, Pass
+from ..cards import CardKind
 from ..engine import apply_action, link_icons_at
 from ..gamedata import Era, Industry, income_level
 from ..network import connected_locations
@@ -324,6 +325,26 @@ class HeuristicBot(Bot):
         # off_plan_bias existed. The sharpest example in the repo of a weight
         # being a number conditional on the rest of the vector.
         "hand_reach": 0.5,
+        # hand_reach reads only the INDUSTRIES on a card, so it sees 12 cards of
+        # a 32-card hand-and-deck sample: the other 20 are location or wild and
+        # contribute nothing. A location card is the stronger of the two -- it
+        # reaches its town even outside your network, which is the only way to
+        # expand into new territory -- and the evaluation cannot see any of them.
+        #
+        # Counted once per town, never per slot: crediting each empty slot is
+        # what made `site_urgency` pay the bot to pile tiles into one contested
+        # town, costing 11.3 VP.
+        #
+        # Measured and it is worth nothing: -0.24, -0.29 and +0.07 at 0.1, 0.25
+        # and 0.5, three blocks each, none past half a sigma. The blindness is
+        # real and does not matter, which is the opposite of how it looked.
+        #
+        # Why, in hindsight: a location card's reach only pays if you wanted to
+        # expand there anyway, and the position value already scores that once
+        # the move is generated. hand_reach works because it prices whether your
+        # industries have anywhere to go AT ALL, which is a real constraint;
+        # this prices optionality the move generator already exposes.
+        "hand_towns": 0,
         # Cash is only worth what it buys before the game ends, and it scores
         # nothing at the final whistle. So its value has to decay to zero as the
         # actions run out -- otherwise the bot happily finishes holding money it
@@ -900,6 +921,19 @@ class HeuristicBot(Bot):
                         if state.tiles[town_id][i] is None and (slot & held):
                             openings += 1
                 value += min(openings, len(p.hand)) * self.w["hand_reach"]
+
+        if self.w["hand_towns"]:
+            towns_open = 0
+            for card in p.hand:
+                if card.kind is CardKind.WILD_LOCATION:
+                    towns_open += 1
+                    continue
+                if card.kind is not CardKind.LOCATION or not card.town:
+                    continue
+                slots = state.tiles.get(card.town, ())
+                if any(tile is None for tile in slots):
+                    towns_open += 1
+            value += min(towns_open, len(p.hand)) * self.w["hand_towns"]
 
         # Credit for sites others could have raced us to -- counted ONCE per town.
         #
