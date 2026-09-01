@@ -19,7 +19,7 @@ import sys
 from brassbot.actions import Build, Develop, Loan, Network, Pass, Scout, Sell
 from brassbot.bots import make
 import brassbot.engine as _engine
-from brassbot.engine import apply_action, legal_actions
+from brassbot.engine import apply_action, legal_actions, score_era
 from brassbot.gamedata import Era, Industry, income_level
 from brassbot.network import is_connected_to_merchant
 from brassbot.resources import plan_cost
@@ -153,14 +153,22 @@ def render(state) -> str:
     p = state.players[SEAT]
     out = [f"=== {state.era.value.upper()} era, round {state.round}/"
            f"{state.rounds_this_era} | actions left this turn: {state.actions_left} ==="]
-    out.append(f"YOU (seat {SEAT}): {p.money} money, income {p.income}, {p.vp} VP, "
+    # `p.vp` is BANKED victory points -- only what a scoring pass has already
+    # paid out. Links and unflipped tiles contribute nothing to it until an era
+    # ends, so mid-game it badly understates a player building a wide network:
+    # two playtesters independently misread their position from this field, one
+    # watching the seat with the LOWEST shown VP finish with the highest score.
+    projected = project_vp(state)
+    out.append(f"YOU (seat {SEAT}): {p.money} money, income {p.income}, "
+               f"{p.vp} VP banked ({projected[SEAT]} if scored now), "
                f"{p.links_left} link tiles left")
     out.append("  hand: " + ", ".join(sorted(repr(c) for c in p.hand)))
     mat = ", ".join(f"{i.value}:L{p.lowest_level(i)}" for i in state.data.tiles
                     if p.lowest_level(i))
     out.append("  next tile on your mat: " + mat)
 
-    others = ", ".join(f"seat {i}: {q.vp} VP / income {q.income} / {q.money} money"
+    others = ", ".join(f"seat {i}: {q.vp} ({projected[i]}) VP / income {q.income} "
+                       f"/ {q.money} money"
                        for i, q in enumerate(state.players) if i != SEAT)
     out.append("OPPONENTS: " + others)
 
@@ -186,13 +194,49 @@ def render(state) -> str:
     return "\n".join(out)
 
 
+def project_vp(state):
+    """VP each seat would have if the era were scored right now.
+
+    Scoring mutates -- it removes links as they score -- so this runs on a clone.
+    """
+    probe = state.clone()
+    try:
+        scored = score_era(probe)
+    except Exception:            # never let a display aid break the game
+        return [q.vp for q in state.players]
+    return [q.vp for q in probe.players] if scored is not None else \
+           [q.vp for q in state.players]
+
+
+def own_tiles(state, seat):
+    return {(town, i, t.industry, t.level)
+            for town, slots in state.tiles.items()
+            for i, t in enumerate(slots) if t is not None and t.owner == seat}
+
+
 def advance(state, bots):
-    """Run the game on until it is our turn, or it ends."""
+    """Run the game on until it is our turn, or it ends.
+
+    Reports any tile of ours the engine sold out from under us. An income
+    shortfall forces the sale of your cheapest unflipped tile, and with no notice
+    the only way to spot it is to diff two boards and redo the arithmetic -- a
+    playtester lost a brewery this way and spent a long time convincing itself an
+    opponent had illegally overbuilt it.
+    """
+    before = {s: own_tiles(state, s) for s in HUMANS}
     while not state.finished and state.current.idx not in HUMANS:
         actions = legal_actions(state)
         if not actions:
             break
         apply_action(state, bots[state.current.idx].choose(state, actions))
+    for s in HUMANS:
+        lost = before[s] - own_tiles(state, s)
+        # The era wipe removes level-1 tiles wholesale; that is not a surprise
+        # and says so on its own line elsewhere.
+        for town, _slot, industry, level in sorted(lost):
+            print(f"  !! seat {s} lost {industry.value} L{level} at {town} "
+                  f"(sold to cover an income shortfall, or removed at the era "
+                  f"boundary)")
 
 
 def group_key(action):
