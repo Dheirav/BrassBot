@@ -525,7 +525,19 @@ class HeuristicBot(Bot):
         # For scale: the planner, using this same evaluation on an EIGHT-action
         # horizon with determinization, an opponent model and a beam, is +14.78.
         # Over half of that turns out to live in the first pair of moves.
-        "pair_search": 8,
+        # 24. Over width 8, on three blocks: 4p +1.87 +- 0.37 (5.0 sigma, clean),
+        # and the curve breaks after it -- 32 adds only +0.46 more for nearly 3x
+        # the time (128 min against 44.5 for the same 1,440 games).
+        #
+        # 3p pins 8 in PROFILES: width buys nothing there (16 measured -0.16
+        # against 8), so paying 2.3x for it is unjustified. 2p inherits 24 -- its
+        # 8 -> 16 step is established at +2.98, and 24 over 16 is +1.23 at only
+        # 2.2 sigma, so the point estimate favours 24 while proving nothing.
+        #
+        # Cost is not only VP: at 24 every measurement duel is 2.3x slower, and
+        # measurement throughput is what found most of this week's gains. Pass
+        # pair_search=8 explicitly in development runs that need the speed.
+        "pair_search": 24,
     }
 
     # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
@@ -565,8 +577,7 @@ class HeuristicBot(Bot):
         # **+7.79 +- 0.89** over three blocks. Unlike the cash knobs at 3p,
         # these stack (8.81 apart, 7.79 together).
         2: {"sell_ready": 0.478, "mat_potential": 0.125, "commit": 1,
-            "income": 0.04219, "debt": 0.09495, "wild_card": 0.5,
-            "pair_search": 16},
+            "income": 0.04219, "debt": 0.09495, "wild_card": 0.5},
         # From the first honest 3p tune: **+4.77 +- 0.50 over three blocks**
         # (9.5 sigma, chi2 1.1/2) on top of the 4p vector. These live here and
         # not in DEFAULTS because halving `income` measures null at 4p, where
@@ -577,7 +588,10 @@ class HeuristicBot(Bot):
         # dead weight. income (+2.25) and liquidity_scale (+1.99) are cash
         # knobs and substitute for each other: together they are only +2.51,
         # the same pattern as liquidity_scale against loan_bias.
-        3: {"income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1},
+        # pair_search 8: three players gain nothing from a wider pair search
+        # (16 measured -0.16 against 8), so it keeps the cheap setting.
+        3: {"income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1,
+            "pair_search": 8},
     }
 
     def __init__(self, seed: int = 0, **weights):
@@ -664,25 +678,35 @@ class HeuristicBot(Bot):
         for _v, first in sorted(scored, key=lambda sa: -sa[0])[:width]:
             probe = state.clone()
             apply_action(probe, first)
+            # Both halves of the pair carry their own bias. Leaving the first
+            # one out under-scored exactly the pairs these biases exist for --
+            # loan_bias is worth +1.22 on its own, and "borrow, then spend it"
+            # is a pair whose first half is the loan.
+            bias = self._bias(first)
             # A first action that ends our turn cannot be paired; score it alone.
             if probe.finished or probe.current.idx != me:
-                value = self.position_value(probe, me)
+                value = self.position_value(probe, me) + bias
                 if best_pair is None or value > best_pair + 1e-9:
                     best_pair, best_first = value, first
                 continue
             for second in legal_actions(probe):
                 after = probe.clone()
                 apply_action(after, second)
-                value = self.position_value(after, me)
-                if isinstance(second, Pass):
-                    value += self.w["pass_bias"]
-                elif isinstance(second, Loan):
-                    value += self.w["loan_bias"]
-                if self.w["off_plan_bias"] and self._off_plan(second):
-                    value -= self.w["off_plan_bias"]
+                value = self.position_value(after, me) + bias + self._bias(second)
                 if best_pair is None or value > best_pair + 1e-9:
                     best_pair, best_first = value, first
         return best_first if best_first is not None else scored[0][1]
+
+    def _bias(self, action):
+        """The per-action corrections, applied wherever an action is scored."""
+        value = 0.0
+        if isinstance(action, Pass):
+            value += self.w["pass_bias"]
+        elif isinstance(action, Loan):
+            value += self.w["loan_bias"]
+        if self.w["off_plan_bias"] and self._off_plan(action):
+            value -= self.w["off_plan_bias"]
+        return value
 
     def _off_plan(self, action):
         """Is this a build of a sellable industry we are not committed to?"""
