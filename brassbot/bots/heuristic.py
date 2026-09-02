@@ -538,6 +538,37 @@ class HeuristicBot(Bot):
         # measurement throughput is what found most of this week's gains. Pass
         # pair_search=8 explicitly in development runs that need the speed.
         "pair_search": 24,
+        # How many of the best PAIRS to re-score after the opponents reply.
+        #
+        # pair_search evaluates a pair the instant our turn ends, before anyone
+        # answers -- so it cannot see a rival taking the slot the plan depended
+        # on. Sweeping the planner's horizon showed that is where the value is:
+        # against this bot, horizon 2 measures -2.74 (our exact pair search beats
+        # its beam at the same depth), horizon 4 measures +2.26, horizon 8
+        # +5.10. Crossing ONE opponent round is the single biggest step, +5.00.
+        #
+        # The cheap version of that: search every pair exactly as now, then take
+        # only the top few and roll the opponents forward with a one-ply model
+        # before re-scoring. The exhaustive part stays exhaustive and just a
+        # handful of finalists pay for the crossing.
+        #
+        # Measured and it is worth nothing: -0.01, +0.34 and +0.11 at 2, 4 and 8
+        # finalists, 1,440 games each, none past one sigma, heterogeneity clean.
+        #
+        # The null is informative, so the mechanism is kept at 0 rather than
+        # deleted. It says the value in crossing a turn boundary is NOT knowing
+        # what the opponents will do to your plan -- that is free to test and
+        # buys nothing. It must therefore be planning your own NEXT turn given
+        # that they moved, which is what the horizon-4 beam does for its +2.26
+        # and what this does not do. Untested and worth trying: cross the
+        # boundary with a crude stand-in, then keep SEARCHING rather than
+        # merely evaluating.
+        #
+        # It also fits the rest of the vector. `rival` is flat across its whole
+        # range and 51% of candidate moves cannot change any opponent's value at
+        # all: this game, as our bots play it, is much less adversarial than it
+        # looks. You are racing, not fighting.
+        "settle": 0,
     }
 
     # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
@@ -675,6 +706,7 @@ class HeuristicBot(Bot):
         is where the cost lives; the second action is searched in full.
         """
         best_pair, best_first = None, None
+        finalists = []
         for _v, first in sorted(scored, key=lambda sa: -sa[0])[:width]:
             probe = state.clone()
             apply_action(probe, first)
@@ -693,9 +725,49 @@ class HeuristicBot(Bot):
                 after = probe.clone()
                 apply_action(after, second)
                 value = self.position_value(after, me) + bias + self._bias(second)
+                if self.w["settle"]:
+                    finalists.append((value, first, after))
                 if best_pair is None or value > best_pair + 1e-9:
                     best_pair, best_first = value, first
+
+        keep = int(self.w["settle"])
+        if keep and finalists:
+            best_first = self._settle(finalists, me, keep) or best_first
         return best_first if best_first is not None else scored[0][1]
+
+    def _settle(self, finalists, me, keep):
+        """Re-score the best pairs once the opponents have answered them.
+
+        A pair is otherwise judged at the moment our turn ends, which cannot see
+        a rival taking the slot it depended on. Only the top `keep` pay for this,
+        so the exhaustive pair search stays exhaustive.
+        """
+        model = self._opponent_model()
+        best, best_first = None, None
+        for _v, first, after in sorted(finalists, key=lambda f: -f[0])[:keep]:
+            probe = after.clone()
+            guard = 0
+            while not probe.finished and probe.current.idx != me and guard < 12:
+                actions = legal_actions(probe)
+                if not actions:
+                    break
+                apply_action(probe, model.choose(probe, actions))
+                guard += 1
+            value = self.position_value(probe, me)
+            if best is None or value > best + 1e-9:
+                best, best_first = value, first
+        return best_first
+
+    def _opponent_model(self):
+        """A one-ply copy of ourselves, used to answer our own plans.
+
+        pair_search and settle are both off, or building it would recurse.
+        """
+        model = getattr(self, "_settle_model", None)
+        if model is None:
+            model = type(self)(**{**self._explicit, "pair_search": 0, "settle": 0})
+            self._settle_model = model
+        return model
 
     def _bias(self, action):
         """The per-action corrections, applied wherever an action is scored."""
