@@ -45,6 +45,10 @@ RE_START = re.compile(r"^game started: (?P<players>.+)$")
 RE_OVER = re.compile(r"^game over, winner: (?P<winner>.+)$")
 # Shortfall recovery: the engine sells tiles to cover unpayable income.
 RE_RECOVER = re.compile(r"^(?P<who>.+?) recovered £(?P<amt>\d+)")
+# The same engine event in two more shapes, plus a stray UI label that ends
+# up inside the log panel when the whole thing is copied.
+RE_SHORTFALL = re.compile(r"^(?P<who>.+?) (cannot pay income|covers the shortfall)")
+RE_NOISE = re.compile(r"^(Log & chat|Log|chat)\s*$")
 
 
 @dataclass
@@ -86,6 +90,8 @@ def parse(text: str) -> tuple[list[Move], list[str], dict]:
             # The header follows the round it closes, so the NEXT round is n+1
             # in the canal era; the site counts them down as it prints.
             rnd = int(m.group("n"))
+            continue
+        if RE_NOISE.match(ln) or RE_SHORTFALL.match(ln):
             continue
         m = RE_RECOVER.match(ln)
         if m:
