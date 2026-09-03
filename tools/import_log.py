@@ -24,8 +24,10 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 
-# The site uses an en dash between link ends and a Unicode minus in income.
-DASH = "[-‐-―−]"
+# The site separates link ends with an EN DASH, and town names contain ASCII
+# hyphens -- "Burton-upon-Trent-Cannock" is one link between two towns, not
+# three. Splitting on the ASCII hyphen too turned that into ('Burton', 'upon').
+DASH = "[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]"
 
 RE_LINK = re.compile(rf"^(?P<who>.+?) linked (?P<links>.+?) · card: (?P<card>.+)$")
 RE_BUILD = re.compile(
