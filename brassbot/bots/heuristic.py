@@ -133,7 +133,11 @@ class HeuristicBot(Bot):
         # Kept at 0. The 2p gain looked like +2.98 at 1.6 sigma, and the proper
         # per-format test was then run by an agent: 160 games head to head at 2p,
         # 119.6 against 119.6 at a 49.4% win rate. It does not replicate.
-        "canal_double": 0.5,
+        # 0.75 after the re-tune on top of pair_search: **+1.23 +- 0.36**
+        # over three blocks (3.5 sigma, chi2 0.1/2). Reverting it to 0 had
+        # already measured -2.25 at 4p and -4.99 at 2p, so the term was known
+        # load-bearing; this is the first time its LEVEL has been moved.
+        "canal_double": 0.75,
         # Value, as the Canal Era closes, of owning an unflipped level 2+ coal
         # mine that will survive the wipe.
         #
@@ -155,6 +159,11 @@ class HeuristicBot(Bot):
         # So cash has purely instrumental value: what it buys before the game
         # ends. Held low deliberately; the liquidity term carries "can I still
         # act", and leftover cash at the final whistle is wasted.
+        # Stays at 0.045. The re-tune moved it to 0.09, but on three fresh
+        # blocks that is +0.52 +- 0.36 -- 1.4 sigma, not enough. So the
+        # economic audit's conclusion survives pair_search: money is 6-7x
+        # underpriced against outcomes and STILL cannot simply be raised,
+        # even now the bot can plan the spend inside one turn.
         "money": 0.045,
         "income": 0.08438,     # per income level, per remaining round
         # Income is charged linearly in rounds remaining. Measured by granting
@@ -169,7 +178,13 @@ class HeuristicBot(Bot):
         # including late where it is already over-priced. The curve is
         # normalised at a full game's horizon, so early income keeps the value
         # it has now and late income is discounted: a pure reshape.
-        "income_curve": 1.0,
+        # 2.0, and the history here is the point. This measured +0.31 +- 0.30
+        # across FIVE blocks and was written off as dead -- the null is still
+        # recorded above. Re-measured on top of pair_search it is
+        # **+1.08 +- 0.36** (3.0 sigma). Same term, same code, opposite
+        # verdict, because the vector around it changed. Third time: hand_reach
+        # went 0 -> +3.60 and mat_potential +2.66 -> -1.44 -> +6.57 the same way.
+        "income_curve": 2.0,
         "blocked": 6,      # per industry blocked by a stranded canal-only tile
         # `blocked` above fires ONLY once we are already in the Rail Era, so
         # during the Canal Era the bot gets no signal that it is about to lock
