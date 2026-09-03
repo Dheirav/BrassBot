@@ -32,15 +32,19 @@ RE_BUILD = re.compile(
     r"^(?P<who>.+?) built (?P<ind>[a-z_]+) (?P<lvl>\d+) at (?P<town>.+?) · card: (?P<card>.+)$")
 RE_LOAN = re.compile(r"^(?P<who>.+?) took a £(?P<amt>\d+) loan .*?· card: (?P<card>.+)$")
 RE_DEV = re.compile(r"^(?P<who>.+?) developed (?P<inds>.+?) · card: (?P<card>.+)$")
-RE_SELL = re.compile(
-    r"^(?P<who>.+?) sold at (?P<town>.+?) \(beer: (?P<beer>.+?)\) · card: (?P<card>.+)$")
-RE_SCOUT = re.compile(r"^(?P<who>.+?) scouted.*?· card: (?P<card>.+)$")
+RE_SELL = re.compile(r"^(?P<who>.+?) sold at (?P<town>.+?) · card: (?P<card>.+)$")
+RE_BEER = re.compile(r"\(beer: (?P<beer>[^)]*)\)")
+# Scout names the cards it took, plural, and discards more than one.
+RE_SCOUT = re.compile(r"^(?P<who>.+?) scouted.*?· cards?: (?P<card>.+)$")
 RE_PASS = re.compile(r"^(?P<who>.+?) passed\b")
 RE_UNDO = re.compile(r"^(?P<who>.+?) undid their .*action\.?$")
 RE_ROUND = re.compile(r"^Round (?P<n>\d+) income, (?P<rest>.+)$")
 RE_SCORED = re.compile(r"^(?P<era>\w+) era scored: (?P<rest>.+)$")
 RE_ERA = re.compile(r"^rail era begins")
 RE_START = re.compile(r"^game started: (?P<players>.+)$")
+RE_OVER = re.compile(r"^game over, winner: (?P<winner>.+)$")
+# Shortfall recovery: the engine sells tiles to cover unpayable income.
+RE_RECOVER = re.compile(r"^(?P<who>.+?) recovered £(?P<amt>\d+)")
 
 
 @dataclass
@@ -66,6 +70,10 @@ def parse(text: str) -> tuple[list[Move], list[str], dict]:
         if m:
             players = [p.strip() for p in m.group("players").split(",")]
             continue
+        m = RE_OVER.match(ln)
+        if m:
+            scores["winner"] = m.group("winner")
+            continue
         if RE_ERA.match(ln):
             era, rnd = "rail", None
             continue
@@ -78,6 +86,10 @@ def parse(text: str) -> tuple[list[Move], list[str], dict]:
             # The header follows the round it closes, so the NEXT round is n+1
             # in the canal era; the site counts them down as it prints.
             rnd = int(m.group("n"))
+            continue
+        m = RE_RECOVER.match(ln)
+        if m:
+            # Not an action -- the engine forcing a sale to cover income.
             continue
         m = RE_UNDO.match(ln)
         if m:
@@ -105,7 +117,12 @@ def parse(text: str) -> tuple[list[Move], list[str], dict]:
             elif kind == "develop":
                 detail["industries"] = [x.strip() for x in g["inds"].split("+")]
             elif kind == "sell":
-                detail.update(town=g["town"], beer=g["beer"])
+                where = g["town"]
+                detail["beer"] = RE_BEER.findall(where)
+                # Strip the beer clauses, then the remainder is the town list.
+                towns = RE_BEER.sub("", where)
+                detail["towns"] = [t.strip() for t in towns.split(",") if t.strip()]
+                detail["town"] = detail["towns"][0] if detail["towns"] else where
             elif kind == "loan":
                 detail["amount"] = int(g["amt"])
             moves.append(Move(g["who"], kind, era, rnd, g.get("card"), detail))
@@ -139,8 +156,9 @@ def summarise(moves, players, scores):
             print(f"    {p:<18}" + "".join(f"{c.get(h, 0):>9}" for h in head)
                   + f"{dbl:>9}{devt:>11}")
         print()
-    for era_name, line in scores.items():
-        print(f"  {era_name} era scored: {line}")
+    for key, line in scores.items():
+        label = "WINNER" if key == "winner" else f"{key} era scored"
+        print(f"  {label}: {line}")
 
 
 def main(argv=None):

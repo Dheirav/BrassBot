@@ -133,6 +133,13 @@ SIGMAS = 2.0   # how far a step must clear its own standard error to be kept
 def tune(bot, opponents, games, passes, workers, keys=None, players=4, fixed=(),
          harness="duel"):
     weights = tunable(bot)
+    # `fixed` used to be passed as a tuple of KEYS, so a value given on the
+    # command line was excluded from the search and then applied only after the
+    # run had finished. `--fixed pair_search=8` therefore tuned at whatever the
+    # default happened to be -- 24, and 2.3x slower -- while reporting 8 in the
+    # output. Apply it up front, where it was always meant to bite.
+    if isinstance(fixed, dict):
+        weights.update(fixed)
     # `rollout` is a research switch, not a quality parameter: one play-out costs
     # ~285 ms against ~0.25 ms for an evaluation, so a candidate at rollout=1.0
     # turns a minutes-long run into hours -- and if it happened to clear the noise
@@ -226,7 +233,7 @@ def main(argv=None):
 
     weights, mean, win, evals = tune(args.bot, opponents, args.games, args.passes,
                                      args.workers, players=args.players,
-                                     fixed=tuple(fixed), harness=args.harness)
+                                     fixed=fixed, harness=args.harness)
     weights.update(fixed)
     elapsed = time.time() - t0
 
