@@ -681,13 +681,8 @@ class HeuristicBot(Bot):
             probe = state.clone()
             apply_action(probe, action)
             reachable = base_reachable if set(probe.links) == base_links else None
-            value = self.position_value(probe, me, reachable, shared)
-            if isinstance(action, Pass):
-                value += self.w["pass_bias"]
-            elif isinstance(action, Loan):
-                value += self.w["loan_bias"]
-            if self.w["off_plan_bias"] and self._off_plan(action):
-                value -= self.w["off_plan_bias"]
+            value = (self.position_value(probe, me, reachable, shared)
+                     + self._bias(action))
             scored.append((value, action))
             if best_value is None or value > best_value + 1e-9:
                 best_value, best_action = value, action
