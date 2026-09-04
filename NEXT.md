@@ -420,7 +420,7 @@ state and returns a move avoids their terms entirely.
 
 ## Current state
 
-Rules engine complete and stable: 175 tests pass, and 80 full 4-player games
+Rules engine complete and stable: 204 tests pass, and 80 full 4-player games
 (40 random, 40 greedy) run to completion with no failures.
 
 - `brassbot/data/brass.json` — generated, canonical component data.

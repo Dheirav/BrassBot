@@ -12,7 +12,7 @@ rather than shipped — several are, below.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install pytest pillow
-PYTHONPATH=. .venv/bin/python -m pytest -q          # 205 tests
+PYTHONPATH=. .venv/bin/python -m pytest -q          # 204 tests
 ```
 
 ## Playing strength
