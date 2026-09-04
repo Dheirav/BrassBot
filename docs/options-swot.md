@@ -1,5 +1,11 @@
 # Where to spend effort next — SWOT for each option
 
+> **Superseded, 2026-09-04.** Written when the planner led the heuristic by a
+> wide margin. That gap has since closed to **+3.09 +- 0.96** (three blocks,
+> 180 games) because `pair_search` gave the heuristic an exact two-ply search
+> inside its own turn, so the option rankings below are judged against numbers
+> that no longer hold. Kept for the reasoning, not the recommendation.
+
 Written 2026-08-29, after the planner reached 133 VP at an 83% win rate.
 
 ## The numbers every option is judged against

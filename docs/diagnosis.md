@@ -1,5 +1,11 @@
 # Why the heuristic bot scores 63, not 200
 
+> **Superseded, 2026-09-04.** This is the record of a measurement taken on
+> 2026-08-27, when the bot's 4p mirror mean was 61.4. It now scores **131.3**
+> (SD 12.4), so every absolute figure below is historical. The *shares* it
+> reports are what remain useful, and the leftover-cash finding drove real
+> changes. Current standings live in `NEXT.md`.
+
 Measured 2026-08-27 with `tools/diagnose.py heuristic -n 80 -w 8` — the tuned
 heuristic bot in a mirror match, 80 games, seat 0.
 

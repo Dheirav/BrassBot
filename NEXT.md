@@ -10,20 +10,59 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 ### Where the bot stands, 200 games a cell, report seeds
 
-| fmt | pool | all seats | best |
-| --- | --- | --- | --- |
-| 4p | mirror | 111.6 +- 0.7 | 162 |
-| 4p | vs greedy | 133.9 +- 1.3 | 169 |
-| 3p | mirror | 129.8 +- 0.7 | 168 |
-| 3p | vs greedy | 138.0 +- 1.7 | 184 |
-| 2p | mirror | 138.4 +- 1.3 | 186 |
-| 2p | vs greedy | 136.5 +- 1.9 | 191 |
+Refreshed 2026-09-04, after the pair search, the `blocked` fix and the re-tune.
+
+| fmt | pool | all seats | SD | P10 | best |
+| --- | --- | --- | --- | --- | --- |
+| 4p | mirror | 131.3 +- 0.4 | 12.4 | 116 | 172 |
+| 4p | vs greedy | 146.7 +- 1.1 | 15.0 | 129 | 184 |
+| 3p | mirror | 144.8 +- 0.6 | 14.5 | 128 | 185 |
+| 3p | vs greedy | 148.0 +- 1.4 | 19.3 | 121 | 193 |
+| 2p | mirror | 162.9 +- 0.9 | 17.0 | 141 | 203 |
+| 2p | vs greedy | 157.0 +- 1.4 | 19.6 | 134 | 217 |
+
+That is +19.7 at 4p, +15.0 at 3p and +24.5 at 2p against the table this
+replaced. The SD column is the one to quote against any new result: a change
+worth less than about 1 VP is invisible in a 12-17 point spread without paired
+seeds.
+
+The previous table's figures are kept nowhere -- they were 111.6 / 133.9 /
+129.8 / 138.0 / 138.4 / 136.5 and are superseded.
 
 The mirror win rate is mechanical -- 25/33/50% is what identical seats must
 produce -- so it is a sanity check, not a result. Read the vs-greedy row for
 absolute strength: it is measured against a fixed opponent.
 
-### The planner is still 15 VP ahead, and that number is the value of LOOKAHEAD
+### The planner's lead has COLLAPSED: +14.78 -> +3.09, replicated
+
+**2026-09-04.** Re-measured seat-balanced 2v2 at 4p after pair_search, three
+disjoint blocks of 60 games:
+
+| block | delta | se | win share |
+| --- | --- | --- | --- |
+| seed 0 | +3.67 | 1.75 | 62% |
+| seed 1000 | +3.74 | 1.72 | 57% |
+| seed 2000 | +2.12 | 1.55 | 57% |
+| **pooled** | **+3.09** | **0.96** | 3.2 sigma |
+
+Heterogeneity chi2 = 0.64 on 2 df: the blocks agree. **The lead fell 79%.**
+
+The two bots share an evaluation, so lookahead is the only thing that ever
+separated them -- and the heuristic now does two plies of it exactly, inside the
+turn, for almost nothing. `pair_search` did not merely add VP; it ate most of
+what the planner's 8-action horizon was being paid for. That is the same lesson
+`blocked_lookahead` taught in reverse, and it generalises: **a cheap exact
+search over the part of the game you control beats an expensive approximate
+search over the part you do not.**
+
+**This kills the distillation plan.** It was justified by ~15 VP of horizon
+value out of reach of the live bot; at +3.09 there is little left to distil and
+the planner costs ~180x per move to get it. Distillation is not worth building
+now. What is still true is the *shape* of the finding -- see the beam-collapse
+note further down, which said the planner is closer to "re-rank the one-ply
+shortlist" than to a real 8-ply search. That reading now looks correct.
+
+The section that follows is kept as written and is SUPERSEDED.
 
 `planner` beats `heuristic` by **+14.78 +- 0.73** over three blocks (20.3 sigma,
 ~80% win share). The two share an evaluation -- `planner.py` scores its leaves
@@ -1911,3 +1950,111 @@ among the actions that were strictly required for it):
 | Loan / Scout / Pass | 0 | 0 |
 
 **23.3% of the bot's score is flipped by an opponent's action, not its own.**
+
+---
+
+## 2026-09-04 — LLM opponents, the beer belt, and two stale headline numbers
+
+### LLM agents are now a usable opponent, and the model matters enormously
+
+Ten agent games against the shipped heuristic at 4p, seat 0, one game a seed.
+Read them against the **4p mirror mean of 131.3, SD 12.4** -- that is what a
+seat in this pool is worth, so it is the only fair yardstick.
+
+| model | brief | seeds | mean | z |
+| --- | --- | --- | --- | --- |
+| sonnet | mixed, incl. the 13-rule style prompt | 4 | 86.2 | -3.63 |
+| fable | engine mechanics only | 3 (9101/03/05) | 109.7 | -1.74 |
+| fable | mechanics + human observations as *information* | 3 (9102/04/06) | 116.3 | -1.21 |
+
+Best fable games were **131 twice** -- dead on the bot's own mean, one of them
+taking first place at the table. Fable is a real sparring partner; sonnet was
+not. Note 9104 (87) is contaminated: the agent chained two `move` calls and
+`play.py`'s positional indices shifted under it, so it played a link where it
+meant to build a brewery. **`tools/play.py` taking bare indices is a hazard for
+any agent driving it** and is the first thing to fix before running more.
+
+**More rules made agents play worse, monotonically** -- see
+`docs/playstyle-prompt.md`, which now carries the table. The cause was
+extraction, not strategy: descriptive statistics were written as imperatives.
+"Humans sell 0-2 times a game" became "sell rarely", and an agent obeying it
+skipped the Sell that would have flipped two tiles before the era wipe. Rules 6,
+9 and 12 there now carry the caveat that makes them safe to follow.
+
+### What every agent lost to, on every board
+
+All six fable games independently named the same mechanism: **our heuristic
+takes the hub links in the first one or two Rail-Era rounds**, and a plan formed
+a round earlier has nowhere to land. Five of Birmingham's seven spokes on 9101
+and 9102; all four Derby links between two of one agent's own turns on 9103;
+nine named links on 9105. One agent diagnosed itself precisely -- *"I spent rail
+round 1-2 on Derby builds instead of grabbing links first; that ordering cost
+roughly 15-20 link VP."*
+
+That is the bot's strongest weapon and it is **denial, not scoring**. A mirror
+match cannot show it, because there everyone does it. This is the class of
+finding only an outside opponent produces.
+
+Twice an agent reported the engine refusing a legal-looking sale. Both were
+correct behaviour, checked: `MerchantSlot.accepts` handles `"any"` properly, and
+the tiles were **pottery L3 and manufacturer L5, which need 2 beer**, planned
+against a single merchant barrel. Three of six agents made this same mistake, so
+`show` is not surfacing `beer_to_sell` where the *build* decision happens.
+
+### A brewery is the only permanent 2-icon anchor on the board
+
+From `link_vp` in the tile data, and this is the sharpest new fact here:
+
+| industry | link VP by level |
+| --- | --- |
+| brewery | 2, 2, 2, 2 -- **never drops** |
+| coal_mine | 2, 1, 1, 1 (only the L1, which the era wipe removes) |
+| cotton_mill | 1, 2, 1, 1 |
+| iron_works | 1, 1, 1, 1 |
+| manufacturer | 2, 1, **0**, 1, 2, 1, **0**, 1 |
+| pottery | 1, 1, 1, 1, 1 |
+
+Two consequences. **Manufacturer L3 and L7 -- the beer-free sellers we
+recommend -- are worth zero link VP**, so they are bad neighbours for a link
+network and the two pieces of advice pull against each other. And a brewery's
+2 icons are the only ones on the board that appear *without the owner spending
+an action*: an opponent drinking your beer flips it for you. Every other 2-icon
+tile is beer-gated and can strand -- three of six agents stranded one.
+
+Board geography, measured:
+
+- 10 towns can host a brewery (11 slots). **45% of those slots are in the
+  Uttoxeter / Stone / Derby / Burton belt, which is 27% of towns.**
+- Icon ceiling rises with slot count: 1 slot 2.00, 2 slots 3.79, 3 slots 5.00,
+  Birmingham 7.00.
+- **Derby is the best town after Birmingham** -- 3 slots, ceiling 5, brewery,
+  4 rail links. Stone, Burton and Walsall are the next tier (4 / 4 / brewery).
+- Honest caveat: on raw ceiling, brewery towns are *not* better -- 3.70 icons
+  and 2.8 rail links against 4.33 and 3.5 for the rest. The argument is about
+  **certainty of flipping**, not ceiling.
+
+The bot already favours the belt for breweries: **63% of its breweries land
+there against a 45% slot baseline**, while its builds overall are neutral (29%
+in the belt, which is 27% of towns).
+
+### Two headline numbers in this document went stale and were re-measured
+
+`mcts.py` was last touched 2026-08-28. `pair_search` landed 09-01 and the
+re-tune 09-03. **MCTS shares `player_value` with the heuristic but not its
+action selection**, so every gain since August accrued to the heuristic alone
+while MCTS stood still. Its docstring still claims "+9 VP over the heuristic",
+measured against a bot that no longer exists.
+
+But it is **not** simply the heuristic minus the turn search, and that was the
+tempting wrong conclusion. Over 93 decisions:
+
+    MCTS picks what the SHIPPED heuristic picks     63.4%
+    MCTS picks what a pair_search=0 heuristic does  69.9%
+    the two heuristics agree with each other        73.1%
+
+It leans pre-`pair_search` by only 6.5 points and makes ~30% independent
+choices. So it is genuinely searching, and those independent choices are on net
+worth about -5.6 VP. Do not retire it on the copy argument that retired the
+commit bot -- that one was byte-identical, this is not. Its own comments already
+record that `c`, `widen_k`, `widen_alpha` and `prior_width` all sat inside the
+noise floor, so the gap is not in the search settings.

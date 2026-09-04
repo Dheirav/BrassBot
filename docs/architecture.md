@@ -13,13 +13,13 @@ brassbot/            the game, and the bots that play it
   engine.py          move generation, applying a move, era flow, scoring
   network.py         connectivity: what your network reaches, what is buildable
   resources.py       where coal/iron/beer come from, and what they cost
-  bots/              players. heuristic, mcts, planner_bot, greedy, random
+  bots/              players. heuristic, planner, mcts, greedy, random, book, learned
   planner.py         beam search over sequences, used by bots/planner_bot.py
   evaluate.py        run matchups, rotate seats, report distributions
   yardstick.py       compare play against expert bands, not against our bots
   features.py        feature vectors, for the learned-value experiments
 tools/               command line entry points (see README for usage)
-tests/               204 tests; several pin rules that agents found broken
+tests/               205 tests; several pin rules that agents found broken
 ```
 
 ## How one decision flows
@@ -30,13 +30,21 @@ tests/               204 tests; several pin rules that agents found broken
 2. The bot picks one. `HeuristicBot.choose` clones the state, applies each
    candidate, and scores the result with `position_value`.
 3. `position_value` = our `player_value` minus `rival` x the best opponent's.
-   `player_value` is the whole evaluation: about twenty weighted terms.
+   `player_value` is the whole evaluation: 37 weighted terms, several of which
+   carry per-player-count overrides in `PROFILES`.
 4. `engine.apply_action(state, action)` mutates the real state, and may end the
    turn, the round or the era.
 
 `BeamPlanner` sits on top: it searches *sequences* of actions rather than one,
 scoring each line with the same evaluation and playing the first action of the
-best line. It is stronger and about 25x slower.
+best line.
+
+It used to be much stronger. Since `pair_search` gave the heuristic an exact
+two-ply search inside its own turn, the planner's edge is **+3.09 +- 0.96**
+(three blocks, 180 seat-balanced games, chi2 = 0.64 on 2 df) -- down from
++14.78. It is also drastically slower: a 60-game duel runs over an hour where
+the heuristic plays 200 games in minutes. Treat it as a research baseline, not
+a target to distil.
 
 ## Where to change what
 

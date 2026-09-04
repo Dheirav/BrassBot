@@ -3,59 +3,70 @@
 A rules engine, bots, and a measurement harness for **Brass: Birmingham**
 (Roxley, 2018).
 
-The engine plays all three player counts. The strongest bot is a determinized
-MCTS searching over a tuned position evaluation. Everything is measured against
-a held-out seed block, and results that do not survive validation are recorded as
-failures rather than shipped.
+The engine plays all three player counts. The strongest bot is `heuristic`: a
+37-weight position evaluation with an exact two-ply search over the two actions
+that make up your own turn. Everything is measured against a held-out seed
+block, and results that do not survive replication are recorded as failures
+rather than shipped — several are, below.
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install pytest pillow
-PYTHONPATH=. .venv/bin/python -m pytest -q          # 175 tests
+PYTHONPATH=. .venv/bin/python -m pytest -q          # 205 tests
 ```
 
 ## Playing strength
 
-4 players, against three heuristic bots, where an equal share of wins is 25%:
+`heuristic`, 200 games a cell on the reporting seed block. A *mirror* is every
+seat playing the same bot; *vs greedy* is one seat against three weaker bots.
 
-| agent | mean VP | win rate | VP per action |
-| --- | --- | --- | --- |
-| `random` | ~2 | 0% | 0.07 |
-| `greedy` | ~35 | 25% | 1.1 |
-| `heuristic` | 96 | 25% | 3.10 |
-| `mcts`, 600 iterations | 112.8 | 57.5% | 3.64 |
-| **`mcts`, 1500 iterations** | **115.6** | **66.7%** | **3.73** |
-| *expert human* | *~155* | *-* | *~5.0* |
+| format | pool | mean VP | SD | P10 | best | win rate |
+| --- | --- | --- | --- | --- | --- | --- |
+| 4p | mirror | 131.3 ± 0.4 | 12.4 | 116 | 172 | 25% |
+| 4p | vs greedy | 146.7 ± 1.1 | 15.0 | 129 | 184 | 100% |
+| 3p | mirror | 144.8 ± 0.6 | 14.5 | 128 | 185 | 33% |
+| 3p | vs greedy | 148.0 ± 1.4 | 19.3 | 121 | 193 | 100% |
+| 2p | mirror | 162.9 ± 0.9 | 17.0 | 141 | 203 | 50% |
+| 2p | vs greedy | 157.0 ± 1.4 | 19.6 | 134 | 217 | 100% |
 
-The `heuristic` bot per player count, in mirror matches -- every seat the same
-bot -- on held-out seeds, with per-format weights applied:
+**Mirror win rates are mechanical.** 25/33/50% is what identical seats must
+produce, so that column is a check that the harness is sound, not a result.
+Read the mirror *mean* for score quality and the vs-greedy row for strength
+against a fixed opponent.
 
-| format | mean | VP/action | win rate |
-| --- | --- | --- | --- |
-| 2p | 104.9 | 2.69 | 50% |
-| 3p | 100.2 | 2.86 | 33% |
-| 4p | 98.2 | 3.17 | 25% |
+**The SD column is the one that matters when judging a change.** A 12-point
+spread at 4p means an improvement worth less than about 1 VP is invisible
+without paired seeds.
 
-**The two tables are not comparable.** A mirror match fixes the win rate at an
-equal share by construction, so the column above is a check that the harness is
-sound rather than a result: it measures score quality, not strength. `heuristic`
-is also contending with three copies of itself, where `mcts` above faces three
-weaker bots and takes more of the good slots. Reading 115.6 against 98.2 as one
-bot getting worse is the mistake this note exists to prevent -- they are
-different agents against different opponent pools.
+The other bots, for orientation: `random` and `greedy` are floors; `book` plays
+a fixed opening; `learned` is a value-network experiment; `planner` is a beam
+search over action *sequences*; `mcts` is a determinized tree search with
+progressive widening and max^n backup.
+
+Two of those used to be ahead and no longer are, which is worth stating plainly
+because both were once this README's headline:
+
+- **`planner` leads by +3.09 ± 0.96** (three disjoint blocks, 180 seat-balanced
+  games, χ² = 0.64 on 2 df) — down from +14.78. The two bots share an
+  evaluation, so lookahead was the only thing separating them, and the
+  heuristic's exact two-ply turn search ate most of what the planner's
+  eight-action horizon was being paid for. It is also far slower.
+- **`mcts` has not been maintained since 2026-08-28** and was overtaken by the
+  pair search and re-tune that landed on 09-01 and 09-03. Its docstring still
+  advertises a lead it no longer has.
 
 **On the target.** The project began aiming at 200+ VP in 4 players. That is not
 reachable: across fifteen verified tournament games the winning scores run
-142-184 with a median of 158, and none reach 200. Actions are capped at 31 per
+142–184 with a median of 158, and none reach 200. Actions are capped at 31 per
 player at 4p and experts convert them at ~5 VP each. The realistic target is
-150-165; 200+ belongs to the 2-player game, which has 39 actions.
+150–165; 200+ belongs to the 2-player game, which has 39 actions.
 `docs/research-landscape.md` has the evidence.
 
 ## Using it
 
 ```bash
 # measure a matchup: seats rotated, full score distribution, drawn wins split
-PYTHONPATH=. .venv/bin/python tools/evaluate.py mcts -o heuristic -n 100 -w 4
+PYTHONPATH=. .venv/bin/python tools/evaluate.py heuristic -o greedy -n 100 -w 4
 
 # where a bot's points come from, and what separates its good games from its bad
 PYTHONPATH=. .venv/bin/python tools/diagnose.py heuristic -n 60 -w 4
@@ -63,8 +74,17 @@ PYTHONPATH=. .venv/bin/python tools/diagnose.py heuristic -n 60 -w 4
 # how far its play is from expert human play, on 11 measured dimensions
 PYTHONPATH=. .venv/bin/python tools/yardstick.py heuristic -n 40 --sources
 
-# tune weights by playing: tune on one seed block, validate on another
-PYTHONPATH=. .venv/bin/python tools/tune.py -b heuristic -o greedy -n 60 -w 4
+# tune weights by playing, seat-balanced: tune on one block, validate on another
+PYTHONPATH=. .venv/bin/python tools/tune.py -b heuristic -n 60 -w 4
+
+# play a seat yourself, or hand it to an agent, one decision per invocation
+PYTHONPATH=. .venv/bin/python tools/play.py new --seed 1 --out /tmp/g.pkl
+PYTHONPATH=. .venv/bin/python tools/play.py show /tmp/g.pkl
+PYTHONPATH=. .venv/bin/python tools/play.py move /tmp/g.pkl 7 --expect brewery
+
+# read a real logged game back in, and score its final board with our engine
+PYTHONPATH=. .venv/bin/python tools/import_log.py logs/*.log
+PYTHONPATH=. .venv/bin/python tools/check_scoring.py logs/*.log
 
 # one game, round by round, for debugging the engine
 PYTHONPATH=. .venv/bin/python tools/playout.py heuristic -s 3
@@ -82,7 +102,8 @@ For how the pieces fit together and where to change what, see
 | `brassbot/network.py` | Connectivity — "your network" vs "connected" |
 | `brassbot/resources.py` | Coal / iron / beer sourcing and consumption |
 | `brassbot/engine.py` | Move generation, application, era flow, scoring |
-| `brassbot/bots/` | `random`, `greedy`, `heuristic`, `mcts`, `book` |
+| `brassbot/bots/` | `random`, `greedy`, `book`, `heuristic`, `learned`, `mcts`, `planner` |
+| `brassbot/planner.py` | Beam search over action sequences |
 | `brassbot/evaluate.py` | Matchup harness |
 | `brassbot/diagnostics.py` | Where a score came from |
 | `brassbot/yardstick.py` | Distance from expert human play |
@@ -94,6 +115,10 @@ harness is built to resist it:
 
 - **Seats rotate** through every position, so turn order cannot be mistaken for
   skill.
+- **Seat-balanced duels, not one-against-three.** A lone variant seat gains about
+  **+0.5 VP for being different at all** — three deliberately neutral placebos
+  measured +0.74, +0.39 and +0.47. The 2v2 harness puts every seat variant in
+  half the games and has cut headline results by 2–3x, once to nothing.
 - **Three disjoint seed blocks**: tune on one, validate on a second, report on a
   third. Tuning prints the measured noise floor and rejects steps that do not
   clear it.
@@ -101,25 +126,33 @@ harness is built to resist it:
   is a different animal from one that always scores 150.
 - **An external reference.** Every other number here compares a bot to another
   bot we wrote. `yardstick.py` scores play against a profile of expert *behaviour*
-  from recorded tournament games — 7-10 rail links, 8-12 tiles flipped, 4-6 canal
+  from recorded tournament games — 7–10 rail links, 8–12 tiles flipped, 4–6 canal
   loans — so a bot can beat everything we have and still be told it is playing
   badly.
 
 This machinery earned its keep. Five separate tuning results looked like gains on
-their own seeds and vanished on unseen ones.
+their own seeds and vanished on unseen ones, and one shipped weight had to be
+reverted after the tree it was measured in changed underneath it.
 
 ## Things worth knowing before changing the evaluation
 
 - **Price the flow, not the stock.** Every term that valued *holding* something —
-  cash, beer, cards, claimed towns — made the bot hoard it and play 10-25 VP
+  cash, beer, cards, claimed towns — made the bot hoard it and play 10–25 VP
   worse. The terms that worked priced a deadline: a tile losing its chance to
   flip, beer capped at the tiles waiting to use it.
+- **A weight is a number conditional on the rest of the vector**, and on the
+  player count. Anything measured against one snapshot has to be re-measured in
+  the tree it will ship in; several per-format values live in `PROFILES` for
+  exactly this reason.
 - **Do not optimise against the yardstick.** Pushing the bot onto the expert loan
   band raised profile agreement from 4 of 11 dimensions to 7 and cost 25 VP.
   Expert behaviour is what strong play looks like, not what causes it.
-- **Search inherits the evaluation's blind spots.** MCTS scores +9 VP over the
-  heuristic while playing an identical strategy — same tile levels, same batching,
-  same 4 of 11 bands. Its prior and its leaf value are the same function.
+- **A cheap exact search beats an expensive approximate one.** Searching the two
+  actions of your own turn exactly was worth +7.6 VP at 4p and took most of the
+  value out of an eight-action beam search that costs orders of magnitude more.
+- **Terms invented to patch a symptom lose.** Eleven tried, all at or below zero.
+  Every term that has ever worked came instead from measuring what the term is
+  actually *paid* and comparing it to what the bot believes.
 
 `NEXT.md` is the live handover document: current standing, what has been tried,
 and what failed. Three rules that no text source states unambiguously were
