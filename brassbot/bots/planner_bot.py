@@ -18,7 +18,7 @@ from __future__ import annotations
 from ..engine import apply_action
 from ..planner import BeamPlanner
 from .base import Bot
-from .mcts import determinize
+from ..state import determinize
 
 
 class PlannerBot(Bot):

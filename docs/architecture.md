@@ -13,7 +13,8 @@ brassbot/            the game, and the bots that play it
   engine.py          move generation, applying a move, era flow, scoring
   network.py         connectivity: what your network reaches, what is buildable
   resources.py       where coal/iron/beer come from, and what they cost
-  bots/              players. heuristic, planner, mcts, greedy, random, book, learned
+  bots/              players. heuristic, planner, greedy, random, book, learned
+    archive/         retired bots, out of REGISTRY but still importable and tested
   planner.py         beam search over sequences, used by bots/planner_bot.py
   evaluate.py        run matchups, rotate seats, report distributions
   yardstick.py       compare play against expert bands, not against our bots
@@ -52,7 +53,7 @@ a target to distil.
 | --- | --- |
 | fix or add a rule | `engine.py` (usually `legal_*`), then a test |
 | change what a position is worth | `HeuristicBot.player_value` in `bots/heuristic.py` |
-| change how far the bot looks | `planner.py`, or `bots/mcts.py` |
+| change how far the bot looks | `planner.py`, or `pair_search` in `bots/heuristic.py` |
 | change resource sourcing | `resources.py` |
 | add a measurement | `evaluate.py`, or a script in `tools/` |
 

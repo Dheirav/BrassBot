@@ -1,4 +1,27 @@
-"""Monte Carlo tree search.
+"""Monte Carlo tree search. ARCHIVED 2026-09-04 -- not in REGISTRY.
+
+**Why it was retired.** Measured against the shipped heuristic on 60
+seat-balanced 4p games: **-4.81 +- 1.66 VP per seat (-2.9 sigma)**, taking the
+top score in 37% of games where an even split is 50%. It does not merely fail
+to lead; it loses.
+
+The cause is structural, not a tuning miss. Its move prior and its leaf value
+are *both* `HeuristicBot.player_value`, so the search can only ever prefer what
+the evaluation already likes -- it cannot disagree with the evaluation in a
+useful direction, only a noisy one. Meanwhile `pair_search` gave the heuristic
+an exact two-ply search over the two actions of its own turn, which is the only
+stretch of the game no opponent can interrupt. This spent its budget guessing
+six opponent actions instead. Over 93 decisions it matched the shipped
+heuristic 63.4% of the time and a `pair_search=0` heuristic 69.9%, so roughly
+30% of its choices were genuinely its own -- and on net those cost points.
+
+Do not tune it back: `c`, `widen_k`, `widen_alpha` and `prior_width` were all
+measured inside the noise floor, so the settings are not where the gap is. The
+one untried idea is `rollout`, below, which would give it a leaf value that is
+not its own prior -- at 454x the cost per leaf.
+
+`determinize` moved to `brassbot/state.py`, since `bots/planner_bot.py` still
+uses it; the sampling was never what was wrong here.
 
 Three choices here follow published results on comparable games rather than
 taste; `docs/research-landscape.md` carries the citations.
@@ -30,31 +53,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ..actions import Action
-from ..engine import apply_action, legal_actions
-from ..network import connected_locations
-from ..state import GameState
-from .base import Bot
-from .heuristic import HeuristicBot
-
-
-def determinize(state: GameState, observer: int, rng) -> GameState:
-    """Redeal every card the observer cannot see, keeping hand sizes intact."""
-    s = state.clone()
-    pool: list = list(s.deck)
-    for seat, p in enumerate(s.players):
-        if seat != observer:
-            pool.extend(c for c in p.hand if not c.is_wild)
-    rng.shuffle(pool)
-
-    for seat, p in enumerate(s.players):
-        if seat == observer:
-            continue
-        wilds = [c for c in p.hand if c.is_wild]  # publicly known, so left alone
-        need = len(p.hand) - len(wilds)
-        p.hand = wilds + [pool.pop() for _ in range(min(need, len(pool)))]
-    s.deck = pool
-    return s
+from ...actions import Action
+from ...engine import apply_action, legal_actions
+from ...network import connected_locations
+from ...state import GameState, determinize
+from ..base import Bot
+from ..heuristic import HeuristicBot
 
 
 class Bounds:

@@ -289,3 +289,31 @@ def new_game(n_players: int = 4, seed: int | None = None) -> GameState:
         wild_industry=WILD_INDUSTRY_COUNT,
         rng=rng,
     )
+
+
+def determinize(state: GameState, observer: int, rng) -> GameState:
+    """Redeal every card the observer cannot see, keeping hand sizes intact.
+
+    What we are not blind to keeps this cheap: deck composition is fixed and
+    known per player count, discards are face up, and hand sizes are public, so
+    only the genuinely unseen pool is redealt. The uncertainty is which unseen
+    card sits where, not what exists.
+
+    Lived in `bots/mcts.py` until that bot was retired; the sampling itself was
+    never the problem with it, and `bots/planner_bot.py` still needs this.
+    """
+    s = state.clone()
+    pool: list = list(s.deck)
+    for seat, p in enumerate(s.players):
+        if seat != observer:
+            pool.extend(c for c in p.hand if not c.is_wild)
+    rng.shuffle(pool)
+
+    for seat, p in enumerate(s.players):
+        if seat == observer:
+            continue
+        wilds = [c for c in p.hand if c.is_wild]  # publicly known, so left alone
+        need = len(p.hand) - len(wilds)
+        p.hand = wilds + [pool.pop() for _ in range(min(need, len(pool)))]
+    s.deck = pool
+    return s

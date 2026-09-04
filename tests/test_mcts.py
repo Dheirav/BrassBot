@@ -1,15 +1,18 @@
-"""Search behaviour.
+"""Search behaviour of the ARCHIVED MCTS bot.
+
+It was retired on 2026-09-04 for measuring -4.81 +- 1.66 against the heuristic;
+see `brassbot/bots/archive/mcts.py` for why. These tests stay so the archived
+code remains runnable and the retirement can be re-checked rather than merely
+believed.
 
 Kept to small iteration counts -- these check the machinery is right, not that
 it plays well. Playing strength is the harness's job.
 """
 
-import random
-
 import pytest
 
 from brassbot.bots import make
-from brassbot.bots.mcts import Bounds, MCTSBot, determinize
+from brassbot.bots.archive.mcts import Bounds, MCTSBot
 from brassbot.engine import apply_action, legal_actions
 from brassbot.state import new_game
 from tests.test_bots import snapshot
@@ -64,48 +67,8 @@ def test_is_reproducible_from_its_seed(game):
     assert a == b
 
 
-# --- determinization --------------------------------------------------------
-
-def test_determinize_leaves_the_observer_alone(game):
-    rng = random.Random(1)
-    sampled = determinize(game, observer=0, rng=rng)
-    assert sampled.players[0].hand == game.players[0].hand
-
-
-def test_determinize_preserves_every_hand_size(game):
-    rng = random.Random(1)
-    sampled = determinize(game, observer=0, rng=rng)
-    for real, fake in zip(game.players, sampled.players):
-        assert len(real.hand) == len(fake.hand)
-
-
-def test_determinize_conserves_the_hidden_cards(game):
-    """Cards are redealt, not invented: the unseen pool has the same size."""
-    rng = random.Random(1)
-    sampled = determinize(game, observer=0, rng=rng)
-    def hidden(state):
-        n = len(state.deck)
-        for seat, p in enumerate(state.players):
-            if seat != 0:
-                n += len(p.hand)
-        return n
-    assert hidden(sampled) == hidden(game)
-
-
-def test_determinize_keeps_wild_cards_where_they_are(game):
-    """Wilds are taken from a faceup deck, so everyone knows who holds them --
-    redealing them would model the opponent as more hidden than they are."""
-    from brassbot.cards import WILD_INDUSTRY, WILD_LOCATION
-    game.players[2].hand = [WILD_LOCATION, WILD_INDUSTRY] + game.players[2].hand[2:]
-    sampled = determinize(game, observer=0, rng=random.Random(3))
-    assert sum(1 for c in sampled.players[2].hand if c.is_wild) == 2
-
-
-def test_determinize_does_not_touch_the_original(game):
-    before = snapshot(game)
-    determinize(game, observer=1, rng=random.Random(2))
-    assert snapshot(game) == before
-
+# Determinization moved to brassbot/state.py with the planner still using
+# it; its tests live in tests/test_determinize.py.
 
 # --- widening and backup ----------------------------------------------------
 

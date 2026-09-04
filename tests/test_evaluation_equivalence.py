@@ -134,15 +134,6 @@ def test_holds_on_positions_a_searching_bot_reaches():
             assert fast[seat] == reference_player_value(bot, state, seat)
 
 
-def test_the_mcts_leaf_agrees_with_the_slow_route():
-    """MCTS values every seat through its own path; it must not drift either."""
-    searcher = make("mcts", seed=1)
-    reference = HeuristicBot()
-    for state in positions(seeds=(6,), every=11):
-        for seat, value in enumerate(searcher._values(state)):
-            assert value == reference_player_value(reference, state, seat)
-
-
 def _delta_mismatches(n_players: int, seed: int, limit: int = 400):
     """Play a real game; at every decision compare the reused rival value
     against a full recomputation, for every candidate move.

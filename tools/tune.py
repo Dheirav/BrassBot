@@ -22,12 +22,12 @@ Three things keep the signal above the noise:
   ``--harness vs`` for the old behaviour.
 
     PYTHONPATH=. .venv/bin/python tools/tune.py -n 40 --passes 2 -w 8
-    PYTHONPATH=. .venv/bin/python tools/tune.py -b mcts --fixed iterations=300 \
+    PYTHONPATH=. .venv/bin/python tools/tune.py -b planner --fixed horizon=8 \
         -o heuristic -n 30 -w 4
 
 Search parameters are noisier than evaluation weights, because determinization
-resamples every iteration and the bot is genuinely stochastic. Expect a wider
-noise floor and budget more games per candidate accordingly.
+resamples every plan and the bot is genuinely stochastic. Expect a wider noise
+floor and budget more games per candidate accordingly.
 """
 import argparse
 import json

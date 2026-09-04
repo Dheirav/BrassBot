@@ -1,7 +1,7 @@
 """Measure a bot against expert human play rather than against our other bots.
 
     PYTHONPATH=. .venv/bin/python tools/yardstick.py heuristic -n 40 -w 4
-    PYTHONPATH=. .venv/bin/python tools/yardstick.py mcts -o heuristic -n 20 -w 2
+    PYTHONPATH=. .venv/bin/python tools/yardstick.py planner -o heuristic -n 20 -w 2
 """
 import argparse
 import os

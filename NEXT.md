@@ -2054,7 +2054,15 @@ tempting wrong conclusion. Over 93 decisions:
 
 It leans pre-`pair_search` by only 6.5 points and makes ~30% independent
 choices. So it is genuinely searching, and those independent choices are on net
-worth about -5.6 VP. Do not retire it on the copy argument that retired the
+worth about -5 VP. Do not retire it on the copy argument that retired the
 commit bot -- that one was byte-identical, this is not. Its own comments already
 record that `c`, `widen_k`, `widen_alpha` and `prior_width` all sat inside the
 noise floor, so the gap is not in the search settings.
+
+**Measured head to head, 2026-09-04:** `mcts` - `heuristic` = **-4.81 +- 1.66**
+over 60 seat-balanced 4p games (-2.9 sigma), taking the top score in 37% where
+an even split is 50%. It agrees with the independent 140.0-vs-145.6 estimate.
+One block, so treat the size as provisional -- but the SIGN is not in doubt, and
+the repo currently ships a search bot that loses to the evaluation it searches
+with. That is the state to resolve: either the leaf value and prior stop being
+the same function, or `mcts` is retired.

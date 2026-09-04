@@ -40,8 +40,7 @@ without paired seeds.
 
 The other bots, for orientation: `random` and `greedy` are floors; `book` plays
 a fixed opening; `learned` is a value-network experiment; `planner` is a beam
-search over action *sequences*; `mcts` is a determinized tree search with
-progressive widening and max^n backup.
+search over action *sequences*.
 
 Two of those used to be ahead and no longer are, which is worth stating plainly
 because both were once this README's headline:
@@ -51,9 +50,15 @@ because both were once this README's headline:
   evaluation, so lookahead was the only thing separating them, and the
   heuristic's exact two-ply turn search ate most of what the planner's
   eight-action horizon was being paid for. It is also far slower.
-- **`mcts` has not been maintained since 2026-08-28** and was overtaken by the
-  pair search and re-tune that landed on 09-01 and 09-03. Its docstring still
-  advertises a lead it no longer has.
+- **`mcts` was archived on 2026-09-04** to `brassbot/bots/archive/`, having
+  measured **-4.81 +- 1.66** against the heuristic (60 seat-balanced games,
+  -2.9 sigma; top score in 37% where an even split is 50%). Its leaf value and
+  its move prior were both the heuristic's own evaluation, so it could only ever
+  prefer what that evaluation already liked -- it spent its budget on the noisy
+  part of the game, guessing opponents, while the heuristic searched the
+  reliable part exactly. It is out of `REGISTRY` so no measurement can include
+  it, but stays importable and under test so the retirement can be re-checked.
+  Its `determinize` moved to `state.py`, which `planner` still uses.
 
 **On the target.** The project began aiming at 200+ VP in 4 players. That is not
 reachable: across fifteen verified tournament games the winning scores run
@@ -102,7 +107,8 @@ For how the pieces fit together and where to change what, see
 | `brassbot/network.py` | Connectivity — "your network" vs "connected" |
 | `brassbot/resources.py` | Coal / iron / beer sourcing and consumption |
 | `brassbot/engine.py` | Move generation, application, era flow, scoring |
-| `brassbot/bots/` | `random`, `greedy`, `book`, `heuristic`, `learned`, `mcts`, `planner` |
+| `brassbot/bots/` | `random`, `greedy`, `book`, `heuristic`, `learned`, `planner` |
+| `brassbot/bots/archive/` | Bots that no longer ship, kept runnable with the number that retired them |
 | `brassbot/planner.py` | Beam search over action sequences |
 | `brassbot/evaluate.py` | Matchup harness |
 | `brassbot/diagnostics.py` | Where a score came from |
