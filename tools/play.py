@@ -7,6 +7,11 @@ each call is one decision.
     tools/play.py new --seed 1 --out /tmp/g.pkl     # you are seat 0
     tools/play.py show /tmp/g.pkl                   # board, hand, legal moves
     tools/play.py move /tmp/g.pkl 7                 # play move 7, opponents reply
+    tools/play.py move /tmp/g.pkl 7 --expect brewery # ... and refuse if 7 is not that
+
+Move indices belong to ONE listing and are renumbered by every move, so never
+chain two `move` calls in a single command. `--expect` turns that mistake into
+a refusal instead of playing something you did not choose.
 
 Opponents are played by the `heuristic` bot unless --opponent names another,
 e.g. `--opponent planner` to face the strongest bot we have (slower per move). After your move the game runs on
@@ -29,6 +34,9 @@ from brassbot.state import new_game
 # with several, two agents can share one game file and take turns, with our bots
 # filling the remaining seats.
 HUMANS = (0,)
+
+# Only these are sold to merchants; the rest flip by having their cubes taken.
+SELLABLE = (Industry.COTTON_MILL, Industry.MANUFACTURER, Industry.POTTERY)
 
 
 # The seat everything renders from. With two agents sharing a game, rendering
@@ -114,6 +122,15 @@ def describe(state, action) -> str:
         # unflipped tile pays nothing at all until it flips.
         after = income_level(p.income_space + spec.income)
         income = f"+{spec.income} income spaces -> level {after} on flip"
+
+        # A sellable tile flips only through a Sell, and the barrels that costs
+        # are decided HERE, not at the sale. Agents repeatedly built pottery L3
+        # and manufacturer L5 -- both 2 beer -- against a single merchant barrel
+        # and never sold them, losing the tile to the era wipe.
+        if action.industry in SELLABLE:
+            bits.append(f"needs {spec.beer_to_sell} beer to sell"
+                        if spec.beer_to_sell else "sells with NO beer")
+
         return (f"BUILD {action.industry.value} L{lvl} at {action.town}{over}"
                 f"  [{', '.join(bits)}, {spec.vp} VP on flip, {income}]"
                 f"  card:{_card(state, seat, action.card)}"
@@ -334,6 +351,9 @@ def main(argv=None):
                         "so you are not shown an opponent's hand")
     m = sub.add_parser("move"); m.add_argument("file"); m.add_argument("index", type=int)
     m.add_argument("--seat", type=int, default=None)
+    m.add_argument("--expect", default="",
+                   help="refuse unless the move's description contains this "
+                        "text -- guards against a stale index")
     args = ap.parse_args(argv)
 
     if args.cmd == "new":
@@ -366,7 +386,19 @@ def main(argv=None):
         if not 0 <= args.index < len(actions):
             print(f"error: move must be 0..{len(actions) - 1}", file=sys.stderr)
             return 1
-        print(f"you played: {describe(state, actions[args.index])}")
+        chosen = describe(state, actions[args.index])
+        # An index is only valid for the listing it came from. Chaining two
+        # `move` calls in one shell command re-numbers the list after the first,
+        # so the second silently plays something else -- one agent laid a rail
+        # link where it meant to build a brewery and lost the game to it.
+        # --expect makes that a refusal instead of a wrong move.
+        if args.expect and args.expect.lower() not in chosen.lower():
+            print(f"error: move {args.index} is {chosen!r},\n"
+                  f"       which does not contain --expect {args.expect!r}.\n"
+                  "       Nothing was played. Run `show` and re-read the indices:\n"
+                  "       they are renumbered by every move.", file=sys.stderr)
+            return 2
+        print(f"you played: {chosen}")
         apply_action(state, actions[args.index])
         advance(state, bots)
         with open(args.file, "wb") as fh:
