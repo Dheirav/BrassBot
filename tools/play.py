@@ -382,6 +382,15 @@ def main(argv=None):
     bots = [make(opponent, seed=seed * 10 + i) for i in range(players)]
 
     if args.cmd == "move":
+        # With several agents sharing one file, `move` would apply the action
+        # for whoever is to move -- so an agent acting out of turn silently
+        # plays SOMEONE ELSE'S move. Refuse instead. Single-seat play passes no
+        # --seat and is unaffected.
+        if args.seat is not None and args.seat != state.current.idx:
+            print(f"error: it is seat {state.current.idx}'s turn, not seat "
+                  f"{args.seat}'s. Nothing was played. Run `show` until it "
+                  f"says TO MOVE: seat {args.seat}.", file=sys.stderr)
+            return 3
         actions = legal_actions(state)
         if not 0 <= args.index < len(actions):
             print(f"error: move must be 0..{len(actions) - 1}", file=sys.stderr)
