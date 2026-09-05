@@ -10,12 +10,14 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 ### Where the bot stands, 200 games a cell, report seeds
 
-Refreshed 2026-09-04, after the pair search, the `blocked` fix and the re-tune.
+4p refreshed 2026-09-06 after `doomed_build` shipped; 2p and 3p are still the
+2026-09-04 figures and remain correct, because `doomed_build` is pinned to 0
+there and nothing else has changed.
 
 | fmt | pool | all seats | SD | P10 | best |
 | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 131.3 +- 0.4 | 12.4 | 116 | 172 |
-| 4p | vs greedy | 146.7 +- 1.1 | 15.0 | 129 | 184 |
+| 4p | mirror | 130.7 +- 0.5 | 13.3 | 114 | 181 |
+| 4p | vs greedy | 148.8 +- 1.0 | 14.0 | 129 | 184 |
 | 3p | mirror | 144.8 +- 0.6 | 14.5 | 128 | 185 |
 | 3p | vs greedy | 148.0 +- 1.4 | 19.3 | 121 | 193 |
 | 2p | mirror | 162.9 +- 0.9 | 17.0 | 141 | 203 |
@@ -32,6 +34,17 @@ The previous table's figures are kept nowhere -- they were 111.6 / 133.9 /
 The mirror win rate is mechanical -- 25/33/50% is what identical seats must
 produce -- so it is a sanity check, not a result. Read the vs-greedy row for
 absolute strength: it is measured against a fixed opponent.
+
+**And read the vs-greedy row for a shipped CHANGE, too.** `doomed_build` moved
+4p vs greedy by **+2.1** (146.7 -> 148.8) while the mirror stayed flat
+(131.3 -> 130.7, inside the error bars). That is not a disappointing result, it
+is the expected one: a mirror gives every seat the same improvement, so the mean
+cannot move. The +2.1 agrees with the +2.51 measured seat-balanced on different
+seeds with a different harness, which is the useful corroboration.
+
+Regenerate with `tools/standings.py` (progress-reporting, unlike
+`evaluate.evaluate` which prints nothing until it finishes) and watch it with
+`tools/watch-progress.sh runs/standings-4p.log --watch`.
 
 ### The planner's lead has COLLAPSED: +14.78 -> +3.09, replicated
 
