@@ -2117,12 +2117,29 @@ K=0 and K=1 are identical because the bot never builds a brewery L1 in round 1
 anyway (its earliest brewery is round 3). Every further round of permission
 costs. **The blunt rule is the right one.**
 
-NOT YET SHIPPED. It exists only as a scratch harness. Shipping it should be a
-weight in `_bias` defaulting to 0, not a hard filter -- `_committed`'s own
-comment records that a hard ban made "3.75 of the 8.36 mat credit a dead
-constant". Note also that the same logic covers EVERY canal-only tile (coal L1,
-iron L1, cotton L1, manufacturer L1), which is a broader change that has NOT
-been measured; +1.86 does not transfer to it.
+**SHIPPED as `doomed_build`, and the weight beats the ban.** A penalty in
+`_bias` on building any canal-only tile, 1.0 at 4p, pinned to 0 at 2p and 3p.
+
+**+2.51 +- 0.68 at 4p** (3.7 sigma) on two fresh blocks after the value was
+chosen on a third; +2.85 +- 0.55 over all 540 games, chi2 1.09/2. Quote the
+fresh figure -- the swept block is selection-biased.
+
+The value curve at 4p, 180 games a cell: 0.125 +1.30, 0.25 +1.96, 0.5 +2.56,
+0.75 +2.79, **1.0 +3.49**, 2.5 +2.16, 5 +1.73, 10 **-1.32**, 25 **-1.44**.
+Large values are actively harmful: `_bias` is summed across both halves of a
+turn in the pair search, so an overwhelming penalty poisons every pair holding a
+doomed build and suppresses the good ones too.
+
+**Why the penalty beats the ban (+1.86), measured:** at 1.0 doomed brewery
+builds fall 0.38 -> 0.03 a game while doomed iron works barely move, 0.17 ->
+0.15. An iron works L1 into a short market flips instantly and is often
+cash-positive, so it still clears the bar; a brewery nobody will drink does not.
+A hard filter cannot make that distinction.
+
+3p is null -- 0.5 +1.12, 1.0 +0.05, 2.5 +0.37, none above 1 sigma -- which also
+casts doubt on the ban's marginal +1.78 there. 2p failed heterogeneity. Both
+pinned to 0, and verified: 2p and 3p games are bit-identical to the pre-change
+bot, 4p games differ.
 
 ### Closed: the double-rail "gap" is not a gap
 

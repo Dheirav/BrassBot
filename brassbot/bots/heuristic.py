@@ -552,6 +552,40 @@ class HeuristicBot(Bot):
         # Cost is not only VP: at 24 every measurement duel is 2.3x slower, and
         # measurement throughput is what found most of this week's gains. Pass
         # pair_search=8 explicitly in development runs that need the speed.
+        # Penalty for BUILDING a tile the era boundary will remove -- in
+        # practice a canal-only level 1. Such a tile pays its VP only if it
+        # flips first, and a brewery flips only when somebody DRINKS it; the bot
+        # builds its breweries at canal round 4.9 on average, late enough that
+        # they often die unflipped.
+        #
+        # **+2.51 +- 0.68 at 4p** (3.7 sigma) on two fresh blocks after the
+        # value was chosen on a third; including the swept block it is
+        # +2.85 +- 0.55 over 540 games, chi2 1.09/2. Quote the fresh figure.
+        #
+        # A PENALTY, not a filter, and the curve is why. Sweeping the value at
+        # 4p: 0.125 +1.30, 0.25 +1.96, 0.5 +2.56, 0.75 +2.79, **1.0 +3.49**,
+        # 2.5 +2.16, 5 +1.73, 10 **-1.32**, 25 **-1.44**. Large values are
+        # actively harmful because `_bias` is summed across both halves of a
+        # turn in the pair search, so an overwhelming penalty poisons every pair
+        # containing a doomed build -- and suppresses the GOOD ones too.
+        #
+        # That discrimination is the whole point, and it is measured. At 1.0,
+        # doomed brewery builds fall 0.38 -> 0.03 a game while doomed iron works
+        # barely move, 0.17 -> 0.15: an iron works L1 into a short market flips
+        # instantly and is often cash-positive, so it still clears the bar. A
+        # hard ban of the brewery L1 build, which cannot discriminate, measured
+        # only +1.86 +- 0.56.
+        #
+        # The observation came from human logs, not from self-play: nine logged
+        # seats develop 2.56 brewery tiles away and build the L1 ZERO times,
+        # where the bot built 0.38.
+        #
+        # 2p and 3p pin 0. At 2p the ban measured +2.06 +- 0.89 but failed its
+        # heterogeneity check (chi2 6.73/2, one block -1.12 against another
+        # +4.81). At 3p the weight is simply null -- 0.5 +1.12, 1.0 +0.05,
+        # 2.5 +0.37, none above 1 sigma -- which also casts doubt on the ban's
+        # marginal +1.78 there. Unreplicated is not shipped.
+        "doomed_build": 1.0,
         "pair_search": 24,
         # How many of the best PAIRS to re-score after the opponents reply.
         #
@@ -622,7 +656,13 @@ class HeuristicBot(Bot):
         # and mat_potential. Alone they are +3.08, +3.03 and +2.70; together
         # **+7.79 +- 0.89** over three blocks. Unlike the cash knobs at 3p,
         # these stack (8.81 apart, 7.79 together).
-        2: {"sell_ready": 0.478, "mat_potential": 0.125, "commit": 1,
+        2: {
+            # doomed_build is unverified at 2p: +2.06 +- 0.89 but chi2 = 6.73/2,
+            # one block -1.12 against another +4.81. Not shipped until it
+            # replicates. 39 actions and little contention plausibly make an
+            # early canal-only build worth its VP there.
+            "doomed_build": 0.0,
+            "sell_ready": 0.478, "mat_potential": 0.125, "commit": 1,
             "income": 0.04219, "debt": 0.09495, "wild_card": 0.5},
         # From the first honest 3p tune: **+4.77 +- 0.50 over three blocks**
         # (9.5 sigma, chi2 1.1/2) on top of the 4p vector. These live here and
@@ -636,7 +676,10 @@ class HeuristicBot(Bot):
         # the same pattern as liquidity_scale against loan_bias.
         # pair_search 8: three players gain nothing from a wider pair search
         # (16 measured -0.16 against 8), so it keeps the cheap setting.
-        3: {"income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1,
+        3: {
+            # doomed_build is null at 3p: 0.5 +1.12, 1.0 +0.05, 2.5 +0.37,
+            # none above 1 sigma. Shipped at 4p only.
+            "doomed_build": 0.0,"income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1,
             "pair_search": 8},
     }
 
@@ -697,7 +740,7 @@ class HeuristicBot(Bot):
             apply_action(probe, action)
             reachable = base_reachable if set(probe.links) == base_links else None
             value = (self.position_value(probe, me, reachable, shared)
-                     + self._bias(action))
+                     + self._bias(state, action))
             scored.append((value, action))
             if best_value is None or value > best_value + 1e-9:
                 best_value, best_action = value, action
@@ -724,7 +767,7 @@ class HeuristicBot(Bot):
             # one out under-scored exactly the pairs these biases exist for --
             # loan_bias is worth +1.22 on its own, and "borrow, then spend it"
             # is a pair whose first half is the loan.
-            bias = self._bias(first)
+            bias = self._bias(state, first)
             # A first action that ends our turn cannot be paired; score it alone.
             if probe.finished or probe.current.idx != me:
                 value = self.position_value(probe, me) + bias
@@ -734,7 +777,7 @@ class HeuristicBot(Bot):
             for second in legal_actions(probe):
                 after = probe.clone()
                 apply_action(after, second)
-                value = self.position_value(after, me) + bias + self._bias(second)
+                value = self.position_value(after, me) + bias + self._bias(probe, second)
                 if self.w["settle"]:
                     finalists.append((value, first, after))
                 if best_pair is None or value > best_pair + 1e-9:
@@ -779,9 +822,15 @@ class HeuristicBot(Bot):
             self._settle_model = model
         return model
 
-    def _bias(self, action):
-        """The per-action corrections, applied wherever an action is scored."""
+    def _bias(self, state, action):
+        """The per-action corrections, applied wherever an action is scored.
+
+        Takes the state because whether a Build is doomed depends on which tile
+        the mat offers, which the action alone does not carry.
+        """
         value = 0.0
+        if self.w["doomed_build"] and self._doomed(state, action):
+            value -= self.w["doomed_build"]
         if isinstance(action, Pass):
             value += self.w["pass_bias"]
         elif isinstance(action, Loan):
@@ -789,6 +838,20 @@ class HeuristicBot(Bot):
         if self.w["off_plan_bias"] and self._off_plan(action):
             value -= self.w["off_plan_bias"]
         return value
+
+    def _doomed(self, state, action):
+        """Is this a build of a tile the era boundary will remove?
+
+        Only in the Canal Era: a canal-only tile built there is swept at the
+        boundary whether it flipped or not, so its VP is earned only if
+        somebody consumes it first.
+        """
+        if not isinstance(action, Build) or state.era is not Era.CANAL:
+            return False
+        level = state.players[state.current.idx].lowest_level(action.industry)
+        if level is None:
+            return False
+        return not state.data.tile(action.industry, level).rail_era
 
     def _off_plan(self, action):
         """Is this a build of a sellable industry we are not committed to?"""
