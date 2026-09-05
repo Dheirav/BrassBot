@@ -679,7 +679,8 @@ class HeuristicBot(Bot):
         3: {
             # doomed_build is null at 3p: 0.5 +1.12, 1.0 +0.05, 2.5 +0.37,
             # none above 1 sigma. Shipped at 4p only.
-            "doomed_build": 0.0,"income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1,
+            "doomed_build": 0.0,
+            "income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1,
             "pair_search": 8},
     }
 

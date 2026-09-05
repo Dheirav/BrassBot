@@ -2219,10 +2219,45 @@ This repo has found 17 rules bugs, **none from self-play**, and
 `docs/architecture.md` says why: a bot only ever plays what it is offered. These
 are the same class and none has been costed.
 
-Also unclaimed: `MAX_DISCARD_VARIANTS` is 1 for the bot because the evaluation
-ships `wild_card` and `hand_breadth` at 0 and cannot tell the variants apart.
-The engine comment names the fix itself -- "raising it for the bot only pays
-once the evaluation values cards, which is the actual missing piece."
+CLOSED, 2026-09-06: the `MAX_DISCARD_VARIANTS` lead. The engine comment says
+raising it "only pays once the evaluation values cards -- which is the actual
+missing piece", and both halves had only ever been measured alone: `hand_towns`
+with one discard offered (so it could not inform the choice it exists for), and
+extra variants with an evaluation that scores them bit-identically. Verified
+still identical: three Network variants all at 23.996344, because `hand_reach`
+is capped by `min(openings, len(hand))` and so barely moves when one card
+changes.
+
+Measured together, 120 seat-balanced 4p games a cell:
+
+| arm | hand_towns | variants | delta |
+| --- | --- | --- | --- |
+| variants only | 0 | 3 | -0.24 +- 1.21 |
+| hand_towns only | 0.25 | 1 | -0.14 +- 1.22 |
+| both | 0.25 | 3 | -0.45 +- 1.21 |
+| both, stronger | 0.5 | 3 | -1.16 +- 1.24 |
+
+Null, and trending worse as the term strengthens. Both controls reproduce the
+original findings, so the harness is sound. **Card optionality is not worth
+paying for**, which is what the `hand_towns` comment already argued: the move
+generator exposes whatever the cards enable, so pricing the option double-counts
+it. Do not reopen this without a card term of a genuinely different shape.
+
+Also closed the same day: the merchant-assignment gap. `legal_sells` builds its
+maximal sale greedily, so enumeration order picks which accepting merchant slot
+each tile uses, and the bonuses differ (Shrewsbury 4 VP, Nottingham 3, Warrington
+GBP5, Oxford 2 income, Gloucester a free develop). Offering one maximal sale per
+bonus preference -- letting the evaluation choose rather than ranking for it --
+measured **+0.58 +- 0.58 over three blocks** (chi2 0.53/2) and was reverted. A
+cruder version that ranked candidates by VP bonus measured +1.10 +- 1.02. The
+first block of the good version read +1.09 and the next two +0.11 and +0.70,
+which is what stopping at one block would have shipped.
+
+The other two gaps in that list turned out to be **already fixed**: `beer_plans`
+prefers own breweries and then ones on towns your own links touch, and
+`sellable_tiles` already yields one Sale per accepting merchant slot. Both were
+earlier agent reports, already absorbed. Roughly a third of what agents report
+does not survive checking -- check before costing.
 
 ### Human logs, now nine seats
 
