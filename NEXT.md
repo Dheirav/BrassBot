@@ -2066,3 +2066,156 @@ One block, so treat the size as provisional -- but the SIGN is not in doubt, and
 the repo currently ships a search bot that loses to the evaluation it searches
 with. That is the state to resolve: either the leaf value and prior stop being
 the same function, or `mcts` is retired.
+
+---
+
+## 2026-09-05 — one gain, and four leads closed by measuring them
+
+### The gain: do not BUILD a brewery L1
+
+**+1.86 +- 0.56 at 4p** (three blocks, 540 seat-balanced games, chi2 = 2.51 on
+2 df) and **+1.78 +- 0.78 at 3p** (chi2 = 0.32). At 2p it is +2.06 +- 0.89 but
+**chi2 = 6.73 fails the heterogeneity check** -- one block came back -1.12
+against another at +4.81 -- so treat 2p as unresolved.
+
+Brewery L1 is canal-only: it pays 4 VP and 4 income spaces if it flips, then the
+boundary sweeps it. A brewery only flips when somebody DRINKS it, and the bot
+builds its breweries at canal round 4.9 on average -- late enough that they
+often die unflipped. So the build buys nearly nothing.
+
+**The mechanism is action reallocation, not strategy.** Measured on paired
+seeds, banning the build changes:
+
+| | normal | banned | change |
+| --- | --- | --- | --- |
+| breweries built | 2.76 | 2.57 | **-0.19** |
+| of them L1 | 0.38 | 0.00 | -0.38 |
+| of them L3 | 0.65 | 0.78 | +0.13 |
+| **double rails** | **3.01** | **2.97** | **-0.04** |
+| links laid | 11.79 | 11.94 | +0.15 |
+
+0.38 builds freed, about half rebuilt higher on the ladder and half spent
+elsewhere. 0.38 actions at 4.59 VP each predicts **+1.74**; measured **+1.86**.
+The numbers only line up that well if the L1 was returning close to nothing.
+
+**It is NOT about beer or double rails** -- doubles moved -0.04. An earlier
+reading in this document that connected breweries to the double-rail count was
+wrong and is withdrawn.
+
+**A round-aware version is worse, not better.** Allowing the L1 build through
+canal round K, 180 games a cell:
+
+| K | | delta |
+| --- | --- | --- |
+| 0 | never build it | **+2.41** |
+| 1 | round 1 only | +2.41 |
+| 2 | rounds 1-2 | +2.20 |
+| 3 | rounds 1-3 | +1.99 |
+| 4 | rounds 1-4 | +0.31 |
+
+K=0 and K=1 are identical because the bot never builds a brewery L1 in round 1
+anyway (its earliest brewery is round 3). Every further round of permission
+costs. **The blunt rule is the right one.**
+
+NOT YET SHIPPED. It exists only as a scratch harness. Shipping it should be a
+weight in `_bias` defaulting to 0, not a hard filter -- `_committed`'s own
+comment records that a hard ban made "3.75 of the 8.36 mat credit a dead
+constant". Note also that the same logic covers EVERY canal-only tile (coal L1,
+iron L1, cotton L1, manufacturer L1), which is a broader change that has NOT
+been measured; +1.86 does not transfer to it.
+
+### Closed: the double-rail "gap" is not a gap
+
+Human logs take 5.00 double rails a game, the bot 2.96, and this document has
+treated that as the largest behavioural difference available. It is not a
+difference in decision quality.
+
+    rail-era decisions            16.00 a game
+    a double rail was LEGAL at     4.85   (30% of decisions)
+    the bot TOOK it                2.96   (61% of offers)
+    declined for a Build           1.56   (32% of offers)
+
+The chances exist -- 4.85 offered against the humans' 5.00 taken -- so the bot
+is not starved of them. But **forcing every legal double rail measures -0.21 +-
+0.89**: flat. The Builds it prefers are worth as much as the doubles it skips,
+which makes sense, since a mine or works into a short market flips instantly and
+is often cash-positive. Do not chase this.
+
+### Closed: turn order is worth about one action, and not worth a term
+
+Turn order is by money spent, so going last in round N and first in round N+1
+gives four consecutive actions -- twice the window `pair_search` exploits. The
+37 weights include nothing that reads `spent`.
+
+    the bot already gets 1.12 double turns a game; 72% of seats get one
+    correlation with final score: r = +0.106
+
+    forced FIRST every round   134.7
+    forced LAST  every round   129.8
+    value of turn position     +4.81 +- 1.86 VP (2.6 sigma), wins 64% of pairings
+
+**+4.81 is an upper bound** -- it hands first position over free, where a real
+bot must pay actions and money for it. Against `pair_search`'s +7.6 for a window
+half the size, the headroom is smaller and much harder to capture.
+
+### Closed: forcing a Canal-Era brewery develop
+
+This document records "+7.7 VP" for that. Re-measured seat-balanced in the
+current tree: **+1.15 +- 0.98, 1.2 sigma.** Like the planner's +14.78 -> +3.09,
+the original was measured on the 1v3 harness before `pair_search`. The gain is
+in not wasting the build, not in developing more.
+
+### Archetype commitment, at n=120 instead of n=2
+
+Banned-industry bots, 120 seat-balanced games a cell, null control +0.11 +- 1.04:
+
+| banned from building | delta | se | sigma |
+| --- | --- | --- | --- |
+| BRIC (no cotton/manu/pottery) | -11.30 | 1.22 | -9.3 |
+| BRIC + pottery | -7.74 | 1.12 | -6.9 |
+| BRIC + cotton | -5.84 | 1.28 | -4.6 |
+| BRIC + manufactured | -4.18 | 1.20 | -3.5 |
+| no coal | -9.80 | 1.32 | -7.4 |
+| **no brewery** | **-16.28** | 1.10 | **-14.7** |
+
+**Banning breweries costs more than banning all three selling industries
+combined.** Coal is second. See `docs/strategy-archetypes.md` for the full
+26-game agent study behind these, and for the corrections it needed once the
+n=120 numbers arrived.
+
+### The best remaining lead: the move generator decides things the player should
+
+Three agents independently hit places where `legal_actions` makes a SCORING
+choice on the player's behalf, so the bot has never seen the alternative:
+
+1. **Merchant assignment on multi-tile sells.** A 4-tile sale was offered
+   "all-Oxford only"; the Nottingham variant (+3 VP each instead of +2 income)
+   was never enumerated.
+2. **Beer source on a double rail.** The engine picks own breweries on link
+   towns, alphabetically -- and that choice decides WHICH of your breweries
+   flips, which is 4-10 VP.
+3. **The merchant develop bonus** is auto-resolved toward whichever removal
+   uncovers the highest-VP tile. Three separate agents lost a tile they had
+   planned around.
+
+This repo has found 17 rules bugs, **none from self-play**, and
+`docs/architecture.md` says why: a bot only ever plays what it is offered. These
+are the same class and none has been costed.
+
+Also unclaimed: `MAX_DISCARD_VARIANTS` is 1 for the bot because the evaluation
+ships `wild_card` and `hand_breadth` at 0 and cannot tell the variants apart.
+The engine comment names the fix itself -- "raising it for the bot only pays
+once the evaluation values cards, which is the actual missing piece."
+
+### Human logs, now nine seats
+
+| | mean | values |
+| --- | --- | --- |
+| sells | 0.56 | 0,0,0,0,0,1,1,1,2 |
+| double rails | 5.00 | 4,4,5,5,5,5,5,6,6 |
+| score | 127.7 | 101,110,116,119,129,137,138,144,155 |
+
+Wins 6 of 9. Builds across all nine seats: coal 26, brewery 22, iron 14,
+pottery 6, manufacturer 2, **cotton 0**. Brewery tiles developed away 2.56 a
+seat and **brewery L1 built ZERO times in nine games** -- which is the
+observation the gain above came from.
