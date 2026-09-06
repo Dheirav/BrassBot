@@ -154,7 +154,18 @@ class HeuristicBot(Bot):
         # there is nothing to hoard toward for long, and it prices what the mine
         # ENABLES rather than the cubes it holds.
         "rail_bootstrap": 0.0,
-        "unflipped": 0.375,   # odds we actually realise an unflipped tile's payoff
+        # Raised from 0.375 by a subset re-tune, then measured on three
+        # disjoint report blocks: **+2.86 +- 0.56 at 4p** (5.1 sigma, chi2
+        # 1.18/2). With `blocked` at 3 alongside it, the pair ships as
+        # **+3.11 +- 0.58** (5.4 sigma, chi2 1.56/2) -- they overlap, so the
+        # pair is worth less than the +5.15 the two are worth apart.
+        #
+        # **4p ONLY.** At 3p this same value measures **-2.90 +- 0.81** and at
+        # 2p -1.76 +- 1.16, so both pin the old 0.375 in PROFILES. That is the
+        # sharpest format split in the vector after mat_potential, and shipping
+        # it globally would have handed back at 3p everything it gains at 4p --
+        # which is exactly how mat_potential came to cost 1.44.
+        "unflipped": 0.5625,   # odds we actually realise an unflipped tile's payoff
         # Money is worth ZERO victory points -- it is only the second tiebreak.
         # So cash has purely instrumental value: what it buys before the game
         # ends. Held low deliberately; the liquidity term carries "can I still
@@ -185,7 +196,17 @@ class HeuristicBot(Bot):
         # verdict, because the vector around it changed. Third time: hand_reach
         # went 0 -> +3.60 and mat_potential +2.66 -> -1.44 -> +6.57 the same way.
         "income_curve": 2.0,
-        "blocked": 6,      # per industry blocked by a stranded canal-only tile
+        # Halved from 6 by the same re-tune. **+2.29 +- 0.55 at 4p** over three
+        # blocks (4.2 sigma, chi2 2.01/2). A single-block decomposition put it
+        # at +1.31 and 1.5 sigma and it was very nearly dropped as noise; three
+        # blocks say otherwise.
+        #
+        # No PROFILES pin, unlike `unflipped`: this one is mildly POSITIVE
+        # everywhere -- +0.91 +- 0.68 at 3p and +0.96 +- 0.96 at 2p -- so there
+        # is nothing to protect those formats from. A pin exists to stop a
+        # weight doing harm in a format, not because every format needs its own
+        # proven number; most of this vector is 4p-fitted and inherited.
+        "blocked": 3,      # per industry blocked by a stranded canal-only tile
         # `blocked` above fires ONLY once we are already in the Rail Era, so
         # during the Canal Era the bot gets no signal that it is about to lock
         # itself out of an industry -- by which time the only response left is a
@@ -657,11 +678,15 @@ class HeuristicBot(Bot):
         # **+7.79 +- 0.89** over three blocks. Unlike the cash knobs at 3p,
         # these stack (8.81 apart, 7.79 together).
         2: {
-            # doomed_build is unverified at 2p: +2.06 +- 0.89 but chi2 = 6.73/2,
-            # one block -1.12 against another +4.81. Not shipped until it
-            # replicates. 39 actions and little contention plausibly make an
-            # early canal-only build worth its VP there.
-            "doomed_build": 0.0,
+            # doomed_build was pinned to 0 here on a failed heterogeneity
+            # check (+2.06 +- 0.89, chi2 6.73/2, one block -1.12 against
+            # another +4.81). Three FRESH blocks resolve it: **+2.34 +- 0.88**
+            # (2.7 sigma, chi2 3.48/2, blocks agreeing), so the pin is gone and
+            # 2p inherits the default.
+            #
+            # unflipped keeps the OLD 0.375: the re-tune's 0.5625 measures
+            # -1.76 +- 1.16 here.
+            "unflipped": 0.375,
             "sell_ready": 0.478, "mat_potential": 0.125, "commit": 1,
             "income": 0.04219, "debt": 0.09495, "wild_card": 0.5},
         # From the first honest 3p tune: **+4.77 +- 0.50 over three blocks**
@@ -677,9 +702,13 @@ class HeuristicBot(Bot):
         # pair_search 8: three players gain nothing from a wider pair search
         # (16 measured -0.16 against 8), so it keeps the cheap setting.
         3: {
-            # doomed_build is null at 3p: 0.5 +1.12, 1.0 +0.05, 2.5 +0.37,
-            # none above 1 sigma. Shipped at 4p only.
+            # doomed_build is null at 3p -- 0.5 +1.12, 1.0 +0.05, 2.5 +0.37,
+            # none above 1 sigma -- so it stays pinned off here.
             "doomed_build": 0.0,
+            # unflipped keeps the OLD 0.375. The re-tune raised it to 0.5625 on
+            # 4p evidence and it measures **-2.90 +- 0.81** here (-3.6 sigma):
+            # actively harmful, not merely unproven.
+            "unflipped": 0.375,
             "income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1,
             "pair_search": 8},
     }
