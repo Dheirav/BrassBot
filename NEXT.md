@@ -10,9 +10,10 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 ### Where the bot stands, 200 games a cell, report seeds
 
-4p refreshed 2026-09-06 after `doomed_build` shipped; 2p and 3p are still the
-2026-09-04 figures and remain correct, because `doomed_build` is pinned to 0
-there and nothing else has changed.
+**STALE as of the 2026-09-06 re-tune** -- `blocked` moved at all three player
+counts, `unflipped` at 4p, and `doomed_build` was freed at 2p, so every cell
+below predates the shipped bot. A full refresh is running; regenerate with
+`tools/standings.py -n 200 --formats 4,3,2`.
 
 | fmt | pool | all seats | SD | P10 | best |
 | --- | --- | --- | --- | --- | --- |
@@ -45,6 +46,45 @@ seeds with a different harness, which is the useful corroboration.
 Regenerate with `tools/standings.py` (progress-reporting, unlike
 `evaluate.evaluate` which prints nothing until it finishes) and watch it with
 `tools/watch-progress.sh runs/standings-4p.log --watch`.
+
+### 2026-09-06 re-tune: +3.11 at 4p, +2.34 at 2p
+
+A subset re-tune over the ten build-related weights, every candidate then
+measured on three disjoint report blocks. **The tuner claimed +16.5 on its own
+seeds; what survived is +3.11.** That 5x shrink is the normal shape here and is
+why the tuner's output is a list of candidates, not of gains.
+
+| change | measured | shipped |
+| --- | --- | --- |
+| `unflipped` 0.375 -> 0.5625 | **+2.86 +- 0.56** (5.1 sigma) | **4p only** |
+| `blocked` 6 -> 3 | **+2.29 +- 0.55** (4.2 sigma) | all counts |
+| the pair together at 4p | **+3.11 +- 0.58** (5.4 sigma) | -- |
+| `doomed_build` 2p pin removed | **+2.34 +- 0.88** (2.7 sigma) | 2p |
+| `sell_ready` 0.319 -> 0.159 | -0.13 +- 0.58 | discarded |
+
+**`unflipped` is the sharpest format split in the vector after
+`mat_potential`.** The value that gains +2.86 at 4p measures **-2.90 +- 0.81 at
+3p** and -1.76 +- 1.16 at 2p, so both pin the old 0.375. Shipping it globally
+would have handed back at 3p everything it gains at 4p.
+
+**`blocked` gets no pin** -- it is mildly positive everywhere (+0.91 at 3p,
++0.96 at 2p). A pin exists to stop a weight doing HARM in a format, not because
+every format needs its own proven number; most of this vector is 4p-fitted and
+inherited.
+
+**`doomed_build` at 2p is resolved.** It was pinned off on a failed
+heterogeneity check (chi2 6.73/2, one block -1.12 against another +4.81); three
+fresh blocks give +2.34 +- 0.88 with the blocks agreeing.
+
+The two weights overlap -- both price tiles that are on the board and have not
+paid out yet -- so the pair is worth +3.11, not the +5.15 they are worth apart.
+
+**Two of these nearly went the wrong way, and only running the checks back to
+back caught them.** A single-block decomposition put `blocked` at +1.31 and 1.5
+sigma and it was about to be dropped as an unproven passenger. `unflipped`
+looked like a clean global win until it was measured at the other player counts.
+Queue the follow-ups with `tools/run-queue.sh` rather than stopping at the first
+answer that looks good.
 
 ### The planner's lead has COLLAPSED: +14.78 -> +3.09, replicated
 
