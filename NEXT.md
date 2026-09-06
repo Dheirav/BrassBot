@@ -10,19 +10,26 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 ### Where the bot stands, 200 games a cell, report seeds
 
-**STALE as of the 2026-09-06 re-tune** -- `blocked` moved at all three player
-counts, `unflipped` at 4p, and `doomed_build` was freed at 2p, so every cell
-below predates the shipped bot. A full refresh is running; regenerate with
-`tools/standings.py -n 200 --formats 4,3,2`.
+Refreshed 2026-09-06 after the re-tune, all six cells, 200 games each.
+Regenerate with `tools/standings.py -n 200 --formats 4,3,2`.
 
 | fmt | pool | all seats | SD | P10 | best |
 | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 130.7 +- 0.5 | 13.3 | 114 | 181 |
-| 4p | vs greedy | 148.8 +- 1.0 | 14.0 | 129 | 184 |
-| 3p | mirror | 144.8 +- 0.6 | 14.5 | 128 | 185 |
-| 3p | vs greedy | 148.0 +- 1.4 | 19.3 | 121 | 193 |
-| 2p | mirror | 162.9 +- 0.9 | 17.0 | 141 | 203 |
-| 2p | vs greedy | 157.0 +- 1.4 | 19.6 | 134 | 217 |
+| 4p | mirror | 130.0 +- 0.5 | 14.2 | 113 | 171 |
+| 4p | vs greedy | 148.4 +- 1.1 | 15.8 | 129 | 188 |
+| 3p | mirror | 146.8 +- 0.5 | 12.9 | 130 | 200 |
+| 3p | vs greedy | 150.2 +- 1.2 | 17.6 | 129 | 197 |
+| 2p | mirror | 163.5 +- 0.9 | 17.7 | 142 | 213 |
+| 2p | vs greedy | 155.1 +- 1.3 | 18.0 | 131 | 199 |
+
+**A cell moving is not how a change is judged here, and this refresh shows why.**
+The re-tune measures **+3.11 +- 0.58** seat-balanced at 4p and **-3.73 +- 0.56**
+in the reverse direction, yet 4p vs-greedy barely moved (148.8 -> 148.4) and 4p
+mirror drifted down slightly. Those cells measure ABSOLUTE scoring -- a mirror
+gives every seat the same improvement, and against greedy the bot already wins
+100% and may be near what the board allows. What moved was 3p mirror, +2.0,
+which is where `blocked=3` landed. Seat-balanced duels are the causal
+measurement; this table is description.
 
 That is +19.7 at 4p, +15.0 at 3p and +24.5 at 2p against the table this
 replaced. The SD column is the one to quote against any new result: a change
@@ -61,6 +68,11 @@ why the tuner's output is a list of candidates, not of gains.
 | the pair together at 4p | **+3.11 +- 0.58** (5.4 sigma) | -- |
 | `doomed_build` 2p pin removed | **+2.34 +- 0.88** (2.7 sigma) | 2p |
 | `sell_ready` 0.319 -> 0.159 | -0.13 +- 0.58 | discarded |
+
+Confirmed from the reverse direction, old weights against the new shipped bot:
+**-3.73 +- 0.56 at 4p** (-6.6 sigma) and **-1.80 +- 0.97** for turning
+`doomed_build` back off at 2p. Both agree with the forward numbers on a
+different baseline, which is what would catch a PROFILES pin wired backwards.
 
 **`unflipped` is the sharpest format split in the vector after
 `mat_potential`.** The value that gains +2.86 at 4p measures **-2.90 +- 0.81 at
