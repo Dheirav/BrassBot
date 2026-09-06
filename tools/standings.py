@@ -53,7 +53,7 @@ def run_cell(players, opponent, games, seed0, workers, done, total, t0):
             elif not others:                      # mirror: share the win
                 wins += 1 / players
             done[0] += 1
-            print(f"PROGRESS done={done[0]} total={total} t={time.time() - t0:.1f}",
+            print(f"PROGRESS done={done[0]} total={total} unit=games t={time.time() - t0:.1f}",
                   flush=True)
     return subject_scores, wins
 

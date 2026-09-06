@@ -131,7 +131,7 @@ SIGMAS = 2.0   # how far a step must clear its own standard error to be kept
 
 
 def tune(bot, opponents, games, passes, workers, keys=None, players=4, fixed=(),
-         harness="duel"):
+         harness="duel", progress=True):
     weights = tunable(bot)
     # `fixed` used to be passed as a tuple of KEYS, so a value given on the
     # command line was excluded from the search and then applied only after the
@@ -158,6 +158,15 @@ def tune(bot, opponents, games, passes, workers, keys=None, players=4, fixed=(),
               f"across {len(seat_patterns(players))} seat patterns")
     print(f"  {spec(bot, weights)}\n")
 
+    # A candidate evaluation is minutes long, and the per-key lines below are
+    # further apart still, so a long run is unwatchable without this. The total
+    # is an UPPER bound -- duplicate candidates are dropped per key, and which
+    # ones duplicate depends on the current value -- so the ETA runs slightly
+    # pessimistic rather than optimistic, which is the safe direction.
+    t_start = time.time()
+    budget = len(keys) * len(SCALES) * passes
+    steps = 0
+
     evals = 1
     for round_no in range(1, passes + 1):
         print(f"--- pass {round_no} ---")
@@ -172,6 +181,11 @@ def tune(bot, opponents, games, passes, workers, keys=None, players=4, fixed=(),
             for value in candidates:
                 trial = dict(weights, **{key: value})
                 evals += 1
+                steps += 1
+                if progress:
+                    print(f"PROGRESS done={steps} total={budget} unit=evals "
+                          f"t={time.time() - t_start:.1f} key={key} value={value:g}",
+                          flush=True)
                 if harness == "vs":
                     mean, win, _ = measure(bot, trial, opponents, games, workers,
                                            players=players)
@@ -213,6 +227,11 @@ def main(argv=None):
                     help="params to hold constant, e.g. iterations=300")
     ap.add_argument("-n", "--games", type=int, default=40)
     ap.add_argument("--passes", type=int, default=2)
+    ap.add_argument("--keys", default="",
+                    help="comma-separated weights to tune; default is all of "
+                         "them. A subset is the right call after one weight "
+                         "ships: only its neighbours can have drifted, and the "
+                         "full 38 take ~15 hours against the subset's ~4.")
     ap.add_argument("-p", "--players", type=int, default=4, choices=(2, 3, 4))
     ap.add_argument("-w", "--workers", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--out", default="tuned_weights.json")
@@ -231,8 +250,14 @@ def main(argv=None):
             base = tunable(args.bot)[k.strip()]
             fixed[k.strip()] = coerce(base, float(v))
 
+    keys = [k.strip() for k in args.keys.split(",") if k.strip()] or None
+    if keys:
+        unknown = set(keys) - set(tunable(args.bot))
+        if unknown:
+            print(f"unknown weights: {sorted(unknown)}", file=sys.stderr)
+            return 2
     weights, mean, win, evals = tune(args.bot, opponents, args.games, args.passes,
-                                     args.workers, players=args.players,
+                                     args.workers, keys=keys, players=args.players,
                                      fixed=fixed, harness=args.harness)
     weights.update(fixed)
     elapsed = time.time() - t0
