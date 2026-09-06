@@ -291,9 +291,26 @@ class HeuristicBot(Bot):
         "sell_ready": 0.3187,
         # Credit for merchant connectivity itself, so building *toward* a sale
         # registers as progress rather than as spending money for nothing.
-        # 2.4 -> 1.8 is +1.62 +- 0.38, against an audit that had called 2.4
-        # correctly sized. The audit predates loan_bias and off_plan_bias.
-        "merchant_access": 1.8,
+        #
+        # Halved twice now, and both times the previous value was found too
+        # high: 2.4 -> 1.8 was +1.62 +- 0.38, and 1.8 -> 0.9 is **+1.16 +- 0.39
+        # over SIX report blocks at 4p** (3.0 sigma, 1,080 games; two
+        # independent sets of three read +1.22 and +1.11, chi2 0.02/1). It also
+        # helps at 3p (+1.74 +- 0.69) and is neutral at 2p (+0.16 +- 0.91), so
+        # no PROFILES pin.
+        #
+        # The direction is consistent with what the archetype study found:
+        # selling is the EXPENSIVE way to flip a tile. Coal, iron and breweries
+        # flip when anyone consumes them, for nothing, while a sale costs an
+        # action and a barrel -- and nine logged human seats average 0.56 sells
+        # a game. A bot that over-prices merchant access over-prices selling.
+        #
+        # Found by a links/beer subset re-tune in which the other EIGHT weights
+        # were kept across both passes, so that cluster is otherwise settled.
+        # The tuner claimed +5.26 and its own validation block said "not a real
+        # improvement" at +1.70 +- 2.04; the six report blocks are what settled
+        # it. Do not read the tuner's number as the gain.
+        "merchant_access": 0.9,
         # Cap merchant_access at the tiles waiting to be sold, plus one. OFF:
         # it costs **13.2 VP** (110.70 -> 97.53 over 200 games), the largest
         # regression measured on this evaluation.
