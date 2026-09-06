@@ -27,8 +27,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "ui"))
 
 from layout import ALL as COORDS  # noqa: E402
 
+import brassbot.engine as _engine  # noqa: E402
+from brassbot.actions import Build, Develop, Network, Sell  # noqa: E402
 from brassbot.bots import make  # noqa: E402
-from brassbot.engine import apply_action, legal_actions, winners  # noqa: E402
+from brassbot.engine import (apply_action, legal_actions, score_era,  # noqa: E402
+                              winners)
 from brassbot.state import new_game  # noqa: E402
 from tools.play import describe  # noqa: E402
 
@@ -58,6 +61,56 @@ def advance() -> None:
         apply_action(state, action)
 
 
+def project_vp(state):
+    """VP each seat would have if the era were scored right now.
+
+    Banked VP is near zero for everyone through the Canal Era, so the raw
+    number tells a player almost nothing about where they stand. Scoring
+    mutates -- it removes links as they score -- so this runs on a clone, and
+    never lets a display aid break the game.
+    """
+    probe = state.clone()
+    try:
+        scored = score_era(probe)
+    except Exception:
+        return [q.vp for q in state.players]
+    return ([q.vp for q in probe.players] if scored is not None
+            else [q.vp for q in state.players])
+
+
+def mat_ladder(state, seat):
+    """For each industry: the level that would be built next, and what is left.
+
+    The mat decides what a Build actually places -- you always build the lowest
+    level you still hold -- so a UI that hides it hides the single thing a
+    player most needs to plan around.
+    """
+    p = state.players[seat]
+    out = {}
+    for industry, counts in p.mat.items():
+        level = p.lowest_level(industry)
+        spec = state.data.tile(industry, level) if level else None
+        out[industry.value] = {
+            "next": level,
+            "remaining": sum(counts),
+            "by_level": list(counts),
+            "vp": spec.vp if spec else None,
+            "cost": spec.cost if spec else None,
+            "coal": spec.coal_cost if spec else None,
+            "iron": spec.iron_cost if spec else None,
+            "beer": spec.beer_to_sell if spec else None,
+            "income": spec.income if spec else None,
+            "link_vp": spec.link_vp if spec else None,
+            # A canal-only tile is swept at the boundary whether it flipped or
+            # not; the UI marks those so a player is not surprised by it.
+            "canal_only": (spec is not None and spec.canal_era
+                           and not spec.rail_era),
+            "rail_only": (spec is not None and spec.rail_era
+                          and not spec.canal_era),
+        }
+    return out
+
+
 def snapshot() -> dict:
     state, seat = GAME["state"], GAME["seat"]
     tiles = []
@@ -75,11 +128,39 @@ def snapshot() -> dict:
     all_links = [{"id": l.id, "ends": list(l.ends),
                   "canal": l.canal, "rail": l.rail} for l in state.data.links]
     me = state.players[seat]
+    proj = project_vp(state)
     moves = []
     if not state.finished and state.current.idx == seat:
         for i, action in enumerate(legal_actions(state)):
-            moves.append({"index": i, "text": describe(state, action),
-                          "kind": type(action).__name__})
+            # Which CARD an action spends, and enough structure for the UI to
+            # group by it. A flat list of 87 strings is not a decision anyone
+            # can make: in Brass you pick a card first and then see what it
+            # lets you do, which is how the move list should read.
+            m = {"index": i, "text": describe(state, action),
+                 "kind": type(action).__name__, "card": getattr(action, "card", None)}
+            if isinstance(action, Build):
+                lvl = state.players[seat].lowest_level(action.industry)
+                m.update(town=action.town, slot=action.slot,
+                         industry=action.industry.value, level=lvl)
+            elif isinstance(action, Network):
+                m.update(lines=list(action.lines), double=len(action.lines) == 2)
+            elif isinstance(action, Develop):
+                # The levels these would REMOVE, so a player can see what a
+                # develop actually costs them rather than only its name.
+                seen, levels = {}, []
+                for ind in action.industries:
+                    n = seen.get(ind, 0)
+                    base = state.players[seat].lowest_level(ind)
+                    levels.append((base + n) if base else None)
+                    seen[ind] = n + 1
+                m.update(industries=[i2.value for i2 in action.industries],
+                         levels=levels)
+            elif isinstance(action, Sell):
+                m.update(sales=[{"town": s.town, "merchant": s.merchant}
+                                for s in action.sales],
+                         own_beer=bool(getattr(action, "own_beer", False)),
+                         tiles=len(action.sales))
+            moves.append(m)
     return {
         "coords": COORDS,
         "towns": [{"id": t.id, "name": t.name,
@@ -102,13 +183,23 @@ def snapshot() -> dict:
         "winners": list(winners(state)) if state.finished else [],
         "coal_market": state.coal,
         "iron_market": state.iron,
-        "players": [{"idx": i, "vp": p.vp, "money": p.money, "income": p.income,
+        # Cubes left is not the number a player reasons with -- the PRICE is,
+        # and a mine built into a short market sells its cubes on placement.
+        "coal_price": state.data.coal.price_to_buy_one(state.coal),
+        "iron_price": state.data.iron.price_to_buy_one(state.iron),
+        "coal_cap": state.data.coal.capacity,
+        "iron_cap": state.data.iron.capacity,
+        "players": [{"idx": i, "vp": p.vp, "projected": proj[i],
+                     "money": p.money, "income": p.income,
                      "spent": p.spent, "links_left": p.links_left,
-                     "hand": len(p.hand)} for i, p in enumerate(state.players)],
+                     "hand": len(p.hand),
+                     "order": state.turn_order.index(i)
+                              if i in state.turn_order else None}
+                    for i, p in enumerate(state.players)],
         "hand": [{"kind": c.kind.value, "town": c.town,
                   "industries": sorted(i.value for i in (c.industries or ()))}
                  for c in me.hand],
-        "mat": {ind.value: list(counts) for ind, counts in me.mat.items()},
+        "mat": mat_ladder(state, seat),
         "moves": moves,
         "log": GAME["log"][-14:],
     }
@@ -151,6 +242,19 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    # Loan, Network, Develop, Sell and Pass all discard "any card from your
+    # hand", but the engine generates each ONCE with the most expendable card
+    # and offers alternatives only up to MAX_DISCARD_VARIANTS -- which defaults
+    # to 1, because the bot's evaluation scores the variants bit-identically and
+    # cannot tell them apart. A human very much can: this UI is built around
+    # choosing which card to spend, and at 1 every card but one showed Build and
+    # nothing else, which made legal moves look illegal.
+    #
+    # Set HERE and not at module scope. play.py learned that the hard way: at
+    # import time it leaked into every analysis script that imported `describe`
+    # and silently handed the BOT a three-times-larger move list.
+    _engine.MAX_DISCARD_VARIANTS = 8      # a full hand
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--players", type=int, default=4)
