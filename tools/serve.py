@@ -121,6 +121,10 @@ def who(seat: int) -> str:
     return GAME.get("name", "You") if seat == GAME.get("seat", 0) else f"Bot {seat}"
 
 
+def bump() -> None:
+    GAME["version"] = GAME.get("version", 0) + 1
+
+
 def record(action) -> None:
     """Log an action, then any era scoring it triggered."""
     state = GAME["state"]
@@ -131,6 +135,7 @@ def record(action) -> None:
     GAME["lines"].append(log_line(state, action, who(state.current.idx)))
     before = len(state.era_scores)
     apply_action(state, action)
+    bump()
     for rec in state.era_scores[before:]:
         parts = []
         for i, pl in enumerate(state.players):
@@ -169,6 +174,11 @@ def start(seed: int, players: int, opponent: str) -> None:
     # would leave you staring at a board they had already answered.
     GAME["undo"] = []
     GAME["exported"] = None
+    # A move is sent as an INDEX into the legal-action list, which the server
+    # regenerates per request. Two tabs on one game, or a click racing an undo,
+    # would apply a still-in-range index to a different list and play an action
+    # nobody chose. The version pins an index to the position it was drawn for.
+    GAME["version"] = 0
     advance()
 
 
@@ -184,6 +194,12 @@ def advance() -> None:
 
 
 def project_vp(state):
+    # After the Rail era `finished` is set but the tiles are still on the board,
+    # so projecting again would score every flipped tile a second time -- and
+    # the headline number would disagree with the game-over panel beside it.
+    if state.finished:
+        return [p.vp for p in state.players]
+
     """VP each seat would have if the era were scored right now.
 
     Banked VP is near zero for everyone through the Canal Era, so the raw
@@ -465,12 +481,19 @@ def snapshot() -> dict:
         "mat": _with_buildable(mat_ladder(state, seat), moves),
         # Every seat's next tile, so an opponent one develop from a level-3
         # cotton is visible rather than a surprise.
-        "mats": [mat_ladder(state, i) for i in range(state.n_players)],
+        # Our own row carries `buildable`, taken from the legal move list, so
+        # "can build now" is exact rather than inferred from cash. Opponents get
+        # the ladder without it -- affordability is only meaningful on the seat
+        # that is actually to move.
+        "mats": [_with_buildable(mat_ladder(state, i), moves) if i == seat
+                 else mat_ladder(state, i)
+                 for i in range(state.n_players)],
         "deck": len(state.deck),
         "discard": sum(len(p.discard) for p in state.players),
         "wild_city": state.wild_location,
         "wild_ind": state.wild_industry,
         "can_undo": bool(GAME.get("undo")),
+        "version": GAME.get("version", 0),
         "exported": GAME.get("exported"),
         "moves": moves,
         "log": GAME["log"][-14:],
@@ -501,6 +524,13 @@ class Handler(BaseHTTPRequestHandler):
             state = GAME["state"]
             actions = legal_actions(state)
             i = int(body.get("index", -1))
+            stale = int(body.get("version", -1)) != GAME.get("version", 0)
+            if stale:
+                # Refuse rather than guess: the index was drawn against a board
+                # that no longer exists.
+                self._send(json.dumps({**snapshot(), "stale": True}).encode(),
+                           "application/json")
+                return
             if not state.finished and state.current.idx == GAME["seat"] \
                     and 0 <= i < len(actions):
                 GAME["undo"].append((state.clone(), len(GAME["log"]),
@@ -518,6 +548,7 @@ class Handler(BaseHTTPRequestHandler):
                 GAME["state"] = st
                 del GAME["log"][nlog:]
                 del GAME["lines"][nlines:]
+                bump()
         elif self.path.startswith("/api/new"):
             start(int(body.get("seed", 1)), int(body.get("players", 4)),
                   body.get("opponent", "heuristic"))

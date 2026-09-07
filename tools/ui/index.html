@@ -95,7 +95,8 @@
          align-items:center; font-size:12px }
   .mat .ind { color:var(--dim) }
   .mat .lv { font-weight:600 }
-  .mat .meta { color:var(--dim); font-size:11px; text-align:right }
+  .meta { color:var(--dim); font-size:11px }
+  .mat .meta { text-align:right }
   .pips { display:flex; gap:2px }
   .pip { width:7px; height:12px; border-radius:2px; background:#2b303c }
   .pip.have { background:#4a5364 }
@@ -260,9 +261,21 @@ let logProse = false, resFilter = null;
 const MATNAME = {coal_mine:'coal', iron_works:'iron', brewery:'brewery',
                  cotton_mill:'cotton', manufacturer:'manuf.', pottery:'pottery'};
 
+// Every request carries the snapshot version its indices were drawn from, so
+// a click made against a board that has since moved is refused rather than
+// applied to a different action. Failures have to be visible: a silent catch
+// leaves "Playing..." on screen forever.
 const post = (url, body) => fetch(url, {method:'POST',
-  headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})})
-  .then(r => r.json()).then(draw);
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({...(body||{}), version: S ? S.version : -1})})
+  .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+  .then(s => { draw(s); if (s.stale) note('the board moved — that move was not played'); })
+  .catch(e => note('request failed: ' + e.message));
+
+function note(msg) {
+  const box = document.getElementById('details');
+  if (box) box.innerHTML = `<p class="gone">${msg}</p>` + box.innerHTML;
+}
 
 function draw(s) {
   S = s;
@@ -756,9 +769,12 @@ function draw(s) {
     >↺ Undo</button>`;
 
   if (s.finished) {
-    abox.innerHTML = '';
-    box.innerHTML = `<p><strong>Game over.</strong> Winner: seat ${s.winners.join(', ')}<br>` +
-      s.players.map(p => `seat ${p.idx}: ${p.vp}`).join(' · ') + '</p>';
+    const who = i => i === s.seat ? 'You' : 'Bot ' + i;
+    box.innerHTML = `<p><strong>Game over.</strong> Winner: ${
+      s.winners.map(who).join(', ')}</p>`
+      + s.players.slice().sort((a, b) => b.vp - a.vp).map(p =>
+        `<div><span class="dot" style="background:${COL[p.idx]}"></span>
+         ${who(p.idx)} <strong>${p.vp}</strong></div>`).join('');
   } else if (!s.moves.length) {
     box.innerHTML = '<p class="empty">Bots are thinking…</p>';
   } else if (card === null) {
@@ -941,6 +957,9 @@ function pickCard(i) { card = (card === i ? null : i); kind = null; focus = null
     const g = hit(e);
     if (g) showGhost(g.dataset.act, g.dataset.id);
   });
+  // Without this, tabbing out of the board leaves the ghost and its cost
+  // banner sitting over a target you are no longer on.
+  svg.addEventListener('focusout', e => { if (hit(e)) clearGhost(); });
 })();
 // One option under the pointer plays immediately; several narrow the list and
 // wait, because picking the slot or the sale is still a real choice.
