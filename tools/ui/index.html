@@ -113,6 +113,9 @@
   .seat small { color:var(--dim) }
   .move.hi { border-color:var(--accent) }
   .cost { display:block; font-size:10.5px; color:var(--dim); margin-top:2px }
+  .rnd { font-size:9.5px; letter-spacing:.8px; text-transform:uppercase;
+         color:var(--dim); border-bottom:1px solid var(--line);
+         margin:7px 0 3px; padding-bottom:2px }
   .cost b { color:var(--text); font-weight:700 }
   /* Cards first. Brass is played by choosing a card and then seeing what it
      allows -- a flat list of 100 move strings is not a decision anyone can
@@ -513,7 +516,8 @@ function draw(s) {
   // what to read; it is shown in brackets.
   document.getElementById('seats').innerHTML = s.players
     .slice().sort((a,b) => (a.order ?? 9) - (b.order ?? 9)).map(p => `
-    <div class="seat ${p.idx === s.seat ? 'me' : ''} ${p.idx === s.current ? 'turn' : ''}">
+    <div class="seat ${p.idx === s.seat ? 'me' : ''} ${p.idx === s.current ? 'turn' : ''}"
+      onmouseenter="hiSeat(${p.idx})" onmouseleave="hiSeat(null)">
       <span><span class="dot" style="background:${COL[p.idx]}"></span>
       ${p.idx === s.seat ? 'You' : 'Bot ' + p.idx}
       ${p.idx === s.current ? ' ←' : ''}
@@ -521,7 +525,9 @@ function draw(s) {
       <span style="text-align:right"><strong>${p.projected}</strong>
       <small>(${p.vp} banked)</small></span>
       <span class="meta" style="grid-column:1/3; text-align:right">
-      £${p.money} · inc ${p.income} · ${p.links_left} links · ${p.hand} cards</span>
+      £${p.money} · inc ${p.income}${
+        p.income_to_next ? `<span class="meta"> +${p.income_to_next}→${p.income + 1}</span>` : ''
+      } · ${p.links_left} links · ${p.hand} cards</span>
     </div>`).join('');
 
   // Markets: the PRICE is the number you reason with, not the cube count, and
@@ -723,12 +729,22 @@ function draw(s) {
 
   const lm = document.getElementById('logmode');
   if (lm) lm.textContent = logProse ? 'prose' : 'detail';
-  document.getElementById('log').innerHTML = s.log.slice().reverse().map(l =>
-    `<div><span class="dot" style="background:${COL[l.seat]}"></span>
-     <span style="color:${l.seat === s.seat ? 'var(--accent)' : 'var(--dim)'}">
-     ${l.seat === s.seat ? 'You' : 'Bot ' + l.seat}</span> ${
-       logProse ? (l.pretty || l.text).replace(/^(You|Bot \d+) /, '') : l.text
-     }</div>`).join('');
+  // Grouped by round. A flat list of twenty actions hides where a turn ended,
+  // which is the boundary everything in this game is timed against.
+  let last = null, rows = '';
+  for (const l of s.log.slice().reverse()) {
+    const key = l.era === undefined ? null : `${l.era} ${l.round}`;
+    if (key && key !== last) {
+      rows += `<div class="rnd">${key}</div>`;
+      last = key;
+    }
+    rows += `<div><span class="dot" style="background:${COL[l.seat]}"></span>
+      <span style="color:${l.seat === s.seat ? 'var(--accent)' : 'var(--dim)'}">
+      ${l.seat === s.seat ? 'You' : 'Bot ' + l.seat}</span> ${
+        logProse ? (l.pretty || l.text).replace(/^(You|Bot \d+) /, '') : l.text
+      }</div>`;
+  }
+  document.getElementById('log').innerHTML = rows;
 }
 
 // Hovering a move rings the town it happens at. Reading a move like
@@ -884,6 +900,31 @@ function pickLine(id) {
 }
 function pickMat(i) { matSeat = i; draw(S); }
 function pickRes(k) { resFilter = (resFilter === k ? null : k); draw(S); }
+
+// Ring one seat's tiles. This writes the fx layer directly rather than calling
+// draw(), because rebuilding the whole board to answer "which are theirs?"
+// would throw away focus and any ghost on every mouse move.
+function hiSeat(seat) {
+  const fx = document.getElementById('lay-fx');
+  if (!fx || !S) return;
+  if (seat === null) { fx.innerHTML = ''; return; }
+  const C = S.coords, byTown = {};
+  for (const t of (S.tiles || []))
+    if (t.owner === seat) (byTown[t.town] = byTown[t.town] || []).push(t);
+  let g = '';
+  for (const town in byTown) {
+    const info = (S.towns || []).find(x => x.id === town);
+    if (!info || !C[town]) continue;
+    const [x, y] = C[town], w = 32, total = info.slots.length * w;
+    for (const t of byTown[town]) {
+      const sx = x - total/2 + t.slot*w;
+      g += `<rect x="${sx-2}" y="${y-16}" width="${w-4+4}" height="33" rx="7"
+             fill="none" stroke="${COL[seat]}" stroke-width="2"
+             stroke-opacity="0.95"/>`;
+    }
+  }
+  fx.innerHTML = g;
+}
 // The log's debug form gives net cost and income spaces; the prose form is what
 // the exported file and the real Boomforge logs say. Both are useful, so both.
 function toggleLog() { logProse = !logProse; draw(S); }

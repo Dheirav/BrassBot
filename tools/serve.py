@@ -33,7 +33,7 @@ from brassbot.actions import (Build, Develop, Loan, Network,  # noqa: E402
 from brassbot.bots import make  # noqa: E402
 from brassbot.engine import (apply_action, legal_actions, link_icons_at,  # noqa: E402
                               score_era, winners)
-from brassbot.gamedata import Industry  # noqa: E402
+from brassbot.gamedata import (Industry, highest_space_of_level)  # noqa: E402
 from brassbot.network import is_connected_to_merchant  # noqa: E402
 from brassbot.resources import plan_cost  # noqa: E402
 from brassbot.state import new_game  # noqa: E402
@@ -125,7 +125,8 @@ def record(action) -> None:
     state = GAME["state"]
     GAME["log"].append({"seat": state.current.idx,
                         "text": describe(state, action),
-                        "pretty": move_label(state, action)})
+                        "pretty": move_label(state, action),
+                        "round": state.round, "era": state.era.value})
     GAME["lines"].append(log_line(state, action, who(state.current.idx)))
     before = len(state.era_scores)
     apply_action(state, action)
@@ -417,6 +418,11 @@ def snapshot() -> dict:
         "players": [{"idx": i, "vp": p.vp, "projected": proj[i],
                      "money": p.money, "income": p.income,
                      "income_space": p.income_space,
+                     # The track is nonlinear and a loan moves the marker by
+                     # LEVELS, so "how many flips until the next level" is not
+                     # something you can read off the level alone.
+                     "income_to_next": max(
+                         0, highest_space_of_level(p.income) - p.income_space + 1),
                      "spent": p.spent, "links_left": p.links_left,
                      "hand": len(p.hand),
                      "order": state.turn_order.index(i)
