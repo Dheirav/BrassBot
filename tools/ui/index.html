@@ -73,6 +73,12 @@
     *, *::before, *::after { transition-duration:.01ms !important;
                              animation-duration:.01ms !important } }
   .tgt { cursor:pointer }
+  .tgt:hover rect { fill-opacity:0.22 }
+  /* An SVG group takes focus but paints no useful outline, so the ring goes on
+     the shape itself. */
+  .tgt:focus { outline:none }
+  .tgt:focus-visible rect { fill-opacity:0.30; stroke-width:3 }
+  .tgt:focus-visible line { stroke-width:6 }
   .legendsum { font-size:10.5px; letter-spacing:.9px; text-transform:uppercase;
                color:var(--dim); font-weight:700; cursor:pointer; margin:4px 0 }
   #legend { display:grid; grid-template-columns:auto 1fr; gap:3px 8px;
@@ -138,6 +144,28 @@
     <defs>
       <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
         <feGaussianBlur stdDeviation="2.5"/></filter>
+      <!-- One gradient per seat, referenced by every tile that seat owns. A
+           flat fill reads as a coloured rectangle; a shaded one reads as an
+           object on a surface, for the cost of a url() lookup. These live in
+           <defs>, which the layer split made permanent. -->
+      <linearGradient id="gp0" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--p0)" stop-opacity="1"/>
+        <stop offset="1" stop-color="var(--p0)" stop-opacity="0.72"/></linearGradient>
+      <linearGradient id="gp1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--p1)" stop-opacity="1"/>
+        <stop offset="1" stop-color="var(--p1)" stop-opacity="0.72"/></linearGradient>
+      <linearGradient id="gp2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--p2)" stop-opacity="1"/>
+        <stop offset="1" stop-color="var(--p2)" stop-opacity="0.72"/></linearGradient>
+      <linearGradient id="gp3" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--p3)" stop-opacity="1"/>
+        <stop offset="1" stop-color="var(--p3)" stop-opacity="0.72"/></linearGradient>
+      <linearGradient id="gslot" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#232836"/>
+        <stop offset="1" stop-color="#171a22"/></linearGradient>
+      <radialGradient id="gboard" cx="0.5" cy="0.42" r="0.75">
+        <stop offset="0" stop-color="#171a22"/>
+        <stop offset="1" stop-color="#0f1116"/></radialGradient>
     </defs>
     <g id="lay-live"></g>
     <g id="lay-fx"></g>
@@ -233,7 +261,7 @@ const post = (url, body) => fetch(url, {method:'POST',
 function draw(s) {
   S = s;
   const C = s.coords, svg = document.getElementById('svg');
-  let out = '';
+  let out = '<rect x="-40" y="-30" width="1080" height="880" fill="url(#gboard)"/>';
 
   // Where the chosen card and action can actually land. Brass is played on the
   // map, so once you have said "Build" the question is WHERE -- and answering
@@ -277,7 +305,9 @@ function draw(s) {
   for (const id in tgtLine) {
     const l = (s.all_links || []).find(x => x.id === id);
     if (!l) continue;
-    tgt += `<g class="tgt" data-act="line" data-id="${id}">
+    tgt += `<g class="tgt" data-act="line" data-id="${id}"
+             tabindex="0" role="button"
+             aria-label="build the link at ${id.replace(/[-_]/g, ' ')}">
               ${spokes(l.ends, 'var(--accent)', 3.5, false)}
               ${spokes(l.ends, 'transparent', 16, false)}
               <title>build this link</title></g>`;
@@ -386,7 +416,9 @@ function draw(s) {
     }
     if (tgtTown[t.id]) {
       const hits = tgtTown[t.id].length;
-      tgt += `<g class="tgt" data-act="town" data-id="${t.id}">
+      tgt += `<g class="tgt" data-act="town" data-id="${t.id}"
+               tabindex="0" role="button"
+               aria-label="${hits} option${hits === 1 ? '' : 's'} at ${t.name}">
         <rect x="${x-total/2-5}" y="${y-19}" width="${total+10}" height="39" rx="9"
          fill="var(--accent)" fill-opacity="0.10"
          stroke="var(--accent)" stroke-width="1.6"/>
@@ -402,9 +434,17 @@ function draw(s) {
         // not scored, which is the distinction that decides most of the game.
         const c = COL[tile.owner], flipped = tile.flipped;
         out += `<rect x="${sx}" y="${y-13}" width="${bw}" height="27" rx="5"
-                fill="${flipped ? c : 'transparent'}" fill-opacity="${flipped ? 1 : 0}"
+                fill="${flipped ? 'url(#gp' + tile.owner + ')' : 'transparent'}"
+                fill-opacity="${flipped ? 1 : 0}"
                 stroke="${c}" stroke-width="${flipped ? 1 : 2}"
                 stroke-dasharray="${flipped ? '' : '3 2'}"/>`;
+        // A light top edge and a dark bottom one is the cheapest thing that
+        // reads as a physical tile instead of a filled rectangle.
+        if (flipped)
+          out += `<path d="M${sx+1.5} ${y-11.5} h${bw-3}" stroke="#fff"
+                   stroke-opacity="0.22" stroke-width="1" fill="none"/>
+                  <path d="M${sx+1.5} ${y+12.5} h${bw-3}" stroke="#000"
+                   stroke-opacity="0.42" stroke-width="1" fill="none"/>`;
         out += icon(tile.industry, sx + bw/2 - 8, y - 10, 17,
                     flipped ? '#12141a' : c, flipped ? 0.85 : 1);
         out += `<text x="${sx+bw-4}" y="${y+12}" text-anchor="end"
@@ -425,7 +465,9 @@ function draw(s) {
                    >${tile.resources}</text>`;
       } else {
         out += `<rect x="${sx}" y="${y-13}" width="${bw}" height="27" rx="5"
-                fill="#1a1e28" stroke="#2b303c"/>`;
+                fill="url(#gslot)" stroke="#2b303c"/>
+                <path d="M${sx+1.5} ${y-11.5} h${bw-3}" stroke="#fff"
+                 stroke-opacity="0.06" stroke-width="1" fill="none"/>`;
         const k = slot.length, isize = k > 2 ? 11 : 13;
         slot.forEach((ind, j) => {
           const ix = sx + bw/2 - (k * isize) / 2 + j * isize;
@@ -447,7 +489,18 @@ function draw(s) {
                fill="none" stroke="var(--accent)" stroke-width="1.4"
                stroke-dasharray="3 3" opacity="0.85"/>`;
     }
+  //
+  // innerHTML destroys the focused node, so keyboard play is impossible unless
+  // focus is restored to whatever replaced it.
+  const wasFocused = document.activeElement;
+  const keep = wasFocused && wasFocused.closest && wasFocused.closest('[data-act]');
+  const keepId = keep && [keep.dataset.act, keep.dataset.id];
   document.getElementById('lay-live').innerHTML = out + tgt;
+  if (keepId) {
+    const again = document.querySelector(
+      `[data-act="${keepId[0]}"][data-id="${keepId[1]}"]`);
+    if (again) again.focus();
+  }
   clearGhost();
 
   document.getElementById('era').textContent =
@@ -801,6 +854,19 @@ function pickCard(i) { card = (card === i ? null : i); kind = null; focus = null
     if (g) showGhost(g.dataset.act, g.dataset.id);
   });
   svg.addEventListener('mouseout', e => { if (hit(e)) clearGhost(); });
+  // Enter and Space must be wired by hand: role="button" describes an SVG
+  // group, it does not make it behave like one.
+  svg.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const g = hit(e);
+    if (!g) return;
+    e.preventDefault();
+    (g.dataset.act === 'town' ? pickTown : pickLine)(g.dataset.id);
+  });
+  svg.addEventListener('focusin', e => {
+    const g = hit(e);
+    if (g) showGhost(g.dataset.act, g.dataset.id);
+  });
 })();
 // One option under the pointer plays immediately; several narrow the list and
 // wait, because picking the slot or the sale is still a real choice.
