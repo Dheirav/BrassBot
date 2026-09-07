@@ -57,6 +57,108 @@ Regenerate with `tools/standings.py` (progress-reporting, unlike
 **STALE as of 2026-09-07:** `canal_double` 0.75 -> 1.25 shipped at 4p after this
 table was made. Regenerate before quoting a cell.
 
+### 2026-09-08: what Boomforge actually is, and the UI rebuilt from it
+
+#### Their bot, from the author and from the site
+
+The Boomforge author (Vijon) described their engine: evaluates every legal move
+in estimated VP, considers current and future VP, **chooses between three loose
+strategies based on the board**, searches the rest of its own two-action turn,
+tiny seeded randomness to break ties, tuned by seeded self-play and mirrored
+head-to-head tests. Every line of that describes ours too, except the strategy
+selector -- and Stage 0 (see 2026-09-07) found no evidence we are losing
+anything by not having one.
+
+Asked how difficulty works: **"Its the same algo, just at different depths.
+Less depth for the weaker bots. And more randomness."** Depth here means branch
+width, not lookahead past the turn.
+
+Driving the site with Playwright turned up what the marketing does not say:
+there are **four** tiers, not three -- `Easy / Standard / Hard / Expert`, with
+Expert padlocked behind the membership ("Elevate your game: post-game analysis,
+**Expert bots**, full statistics"). Difficulty is set **per bot**, so one table
+can mix them. Brassforge and Boomforge are one site renamed, not two.
+
+#### Their bots, benchmarked from the logs
+
+`logs/*.log` are Boomforge games, NOT games against our bot. Split by the
+difficulty Dheirav reports playing:
+
+| | games | bots, every seat | best bot per game | human | bot wins |
+| --- | --- | --- | --- | --- | --- |
+| Hard | 4 | 119.3 | 138.2 | 142.2 | 1/4 |
+| Standard | 9 | 103.1 | 115.4 | 127.7 | 3/9 |
+
+**Confounded:** every Hard game is 2026-09-07/08 and every Standard one is
+09-02/05, so difficulty and the human's own improvement cannot be separated
+here. And per-bot difficulty means a "Hard" table may not have been all-Hard.
+
+Ours for scale -- **not a comparison**, different tables entirely: 130.0 in a 4p
+mirror, 148.4 vs greedy (max 188). We have never played their bot and cannot
+without their site.
+
+#### Closed: committing to a different main industry
+
+`commit` selects the main industry from `MAIN_INDUSTRIES = (cotton, manufacturer,
+pottery)`; `off_plan_bias=1` makes it a penalty rather than the filter it is at
+`off_plan_bias=0`.
+
+    commit=1 (manufacturer)   -1.63 +- 0.67   -2.4 sigma   blocks disagree in size, not sign
+    commit=0 (cotton)         +0.63 +- 0.72    0.9 sigma   blocks agree
+    commit=2 (pottery)        shipped, unchanged
+
+**Cotton is a wash.** The bot builds cotton 0.09 times a game and that costs
+approximately nothing, which matches the tile economics: cotton carries THREE
+level-1 copies against manufacturer's one, needs a beer at every level where
+manufacturer L3 and L7 need none, and enters at GBP12 against GBP8.
+
+This also retires the "constant: always manufacturer, +3.65" table below. That
+was measured when the bot averaged 107-110; at the current tune it is negative.
+
+#### `pair_search` width: the search sees under half the board
+
+    180 pair-search decisions over 12 games (seat 0, two actions left)
+    legal actions: mean 54.1, median 55, max 122
+    turns where width=24 TRUNCATES: 95%  (canal 98.8%, rail 91.7%)
+
+Only the top `width` first actions are expanded. The one width measurement on
+record is 3p, where 16 against 8 gave -0.16 -- which now reads as saturation at
+a player count with far fewer legal moves, not as evidence that width does not
+matter. **Sweeping 48 and 72 at 4p was still in flight when this was written;
+record the result here.**
+
+#### The UI, rebuilt against theirs
+
+Three agents researched board-game UI patterns, audited ours against Boomforge
+screenshots, and researched SVG craft. What shipped:
+
+- **The map is the move selector.** Card -> action -> click the highlighted town
+  or link. One option plays immediately, several narrow the list. Illegal towns
+  dim to 38% rather than vanishing, so the reason stays on screen.
+- **Cost with provenance.** `resources.Draw` already carried kind/town/slot/
+  merchant/cost and it was being discarded at serialisation. Now:
+  `GBP5 + 1 iron (market GBP2) = GBP7`, and `GBP12 - GBP9 sold = GBP3` where a
+  mine dumps cubes on placement. Connected coal comes from ANY player's mine, so
+  the owning seat is named -- taking an opponent's cube flips their tile.
+- **Merchant bonuses drawn** (+4 VP, DEVELOP, +2 INC...). Choosing which
+  merchant to sell into is decided by these and they were invisible.
+- **Gloucester was off the bottom of the board** at the default window: y=780 in
+  an 820 viewBox with the SVG unscaled. The only DEVELOP merchant in the game.
+- Undo (rewinds past the bots' replies), a log **export button** in the exact
+  pasted-log format so UI games pool with the Boomforge ones (`--name` sets the
+  seat's name), actions-left, market ladders, per-seat mat tabs, legend, deck
+  and wild counts, prose move labels borrowed from the log renderer.
+- **Player colours were red/green** -- a pair deuteranopes cannot separate, and
+  ownership is the one thing on that board carried by colour alone. Now
+  Okabe-Ito, separated in lightness as well as hue.
+
+Not done, and the gate for the rest: the board is redrawn by assigning a fully
+re-serialised string to `svg.innerHTML` every frame, which kills CSS
+transitions, restarts animations, and destroys focus. Splitting it into
+`<defs>` + a live layer + an effects layer, and delegating clicks from the SVG
+root, is the prerequisite for hover-ghost placement -- show the tile you would
+place at 40% opacity with its cost, before you commit.
+
 ### 2026-09-07: what a Canal-Era VP is actually worth
 
 Prompted by three logged Boomforge wins by a strong human (181, 159, and one
