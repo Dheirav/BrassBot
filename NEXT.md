@@ -54,6 +54,224 @@ Regenerate with `tools/standings.py` (progress-reporting, unlike
 `evaluate.evaluate` which prints nothing until it finishes) and watch it with
 `tools/watch-progress.sh runs/standings-4p.log --watch`.
 
+**STALE as of 2026-09-07:** `canal_double` 0.75 -> 1.25 shipped at 4p after this
+table was made. Regenerate before quoting a cell.
+
+### 2026-09-07: what a Canal-Era VP is actually worth
+
+Prompted by three logged Boomforge wins by a strong human (181, 159, and one
+more) whose score breakdowns share a signature: canal links of exactly 9 VP in
+two of them, canal industry 31-34, rail links 49-61, income near max, and zero
+VP from merchant-beer bonuses in all three.
+
+#### Shipped: `canal_double` 0.75 -> 1.25 at 4p, **+2.31 +- 0.57** (4.0 sigma)
+
+The curve turns over, so this is a peak and not a boundary:
+
+| value | delta | sigma |
+| --- | --- | --- |
+| 1.0 | +2.18 +- 0.58 | 3.8 |
+| **1.25** | **+2.31 +- 0.57** | **4.0** |
+| 1.5 | +1.66 +- 0.66 | 2.5 |
+
+Pinned to the old 0.75 at 3p (+1.21 +- 0.66, 1.8 sigma) and 2p (+0.57 +- 0.95,
+0.6 sigma). Unlike `unflipped`, which INVERTS at 3p, this one only fades -- the
+gradient with player count is the tell that it is real, since the rules half of
+the effect is player-count blind and the premium half comes from harvesting a
+board other players filled.
+
+#### The measurement behind it
+
+120 4p mirror games, all four seats, instrument guarded (see the warning below):
+
+    canal industry vp banked      19.7
+      from L2+ (survives wipe)    16.6   84.0%
+      from L1  (dies at wipe)      3.2   16.0%
+    canal link vp (all dies)      13.4
+    L2+ tiles carried into rail    3.13
+
+    r with final score
+      surviving canal vp   +0.677
+      dying canal vp       -0.086
+      canal link vp        +0.052
+
+**A VP banked at canal scoring is not a VP.** Three columns that read the same
+on the scoreboard: one is the strongest single predictor of the final score we
+have measured, one is worth nothing, one is worth nothing. What matters is not
+how much you bank in the Canal Era but how much of it outlives the era.
+
+#### Link icons are a public good, and that sets the ceiling on `canal_double`
+
+`link_icons_at()` has no owner filter -- verified by reading it -- so a flipped
+tile raises the value of every link touching its town for whoever owns that
+link. Measured over the same 120 games:
+
+    of the link VP a seat's own flipped tiles create: it keeps 40%, opponents take 60%
+    of a seat's own link VP: 37% from its tiles, 54% from others', 9% from merchants
+
+**The majority of a player's link VP is harvested off other people's industry.**
+That is why 1.25 beats 1.5: a surviving flipped tile is worth 2x its VP plus
+only the ~40% share of the link value it creates, so a ~25% premium over the
+double is right and a 50% premium overshoots.
+
+#### WARNING: patching `engine.score_era` counts the bot's own search
+
+The first two instruments here were wrong. `pair_search` applies actions to
+probe COPIES of the state, and a probe that crosses an era boundary scores an
+era too, so a naive patch tallied hundreds of hypothetical scorings alongside
+the real one -- one run reported 9590 link VP per seat. Every measurement of
+this kind needs an identity guard (`if st is not state: return real(st)`) and an
+assertion that exactly two real era scorings happened per game. The corrected
+numbers agreed with the contaminated ones here, but that was luck.
+
+#### Closed: `link_icons_canal`, the scored-icon term, is not mispriced
+
+The largest term in `player_value` ran at a hardcoded 1.0 and no sweep had ever
+been able to reach it. Split into `link_icons_canal` / `link_icons_rail` (both
+default 1.0, so shipping them changed nothing) and swept: 0.75 gives
++0.48 +- 0.62, 0.5 gives -0.03 +- 0.65. Flat.
+
+Canal link VP correlating +0.05 with the final score does NOT make canal links
+bad moves -- they buy network reach, which is what lets the next tile be built.
+That value lives elsewhere in the evaluation and does not move with this weight.
+
+#### Closed: `loan_bias`, four arms, none clearing the bar
+
+Motivated by a money diagnostic: 4.53 loans a game, mean cash of GBP 13.6 when
+borrowing, GBP 38.3 unspent at the end, and 9.52 turns a game declining BOTH a
+build and a link.
+
+| value | delta | sigma |
+| --- | --- | --- |
+| 1.125 | +0.11 +- 0.57 | 0.2 |
+| 0.75 | +1.04 +- 0.56 | 1.9 |
+| 0.375 | +1.07 +- 0.56 | 1.9 |
+| 0 | +0.80 +- 0.53 | 1.5 |
+
+All four positive, all blocks agreeing, best 1.9 sigma against a 3 sigma bar set
+before the sweep. Pooling the two peak arms as a composite gives ~+1.05 +- 0.40
+(2.6 sigma), still short. Curve recorded; not shipped.
+
+#### Closed: the human archetype does not transfer, 0 for 4 in live games
+
+Four agents played full games from `tools/play.py` against the shipped bot:
+
+| brief | canal bank (ind/lnk) | L2+ surviving | rail links | final | place |
+| --- | --- | --- | --- | --- | --- |
+| full reconstruction | 37 (22/15) | 3 | 8 | 125 | 4th |
+| full reconstruction | 35 (21/14) | 1 | 7 | 114 | 3rd |
+| sell-flip | 41 (33/8) | 3 | 8 | 109 | 4th |
+| free play, 30 VP target | 37 (20/17) | 2 | 5 | 103 | 4th |
+
+**Every agent led or near-led its table at the canal boundary and lost.** The
+sell-flip agent hit the human's exact composition (33/8, a 4.1:1 ratio) and
+scored worst. Winners took 39/46/54 and 60/42 rail link VP.
+
+Caveat that limits it: the agents score 103-125 where the bot averages ~128 in
+mirror, so they are weaker players and "the archetype lost" is partly "the agent
+lost". What survives the confound is the WITHIN-game decomposition -- leading at
+the boundary and losing the Rail Era on link VP, four times out of four.
+
+What the games established:
+
+- **Rail links are rationed by SLOTS, not money.** The bots laid 31 links in the
+  first five rail rounds; by rail R6 one agent had no legal link move at all,
+  and agents finished with 7 unused link tiles and GBP 20-29 dead cash. Buying
+  links late is right about price and wrong about supply. **The bot's early rail
+  linking is slot capture, not a valuation error** -- do not sweep it away.
+  This does NOT apply to canal links, which are removed at the boundary.
+- **30+ canal industry VP is not reachable under contest.** The budget is 15
+  actions and ~GBP 80 with two loans; each level-2 tile needs a build, a Sell, a
+  beer and a card, and there are 7 merchant beers on the whole board for 4
+  players. 20-25 is what the era allows. The human's 31-34 implies an
+  uncontested table, not a better plan.
+- **Beer is the chokepoint and consumption-flippers drain it first.** Merchant
+  beer gone by rail R2, every opponent brewery flipped and empty by rail R4-R5.
+- **Icon density explains why sell-flip loses.** Brewery shows 2 link icons at
+  EVERY level and coal L1 matches it; manufacturer L3 and L7 show ZERO. The
+  sell-flip line spends actions and scarce beer to flip the icon-poorest tiles
+  in the game, so its own links do not pay. Coal/brewery/iron flip for free AND
+  carry the icons that make rail links score: **the consumption engine and the
+  link engine are the same engine.**
+- Rules the briefs got wrong, that cost VP: develop-first is wrong for brewery
+  and cotton (the mat holds 2 brewery L1s and 3 cotton L1s, so one Develop
+  uncovers nothing -- it is right for iron and manufacturer, which have one
+  each); the Canal-Era one-tile-per-town-per-player rule; deck exhaustion from
+  canal R6 leaving exactly one card per remaining action.
+
+#### Closed: mode selection, Stage 0 -- no conditional structure on merchants
+
+`docs/mode-selection-scope.md` scopes the idea, prompted by the Boomforge
+author's description of their bot: same evaluation-of-every-move, same
+two-action search, same seeded mirrored tuning, but it **chooses between three
+loose strategies based on the board**. Ours conditions on player count only.
+
+Stage 0 falsifies cheaply before any machinery is built. Run with
+`tools/regime-split.py`, which partitions seeds by a setup feature and pools each
+partition separately:
+
+    sell_ready=0.75, split on non-blank slots at the VP merchants (>=3)
+      sell_rich   -1.50 +- 0.61   chi2 5.81/2   n=616
+      sell_poor   -1.99 +- 0.54   chi2 0.30/2   n=884
+      difference  +0.50 +- 0.82   chi2 0.37/1  -- regimes agree
+
+No structure. `sell_ready` is not a mixture; raising it is simply harmful in
+both regimes, which confirms the shipped 0.3187 is on the right side.
+
+**And there is a mechanical reason to expect the null.** `sell_ready` is already
+conditional -- it is applied only when a tile is reachable, accepted by a live
+merchant and beer is available. The split tested a static board feature the term
+already reads dynamically and in finer detail. Our conditioning is inline and
+per-tile; theirs is global and per-strategy. Those are two ways to do one job,
+and the gap inferred from their description may be smaller than it looked.
+
+If this is retried, pair a weight that is NOT already inline-conditional
+(`canal_double`, `blocked`, `loan_bias`) with a feature the evaluation does not
+already read -- and raise the bar, because every feature tried is another
+comparison.
+
+#### Closed: going first into the Rail Era
+
+Turn order is bought by spending less, and the order the Rail Era opens in is
+set by the last Canal round. Since rail link slots are scarce, first pick looked
+decisive. It is not:
+
+    200 4p mirror games, by position in the order the Rail Era opened in
+     pos   rail link VP   rail links   final VP
+       1       44.1          9.13       123.4
+       4       41.9          9.12       127.4
+
+First pick buys 2.2 link VP. If it decided the link race, position 1 would show
+far more than 42. (The -4.01 final-VP gap is confounded: the seat that arrives
+first is the seat that spent least, so it built less. Symptom, not cause.) This
+refines the earlier all-rounds finding, which capped turn order at +4.81 as an
+upper bound.
+
+#### What the bot actually builds, current tune
+
+    480 seat-records, 11.22 builds a game
+      coal_mine       3.46   31%      manufacturer   2.04   18%
+      brewery         2.56   23%      pottery        0.78    7%
+      iron_works      2.30   20%      cotton_mill    0.09    1%
+
+    BRIC industries 8.32 a game (74%), sellables 2.91 (26%)
+
+**By revealed preference the bot plays BRIC** -- it was not constrained into it,
+it chose it. And **cotton mill at 0.09 builds a game is near-total avoidance**
+of an industry whose L3 and L4 are 9 and 12 VP. Probably correct (cotton is
+three develops deep, and its three L1s are 15 VP that all dies at the wipe), but
+unexplained, and the shape of a blind spot.
+
+#### Corrections to claims made earlier in this document's life
+
+- **+0.677 is observational, not a lever.** It says winning games look like
+  that, not that forcing it wins. The agent that hit the composition exactly
+  scored worst of four. The only causal number is `canal_double`'s +2.31.
+- The three human games' zero "beer" column means **no VP-TYPE merchant bonus
+  was taken**, not that merchant beer was avoided. Merchant bonuses come in four
+  types (`vp` / `income` / `money` / `develop`); their near-max income is what
+  taking income merchants looks like.
+
 ### 2026-09-06 re-tune: +3.11 at 4p, +2.34 at 2p
 
 A subset re-tune over the ten build-related weights, every candidate then
@@ -241,6 +459,22 @@ measured seat-balanced.**
    heuristic it is compared against is far stronger now.
 3. More agent playtests. Highest measured yield for rules bugs, and a poll costs
    41% fewer tokens since the move list was collapsed.
+5. **The 9.52 turns a game the bot declines BOTH a build and a link.** Largest
+   unexplained inefficiency we have, and it is not money: an agent's last action
+   was a forced Pass with GBP 29 unspent because the coal market was full, no
+   link was legal and there was no beer. Measure whether ours is card
+   starvation or valuation before proposing a fix.
+6. **Marginal rail link value.** The bot takes 9.0 rail links a game for 44.2
+   VP, a third of its score, and slot capture has denial value beyond the VP --
+   but nobody has measured whether link #9 earns its action. Cap rail links and
+   sweep the cap.
+7. **Cotton mill at 0.09 builds a game.** See the 2026-09-07 section.
+8. More games on 3p `canal_double`: +1.21 at 1.8 sigma is probably a real ~1 VP.
+9. **Variance is not measured.** Every sweep maximises mean VP delta; nothing
+   targets consistency, and vs greedy the spread is SD 15.8 with P10 at 129.
+   A weight that lifts the mean and widens the spread reads identically to one
+   that does the opposite. Reporting win rate and P10 in `verify-weight.py`
+   would cost nothing.
 4. `docs/options-swot.md` weighs the larger bets, including the port.
 
 **Do not** chase the action ledger's double-rail gap (8.73 VP an action against

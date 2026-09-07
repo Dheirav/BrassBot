@@ -391,3 +391,61 @@ the headroom is smaller and much harder to capture.
 capture would be well under 100%, and the correlation evidence was already weak.
 Chase the -16.28 on breweries instead -- not as a term to invent, but as a
 signal that brewery slots are the scarcest asset in the game.
+
+## 2026-09-07: consumption-flip vs sell-flip, and why icon density decides it
+
+Four agents played full games against the shipped bot on a reconstruction of a
+strong human's line from three logged Boomforge wins. Results and the caveats
+are tabulated in `NEXT.md` under "2026-09-07". All four lost; all four led or
+near-led their table at the canal boundary. The archetype conclusion is here.
+
+### Two ways to flip a tile, and they are not equal
+
+Nothing scores until it flips, and there are exactly two mechanisms:
+
+- **Consumption-flip** -- coal, iron and breweries flip when ANYONE takes their
+  cubes. No action spent. The cost is that you wait on other people's demand.
+- **Sell-flip** -- cotton, manufacturer and pottery flip only through a Sell
+  action. The timing is yours and one Sell can flip several tiles, but each
+  needs an action AND a beer AND merchant access.
+
+The agent told to run sell-flip as its primary engine produced the best canal
+industry score at its table (33 industry VP against 18/21/25) and finished
+last, 109 against 148.
+
+### Why: the sell industries are the icon-poor ones
+
+| industry | link icons |
+| --- | --- |
+| brewery | **2 at every level** |
+| coal | 2 at L1, 1 at L2-4 |
+| iron | 1 at every level |
+| cotton | 1, 2, 1, 1 |
+| manufacturer | 2, 1, **0**, 1, 2, 1, **0**, 1 |
+| pottery | 1 at every level |
+
+Link VP is icons in the locations at both ends, counted only on FLIPPED tiles
+and **regardless of owner**. So the sell-flip line spends actions and contested
+beer to flip manufacturers -- two of whose levels show no icon at all -- and
+then its own links do not pay. Meanwhile coal, brewery and iron flip for free
+and are the densest icon sources in the game.
+
+**The consumption engine and the link engine are the same engine.** That is the
+mechanism behind the -16.28 VP for banning breweries recorded above, and it
+explains the human logs better than any archetype label: a player who builds
+BRIC and buys rail links late is not running two strategies, they are running
+one, where the first half pays for the second.
+
+### The constraint the archetype studies kept missing
+
+Beer, and slots. There are **7 merchant beers on the whole board at 4p** (nine
+merchant tiles, two of them blank). Consumption-flippers drain them first --
+agents found merchant beer gone by rail R2 and every opponent brewery flipped
+and empty by rail R4-R5. And rail links are rationed by SLOTS: the bots laid 31
+links in the first five rail rounds, and one agent had no legal link move at all
+from rail R6, finishing with 7 unused link tiles and dead cash.
+
+Any archetype that needs beer or late links is competing for a fixed pool
+against three opponents who get there first. That is why the constrained lines
+in the n=120 table above all lose, and it is a better explanation than
+"commitment costs VP".

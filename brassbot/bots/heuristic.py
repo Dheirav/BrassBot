@@ -137,7 +137,25 @@ class HeuristicBot(Bot):
         # over three blocks (3.5 sigma, chi2 0.1/2). Reverting it to 0 had
         # already measured -2.25 at 4p and -4.99 at 2p, so the term was known
         # load-bearing; this is the first time its LEVEL has been moved.
-        "canal_double": 0.75,
+        #
+        # 0.75 -> 1.25 at 4p: **+2.31 +- 0.57** (4.0 sigma, chi2 1.21/2). The
+        # curve turns over -- 1.0 gives +2.18, 1.25 gives +2.31, 1.5 gives
+        # +1.66 -- so 1.25 is the peak, not a boundary.
+        #
+        # Why a premium above the plain 2x the rules give: a level 2+ tile
+        # flipped in the Canal Era scores twice AND keeps its link icons on the
+        # board for the whole Rail Era. But link_icons_at() has no owner filter,
+        # so those icons pay whoever owns the adjacent link. Measured over 120
+        # guarded games: of the link VP a seat's flipped tiles create, it
+        # collects 40% and opponents take 60%. A premium of ~25% over the
+        # double is what that 40% share is worth; 1.5 prices it as if the
+        # anchoring were private and gives back a third of the gain.
+        #
+        # Pinned to 0.75 at 3p and 2p -- the effect fades with player count
+        # (+1.21 at 3p, 1.8 sigma; +0.57 at 2p, 0.6 sigma) because the premium
+        # comes from harvesting a board other players filled. It never
+        # reverses, unlike `unflipped`; it just stops paying.
+        "canal_double": 1.25,
         # Value, as the Canal Era closes, of owning an unflipped level 2+ coal
         # mine that will survive the wipe.
         #
@@ -355,6 +373,30 @@ class HeuristicBot(Bot):
         # that was itself worth +11 VP when it was introduced.
         "link_flip_canal": 0.35,
         "link_flip_rail": 0.9,
+        # The icons a link ALREADY scores on, split by era. This is the term the
+        # comment above calls the largest in player_value, and it ran at a
+        # hardcoded 1.0 -- link_flip_* only ever covered the unflipped
+        # neighbours, so no sweep could say a canal link is worth less than a
+        # rail one.
+        #
+        # It is. Over 120 guarded 4p games, canal link VP correlates +0.05 with
+        # the final score while surviving canal industry VP correlates +0.68 --
+        # canal links are close to inert. The mechanism is that link_icons_at()
+        # has no owner filter, so a link pays out of the whole board: 54% of a
+        # seat's link VP comes from OTHER players' tiles. In the canal era the
+        # board is sparse and there is little to harvest; by the rail era four
+        # players have filled it. Same action, different price.
+        #
+        # SWEPT AND NULL. 0.75 measures +0.48 +- 0.62 (0.8 sigma) and 0.5
+        # measures -0.03 +- 0.65 at 4p. The scoring term is not mispriced.
+        #
+        # Canal link VP correlating +0.05 with the final score does NOT mean
+        # canal links are bad moves: they buy network reach, which is what
+        # lets the next tile be built at all. That value is carried elsewhere
+        # in the evaluation and does not move with this weight. Kept at 1.0
+        # with the measurement recorded so the lead is not reopened.
+        "link_icons_canal": 1.0,
+        "link_icons_rail": 1.0,
         # What our network lets the cards in our HAND actually do.
         #
         # An industry card may only build inside your network; a location card
@@ -703,6 +745,11 @@ class HeuristicBot(Bot):
             #
             # unflipped keeps the OLD 0.375: the re-tune's 0.5625 measures
             # -1.76 +- 1.16 here.
+            #
+            # canal_double keeps the OLD 0.75. Raising it to 1.0 measures
+            # +0.57 +- 0.95 here (0.6 sigma) -- a 2p board is too sparse for
+            # the link-icon premium the 4p value is paying for.
+            "canal_double": 0.75,
             "unflipped": 0.375,
             "sell_ready": 0.478, "mat_potential": 0.125, "commit": 1,
             "income": 0.04219, "debt": 0.09495, "wild_card": 0.5},
@@ -726,6 +773,11 @@ class HeuristicBot(Bot):
             # 4p evidence and it measures **-2.90 +- 0.81** here (-3.6 sigma):
             # actively harmful, not merely unproven.
             "unflipped": 0.375,
+            # canal_double keeps the OLD 0.75. 1.0 measures +1.21 +- 0.66 here
+            # (1.8 sigma, blocks agreeing) -- positive and probably real, but
+            # short of the 3 sigma bar set before the sweep ran. Worth more
+            # games rather than a pin on faith.
+            "canal_double": 0.75,
             "income": 0.04219, "liquidity_scale": 16.88, "wild_card": 1,
             "pair_search": 8},
     }
@@ -1181,8 +1233,10 @@ class HeuristicBot(Bot):
             if owner == seat:
                 ends = data.link_by_id[link_id].ends
                 network.update(ends)
+                icon_w = (self.w["link_icons_canal"] if state.era is Era.CANAL
+                          else self.w["link_icons_rail"])
                 for end in ends:
-                    value += link_icons_at(state, end)
+                    value += icon_w * link_icons_at(state, end)
                     if flip_odds and end not in data.merchants:
                         for tile in state.tiles.get(end, ()):
                             if tile is not None and not tile.flipped:
