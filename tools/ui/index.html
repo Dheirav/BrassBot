@@ -343,8 +343,10 @@ function draw(s) {
 
   // merchants
   // Known before the merchants draw, so they recede with everything else.
-  const narrowing = Object.keys(tgtTown).length > 0
-                 || Object.keys(tgtLine).length > 0;
+  // Only TOWN targeting dims the towns: a link is worth the icons on the tiles
+  // at both of its ends, so dimming those while you choose a link hides the
+  // one thing the choice depends on.
+  const narrowing = Object.keys(tgtTown).length > 0;
   const BONUS = {vp:'VP', income:'INC', money:'£', develop:'DEVELOP'};
   for (const mo of s.all_merchants) {
     const m = mo.id || mo, [x, y] = C[m];
@@ -352,7 +354,7 @@ function draw(s) {
     const btxt = !mo.bonus ? '' : mo.bonus === 'develop' ? 'DEVELOP'
                : mo.bonus === 'money' ? `+£${mo.amount}`
                : `+${mo.amount} ${BONUS[mo.bonus]}`;
-    out += `<g opacity="${narrowing && !tgtTown[m] ? 0.38 : 1}">
+    out += `<g opacity="${narrowing && !tgtTown[m] ? 0.45 : 1}">
             <rect x="${x-44}" y="${y-19}" width="88" height="38" rx="8"
             fill="#242938" stroke="${live ? '#4a5364' : '#333a4a'}"/>
             <text x="${x}" y="${y-8}" text-anchor="middle">${m}</text>
@@ -411,7 +413,7 @@ function draw(s) {
   // moves, test it and drop the label below the slots when the space is taken.
   const mrect = s.all_merchants.map(mo => {
     const [mx, my] = C[mo.id || mo];
-    return [mx - 52, my - 22, mx + 52, my + 22];
+    return [mx - 44, my - 19, mx + 44, my + 19];
   });
   const clashes = (cx, cy, txt) => {
     const hw = txt.length * 2.3 + 2;
@@ -422,7 +424,7 @@ function draw(s) {
     const [x, y] = C[t.id], n = t.slots.length, w = 32, total = n * w;
     const ly = clashes(x, y - 20, t.name) ? y + 26 : y - 20;
     // A town the chosen card cannot reach stays visible but recedes.
-    out += `<g opacity="${narrowing && !tgtTown[t.id] ? 0.38 : 1}">`;
+    out += `<g opacity="${narrowing && !tgtTown[t.id] ? 0.58 : 1}">`;
     if (resFilter && resTown[resFilter][t.id]) {
       tgt += `<circle cx="${x}" cy="${y}" r="${total/2 + 12}" fill="none"
                stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="3 3"
@@ -727,9 +729,10 @@ function draw(s) {
     if (s.moves.some(m => m.kind === k)) return 'another card can';
     const mats = Object.values(s.mat).filter(m => m.next !== null);
     if (k === 'Build') {
+      // If nothing is buildable and anything is short of cash, cash is the
+      // binding constraint worth naming -- the cheapest gap is the useful one.
       const shorts = mats.filter(m => m.short > 0).map(m => m.short);
-      if (shorts.length === mats.length && shorts.length)
-        return `short £${Math.min(...shorts)}`;
+      if (shorts.length) return `short £${Math.min(...shorts)}`;
       return 'no slot in reach';
     }
     if (k === 'Sell') return 'nothing sellable, or no beer';
@@ -854,10 +857,10 @@ function renderKind(kind, opts, s) {
     const dbl = opts.filter(m => m.double), single = opts.filter(m => !m.double);
     return (dbl.length ? `<p class="hint">Double rail — two links for one action</p>`
                        + dbl.map(m => btn(m, (m.pretty || m.text)
-                           .replace(/^linked /, '').replace(/ · card.*$/, ''))).join('') : '')
+                           .replace(/^linked /, '').replace(/ · card.*$/, ''), s)).join('') : '')
          + (single.length ? `<p class="hint" style="margin-top:8px">Single link</p>`
                        + single.map(m => btn(m, (m.pretty || m.text)
-                           .replace(/^linked /, '').replace(/ · card.*$/, ''))).join('') : '');
+                           .replace(/^linked /, '').replace(/ · card.*$/, ''), s)).join('') : '');
   }
 
   if (kind === 'Sell') {
@@ -866,7 +869,8 @@ function renderKind(kind, opts, s) {
     const part = (list, note) => list.length
       ? `<p class="hint" style="margin-top:8px">${note}</p>`
         + list.map(m => btn(m, `${m.tiles} tile${m.tiles === 1 ? '' : 's'} — `
-            + m.sales.map(x => x.town.replace(/_/g,' ') + ' → ' + x.merchant).join(', '))).join('')
+            + m.sales.map(x => (TOWNNAME[x.town] || x.town) + ' → ' + x.merchant)
+                     .join(', '), s)).join('')
       : '';
     // Spending your own barrels flips your own breweries, which is 5-10 VP
     // and scores twice in the Canal Era; a merchant's beer is free and carries

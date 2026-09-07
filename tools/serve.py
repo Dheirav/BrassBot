@@ -231,7 +231,9 @@ def mat_ladder(state, seat):
             "link_vp": spec.link_vp if spec else None,
             # Cubes the tile places when built. A coal mine that puts 2 on the
             # board into a short market sells them on placement and pays you.
-            "produces": spec.resource_produced if spec else 0,
+            "produces": (spec.beer_produced(state.era) if spec and spec.beer_to_sell is None
+                         and spec.industry is Industry.BREWERY
+                         else (spec.resource_produced if spec else 0)),
             # A canal-only tile is swept at the boundary whether it flipped or
             # not; the UI marks those so a player is not surprised by it.
             "canal_only": (spec is not None and spec.canal_era
@@ -394,7 +396,9 @@ def snapshot() -> dict:
                 m.update(industries=[i2.value for i2 in action.industries],
                          levels=levels)
             elif isinstance(action, Sell):
-                m.update(sales=[{"town": s.town, "merchant": s.merchant}
+                m.update(beer=_draws(state, getattr(action, "beer", ())),
+                         price=0, revenue=0,
+                         sales=[{"town": s.town, "merchant": s.merchant}
                                 for s in action.sales],
                          own_beer=bool(getattr(action, "own_beer", False)),
                          tiles=len(action.sales))
