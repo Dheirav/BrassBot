@@ -15,7 +15,13 @@
          font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
          display:grid; grid-template-columns:minmax(0,1fr) 380px;
          grid-template-rows:minmax(0,1fr) auto; height:100vh }
-  #board { grid-column:1; grid-row:1; padding:8px; overflow:hidden; display:flex }
+  #board { grid-column:1; grid-row:1; padding:8px; overflow:hidden; display:flex;
+           position:relative }
+  #preview { position:absolute; left:12px; right:12px; bottom:8px; padding:6px 10px;
+             background:rgba(18,20,26,.94); border:1px solid var(--line);
+             border-radius:8px; font-size:12px; pointer-events:none; display:none }
+  #preview.on { display:block }
+  #preview b { color:var(--accent) }
   #svg { width:100%; height:100%; display:block }
   /* The tray is the whole decision: your cards, what each one lets you do, and
      the choice that follows. Keeping it in one strip under the board means a
@@ -123,7 +129,17 @@
   .lvl { display:inline-block; min-width:17px; padding:0 4px; border-radius:4px;
          background:#39405a; font-size:10.5px; font-weight:700; margin-right:5px }
 </style>
-<div id="board"><svg id="svg" viewBox="0 0 1000 820"></svg></div>
+<div id="board">
+  <svg id="svg" viewBox="0 0 1000 820">
+    <defs>
+      <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="2.5"/></filter>
+    </defs>
+    <g id="lay-live"></g>
+    <g id="lay-fx"></g>
+  </svg>
+  <div id="preview"></div>
+</div>
 <div id="tray">
   <section><h3>Your hand <span id="movecount"></span></h3>
     <div class="cards" id="hand"></div></section>
@@ -253,7 +269,7 @@ function draw(s) {
   for (const id in tgtLine) {
     const l = (s.all_links || []).find(x => x.id === id);
     if (!l) continue;
-    tgt += `<g class="tgt" onclick="pickLine('${id}')">
+    tgt += `<g class="tgt" data-act="line" data-id="${id}">
               ${spokes(l.ends, 'var(--accent)', 3.5, false)}
               ${spokes(l.ends, 'transparent', 16, false)}
               <title>build this link</title></g>`;
@@ -327,7 +343,7 @@ function draw(s) {
     out += `<g opacity="${narrowing && !tgtTown[t.id] ? 0.38 : 1}">`;
     if (tgtTown[t.id]) {
       const hits = tgtTown[t.id].length;
-      tgt += `<g class="tgt" onclick="pickTown('${t.id}')">
+      tgt += `<g class="tgt" data-act="town" data-id="${t.id}">
         <rect x="${x-total/2-5}" y="${y-19}" width="${total+10}" height="39" rx="9"
          fill="var(--accent)" fill-opacity="0.10"
          stroke="var(--accent)" stroke-width="1.6"/>
@@ -372,7 +388,10 @@ function draw(s) {
     });
     out += `</g>`;
   }
-  svg.innerHTML = out + tgt;
+  // Only the live layer is re-serialised. #lay-fx survives a redraw, which is
+  // what lets a hover ghost exist at all, and <defs> keeps stable ids.
+  document.getElementById('lay-live').innerHTML = out + tgt;
+  clearGhost();
 
   document.getElementById('era').textContent =
     `${s.era} · round ${s.round}/${s.rounds_this_era}`;
@@ -690,6 +709,22 @@ function btn(m, text, s) {
 }
 
 function pickCard(i) { card = (card === i ? null : i); kind = null; focus = null; draw(S); }
+
+// One delegated listener instead of an inline handler per target. event.target
+// is the inner shape, never the group, so closest() is what resolves it.
+(() => {
+  const svg = document.getElementById('svg');
+  const hit = e => e.target.closest && e.target.closest('[data-act]');
+  svg.addEventListener('click', e => {
+    const g = hit(e);
+    if (g) (g.dataset.act === 'town' ? pickTown : pickLine)(g.dataset.id);
+  });
+  svg.addEventListener('mouseover', e => {
+    const g = hit(e);
+    if (g) showGhost(g.dataset.act, g.dataset.id);
+  });
+  svg.addEventListener('mouseout', e => { if (hit(e)) clearGhost(); });
+})();
 // One option under the pointer plays immediately; several narrow the list and
 // wait, because picking the slot or the sale is still a real choice.
 function pickTown(t) {
@@ -705,6 +740,56 @@ function pickLine(id) {
   else { focus = id; draw(S); }
 }
 function pickMat(i) { matSeat = i; draw(S); }
+
+function clearGhost() {
+  const fx = document.getElementById('lay-fx');
+  if (fx) fx.innerHTML = '';
+  const pv = document.getElementById('preview');
+  if (pv) pv.className = '';
+}
+
+// Draw what would happen if you clicked here, at 40% opacity, with the exact
+// cost. This kills the "simulate it in my head, click, regret" loop, which is
+// most of what makes a 54-option turn hard to read.
+function showGhost(act, id) {
+  if (!S || card === null || kind === null) return;
+  const ms = (S.moves || []).filter(m => m.card === card && m.kind === kind
+      && (act === 'town'
+          ? (m.town === id || (m.sales || []).some(sa => sa.town === id))
+          : (m.lines || []).includes(id)));
+  if (!ms.length) return;
+  const C = S.coords, col = COL[S.seat];
+  let g = '';
+  if (act === 'town') {
+    const t = (S.towns || []).find(x => x.id === id);
+    if (t) {
+      const [x, y] = C[id], n = t.slots.length, w = 32, total = n * w;
+      for (const m of ms) {
+        if (m.slot === undefined || m.slot === null) continue;
+        const sx = x - total/2 + m.slot*w, bw = w - 4;
+        g += `<rect x="${sx}" y="${y-13}" width="${bw}" height="27" rx="5"
+               fill="${col}" fill-opacity="0.40" stroke="${col}" stroke-width="1.5"/>`;
+        if (m.industry)
+          g += icon(m.industry, sx + bw/2 - 8, y - 10, 17, '#12141a', 0.75);
+      }
+    }
+  } else {
+    const l = (S.all_links || []).find(x => x.id === id);
+    if (l) {
+      const cx = l.ends.reduce((a,e)=>a+C[e][0],0)/l.ends.length;
+      const cy = l.ends.reduce((a,e)=>a+C[e][1],0)/l.ends.length;
+      g += l.ends.map(e => `<line x1="${C[e][0]}" y1="${C[e][1]}"
+            x2="${cx}" y2="${cy}" stroke="${col}" stroke-opacity="0.55"
+            stroke-width="6" stroke-linecap="round"/>`).join('');
+    }
+  }
+  document.getElementById('lay-fx').innerHTML = g;
+  const m = ms[0], pv = document.getElementById('preview');
+  pv.innerHTML = `<b>${(m.pretty || m.text).replace(/ · card.*$/, '')}</b>`
+    + (ms.length > 1 ? ` <span class="meta">· ${ms.length} options here</span>` : '')
+    + (m.price !== undefined ? '<br>' + costLine(m, S) : '');
+  pv.className = 'on';
+}
 function undo() { card = null; kind = null; post('/api/undo', {}); }
 function doExport() {
   const note = document.getElementById('exported');
