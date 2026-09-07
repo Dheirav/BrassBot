@@ -159,6 +159,96 @@ transitions, restarts animations, and destroys focus. Splitting it into
 root, is the prerequisite for hover-ghost placement -- show the tile you would
 place at 40% opacity with its cost, before you commit.
 
+#### Closed: `pair_search` WIDTH buys nothing
+
+    24  baseline
+    48  +0.16 +- 0.69   0.2 sigma   blocks agree
+    72  -0.78 +- 0.68  -1.1 sigma   blocks agree
+
+Measured first: a 4p turn offers a **mean of 54.1 legal actions** (median 55,
+max 122) and the search expands 24, truncating on **95%** of turns (98.8% canal,
+91.7% rail). Widening it anyway changes nothing, so the evaluation's ordering
+already surfaces a near-best first action inside its top 24 and the other thirty
+branches are not where value hides.
+
+This closes the lead the Boomforge author's "same algo, different depths"
+suggested. Whatever their +16 VP between Standard and Hard buys, it is not raw
+branch count on our architecture.
+
+#### The bot cannot play a three-action line, and cotton is the proof
+
+Dheirav played a 4p game deliberately trying cotton (`logs/20260908-030331.log`)
+and won it: **cotton L3, L3 and L4**, reached by four Develop actions clearing
+seven tiles, funded by **five loans**, cashed in one three-tile Sell. Treat it
+as an existence proof of the line, not evidence cotton is strong -- n=1, chosen
+deliberately, against Boomforge's bots.
+
+What it exposed is about our bot, not about cotton. 60 games an arm:
+
+    shipped            cotton builds 0.20/game   develops 0.20   loans 4.35
+                       highest cotton level: mean 0.18  {0: 55 games, 2: 4, 3: 1}
+    commit=0 (cotton)  cotton builds 0.17/game   develops 0.28   loans 3.93
+                       highest cotton level: mean 0.18  {0: 54 games, 1: 2, 2: 3, 3: 1}
+
+**Declaring cotton the main industry changes nothing.** It places no cotton at
+all in 54 of 60 games and reached L3 once in each arm.
+
+**Which means the `commit=0` sweep recorded above as +0.63 +- 0.72 was NOT a
+test of the cotton strategy.** `commit` under `off_plan_bias=1` is a soft
+penalty on the OTHER sellables; it never makes the bot pursue anything. That
+arm measured "penalise manufacturer and pottery". It was reported here as
+answering the cotton question and it does not.
+
+The surviving explanation is depth: cotton L3 is **develop -> develop -> build**,
+three sequential actions, against a two-action `pair_search` window -- and width
+was just measured null at 48 and 72. It generalises past cotton: **any line
+needing three linked actions is invisible to this bot.** That is the real open
+question, and neither of the two search attempts on record (planner, MCTS)
+addressed it.
+
+#### The canal-bank correlation in the human logs is NOT significant
+
+Across all 13 logged games: **r = +0.368**, n=13. The "+17 VP for a canal bank
+above 27" split recorded earlier was small-n flattery and should not be quoted.
+The cotton game is the direct counterexample -- banked **9**, the lowest of any
+logged game, and won.
+
+The composition finding inside our own mirror games (surviving canal VP
+r=+0.677, dying VP -0.086) still stands; it is the HUMAN-log split that does
+not.
+
+#### The UI is now a board you play on, and an audit round found real bugs
+
+`tools/ui/index.html` + `tools/serve.py`. Card -> action -> click a highlighted
+town or link, with the tile you would place ghosted at 40% and its exact cost
+shown before you commit -- including provenance (`GBP5 + 1 iron (market GBP2)`,
+and the owning seat when a cube comes off someone's mine, since taking an
+opponent's cube flips their tile). Plus undo, restart and end-game, a log export
+in the exact pasted-log format so UI games pool with the Boomforge ones
+(`--name` sets your seat's name), merchant bonuses, market ladders, resource
+totals with map highlighting, per-seat mats, legend, deck counts, prose logs
+grouped by round, and full keyboard operation.
+
+Three agent audits found things worth recording as a warning about this kind of
+work:
+
+- **A move is sent as an INDEX into `legal_actions()`, which the server
+  regenerates per request.** Two tabs on one game, or a click racing an undo,
+  applied a still-in-range index to a different list and played an action nobody
+  chose, silently. Fixed with a version token; if you add another endpoint that
+  takes an index, it needs the same guard.
+- **"can build now" became dead code** when opponent mat tabs landed: the
+  renderer switched to `s.mats` and only `s.mat` carried the flags. It was
+  demonstrated working, then broken two commits later and screenshotted four
+  times without anyone noticing.
+- **`project_vp` double-counted after the final scoring** -- `finished` is set
+  without clearing the board, so it re-scored every flipped tile and the
+  headline number disagreed with the game-over panel beside it.
+
+Undo rewinds PAST the bots' replies, so taking a move back after seeing what
+they did leaks information a real game would not. Right for analysis, wrong for
+honest play; a property of the tool rather than a bug in it.
+
 ### 2026-09-07: what a Canal-Era VP is actually worth
 
 Prompted by three logged Boomforge wins by a strong human (181, 159, and one
@@ -561,7 +651,13 @@ measured seat-balanced.**
    heuristic it is compared against is far stronger now.
 3. More agent playtests. Highest measured yield for rules bugs, and a poll costs
    41% fewer tokens since the move list was collapsed.
-5. **The 9.52 turns a game the bot declines BOTH a build and a link.** Largest
+5. **Three-action lines are invisible.** The cotton evidence above is the
+   clearest case: the bot cannot reach a tile that needs develop -> develop ->
+   build, whatever its weights say, and `pair_search` width is now measured
+   null so there is no cheap fix. Any attempt here is a search-depth change,
+   which is the third such attempt after the planner and MCTS both failed --
+   scope it before building it.
+6. **The 9.52 turns a game the bot declines BOTH a build and a link.** Largest
    unexplained inefficiency we have, and it is not money: an agent's last action
    was a forced Pass with GBP 29 unspent because the coal market was full, no
    link was legal and there was no beer. Measure whether ours is card
