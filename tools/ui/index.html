@@ -167,7 +167,9 @@
   <h2>Players</h2><div id="seats"></div>
   <h2>Mat &mdash; next tile of each industry</h2>
   <div class="kinds" id="mattabs"></div><div class="mat" id="mat"></div>
-  <h2>Recent</h2><div id="log"></div>
+  <h2>Recent <button id="logmode" onclick="toggleLog()"
+      style="font-size:10px;padding:2px 6px">detail</button></h2>
+  <div id="log"></div>
 </aside>
 <script>
 const COL = ['var(--p0)','var(--p1)','var(--p2)','var(--p3)'];
@@ -215,6 +217,7 @@ function icon(ind, x, y, size, fill, opacity) {
            <path d="${ICON[ind]}"/></g>`;
 }
 let S = null, card = null, kind = null, matSeat = 0, focus = null;
+let logProse = false;
 const MATNAME = {coal_mine:'coal', iron_works:'iron', brewery:'brewery',
                  cotton_mill:'cotton', manufacturer:'manuf.', pottery:'pottery'};
 
@@ -337,8 +340,22 @@ function draw(s) {
   const at = {};
   s.tiles.forEach(t => at[t.town + ':' + t.slot] = t);
   const narrowing = Object.keys(tgtTown).length > 0;
+  // Merchant boxes are drawn at a fixed size around their coordinate; a town
+  // label sitting above its slots lands inside one at Stoke-on-Trent and at the
+  // southern farm brewery. Rather than bake offsets that rot when a coordinate
+  // moves, test it and drop the label below the slots when the space is taken.
+  const mrect = s.all_merchants.map(mo => {
+    const [mx, my] = C[mo.id || mo];
+    return [mx - 52, my - 22, mx + 52, my + 22];
+  });
+  const clashes = (cx, cy, txt) => {
+    const hw = txt.length * 2.3 + 2;
+    const r = [cx - hw, cy - 8, cx + hw, cy + 2];
+    return mrect.some(m => r[0] < m[2] && r[2] > m[0] && r[1] < m[3] && r[3] > m[1]);
+  };
   for (const t of s.towns) {
     const [x, y] = C[t.id], n = t.slots.length, w = 32, total = n * w;
+    const ly = clashes(x, y - 20, t.name) ? y + 26 : y - 20;
     // A town the chosen card cannot reach stays visible but recedes.
     out += `<g opacity="${narrowing && !tgtTown[t.id] ? 0.38 : 1}">`;
     if (tgtTown[t.id]) {
@@ -349,7 +366,7 @@ function draw(s) {
          stroke="var(--accent)" stroke-width="1.6"/>
         <title>${hits} option${hits === 1 ? '' : 's'} here</title></g>`;
     }
-    out += `<text x="${x}" y="${y-20}" text-anchor="middle" class="tname"
+    out += `<text x="${x}" y="${ly}" text-anchor="middle" class="tname"
              ${t.farm ? 'style="font-style:italic;opacity:.75"' : ''}
              >${t.name}</text>`;
     t.slots.forEach((slot, i) => {
@@ -595,10 +612,14 @@ function draw(s) {
       + renderKind(kind, opts, s);
   }
 
+  const lm = document.getElementById('logmode');
+  if (lm) lm.textContent = logProse ? 'prose' : 'detail';
   document.getElementById('log').innerHTML = s.log.slice().reverse().map(l =>
     `<div><span class="dot" style="background:${COL[l.seat]}"></span>
      <span style="color:${l.seat === s.seat ? 'var(--accent)' : 'var(--dim)'}">
-     ${l.seat === s.seat ? 'You' : 'Bot ' + l.seat}</span> ${l.text}</div>`).join('');
+     ${l.seat === s.seat ? 'You' : 'Bot ' + l.seat}</span> ${
+       logProse ? (l.pretty || l.text).replace(/^(You|Bot \d+) /, '') : l.text
+     }</div>`).join('');
 }
 
 // Hovering a move rings the town it happens at. Reading a move like
@@ -740,6 +761,9 @@ function pickLine(id) {
   else { focus = id; draw(S); }
 }
 function pickMat(i) { matSeat = i; draw(S); }
+// The log's debug form gives net cost and income spaces; the prose form is what
+// the exported file and the real Boomforge logs say. Both are useful, so both.
+function toggleLog() { logProse = !logProse; draw(S); }
 
 function clearGhost() {
   const fx = document.getElementById('lay-fx');

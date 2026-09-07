@@ -124,7 +124,8 @@ def record(action) -> None:
     """Log an action, then any era scoring it triggered."""
     state = GAME["state"]
     GAME["log"].append({"seat": state.current.idx,
-                        "text": describe(state, action)})
+                        "text": describe(state, action),
+                        "pretty": move_label(state, action)})
     GAME["lines"].append(log_line(state, action, who(state.current.idx)))
     before = len(state.era_scores)
     apply_action(state, action)

@@ -40,6 +40,15 @@ def patterns(players):
             for c in itertools.combinations(range(players), size)]
 
 
+def _win(deltas) -> float:
+    """Share of paired games the candidate seats came out ahead in. Ties are
+    halved -- a draw is not a win and calling it one flatters every arm."""
+    if not deltas:
+        return 0.0
+    return (sum(1 for x in deltas if x > 0)
+            + 0.5 * sum(1 for x in deltas if x == 0)) / len(deltas)
+
+
 def _one(arg):
     taken, seed, players, over = arg
     bots = [HeuristicBot(seed=seed * 1000 + s, **over) if s in taken
@@ -83,7 +92,7 @@ def main(argv=None):
     label = ", ".join(f"{k}={v:g}" for k, v in over.items())
     print(f"  {label}   at {args.players}p, {args.games} seat-balanced games a block")
     t0, done, total = time.time(), 0, args.games * len(starts)
-    results = []
+    results, every = [], []
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         for seed0 in starts:
             jobs = [(pats[g % len(pats)], seed0 + g, args.players, over)
@@ -97,8 +106,9 @@ def main(argv=None):
                           f"t={time.time() - t0:.1f}", flush=True)
             m, se = st.mean(d), st.stdev(d) / len(d) ** 0.5
             results.append((seed0, m, se))
-            print(f"RESULT seed {seed0}: {m:+.2f} +- {se:.2f}  ({m/se:.1f} sigma)",
-                  flush=True)
+            every.extend(d)
+            print(f"RESULT seed {seed0}: {m:+.2f} +- {se:.2f}  ({m/se:.1f} sigma)"
+                  f"  win {100 * _win(d):.0f}%", flush=True)
 
     w = [1 / se ** 2 for _, _, se in results]
     m = sum(wi * x for wi, (_, x, _) in zip(w, results)) / sum(w)
@@ -107,6 +117,18 @@ def main(argv=None):
     agree = "blocks agree" if chi2 < 5.99 else "BLOCKS DISAGREE (p<0.05)"
     print(f"\n  POOLED {label} at {args.players}p: {m:+.2f} +- {se:.2f}   "
           f"{m/se:.1f} sigma, chi2 {chi2:.2f}/{len(results)-1}  -- {agree}")
+
+    # The mean alone cannot tell a weight that lifts every game from one that
+    # wins big sometimes and loses badly the rest, and those are different
+    # things to ship. Win rate is how often the change is ahead at all; P10 is
+    # what it does to the bad games, which is what "plays consistently" means.
+    every.sort()
+    n = len(every)
+    p10 = every[max(0, int(0.10 * n) - 1)]
+    p90 = every[min(n - 1, int(0.90 * n))]
+    print(f"  spread: win {100 * _win(every):.0f}%  "
+          f"P10 {p10:+.1f}  median {st.median(every):+.1f}  P90 {p90:+.1f}  "
+          f"sd {st.stdev(every):.1f}  over {n} games")
     return 0
 
 
