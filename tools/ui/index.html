@@ -98,6 +98,10 @@
   .bar { height:6px; background:#2b303c; border-radius:3px; overflow:hidden;
          min-width:70px; flex:1 }
   .bar > i { display:block; height:100%; background:var(--accent) }
+  .ladder { display:flex; gap:2px; flex:1 }
+  .slot { flex:1; height:13px; border-radius:2px; border:1px solid #39404f }
+  .slot.full { background:var(--accent); border-color:var(--accent) }
+  .sprice { flex:1; font-size:8px; color:var(--dim); text-align:left }
   .mkt { display:flex; align-items:center; gap:8px; font-size:12px;
          margin-bottom:4px }
   .seat small { color:var(--dim) }
@@ -153,6 +157,7 @@
     <span class="chip" id="era"></span>
     <span class="chip" id="market"></span>
     <span class="chip" id="deck"></span>
+    <span class="chip" id="res"></span>
   </div>
   <div class="row" style="margin-bottom:8px">
     <span class="chip" id="turn"></span>
@@ -217,7 +222,7 @@ function icon(ind, x, y, size, fill, opacity) {
            <path d="${ICON[ind]}"/></g>`;
 }
 let S = null, card = null, kind = null, matSeat = 0, focus = null;
-let logProse = false;
+let logProse = false, resFilter = null;
 const MATNAME = {coal_mine:'coal', iron_works:'iron', brewery:'brewery',
                  cotton_mill:'cotton', manufacturer:'manuf.', pottery:'pottery'};
 
@@ -339,6 +344,21 @@ function draw(s) {
   // (a slot taking coal or iron rendered as "CI").
   const at = {};
   s.tiles.forEach(t => at[t.town + ':' + t.slot] = t);
+  // Where the resources physically are. "Is there connected coal left, or does
+  // this build hit the market?" is the question the board exists to answer.
+  const RES = {coal_mine:'coal', iron_works:'iron', brewery:'beer'};
+  const resTotal = {coal:0, iron:0, beer:0}, resTown = {coal:{}, iron:{}, beer:{}};
+  for (const t of (s.tiles || [])) {
+    const r = RES[t.industry];
+    if (!r || !t.resources) continue;
+    resTotal[r] += t.resources;
+    resTown[r][t.town] = (resTown[r][t.town] || 0) + t.resources;
+  }
+  for (const mid in (s.merchants || {}))
+    for (const sl of s.merchants[mid])
+      if (sl.beer) { resTotal.beer += sl.beer;
+                     resTown.beer[mid] = (resTown.beer[mid] || 0) + sl.beer; }
+
   const narrowing = Object.keys(tgtTown).length > 0;
   // Merchant boxes are drawn at a fixed size around their coordinate; a town
   // label sitting above its slots lands inside one at Stoke-on-Trent and at the
@@ -358,6 +378,12 @@ function draw(s) {
     const ly = clashes(x, y - 20, t.name) ? y + 26 : y - 20;
     // A town the chosen card cannot reach stays visible but recedes.
     out += `<g opacity="${narrowing && !tgtTown[t.id] ? 0.38 : 1}">`;
+    if (resFilter && resTown[resFilter][t.id]) {
+      tgt += `<circle cx="${x}" cy="${y}" r="${total/2 + 12}" fill="none"
+               stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="3 3"
+               opacity="0.85"><title>${resTown[resFilter][t.id]} ${resFilter}</title>
+              </circle>`;
+    }
     if (tgtTown[t.id]) {
       const hits = tgtTown[t.id].length;
       tgt += `<g class="tgt" data-act="town" data-id="${t.id}">
@@ -384,6 +410,11 @@ function draw(s) {
         out += `<text x="${sx+bw-4}" y="${y+12}" text-anchor="end"
                 style="font-size:9px;font-weight:700;fill:${flipped ? '#12141a' : c}"
                 >${tile.level}</text>`;
+        // Only a flipped tile is worth anything, so only a flipped one says so.
+        if (flipped && tile.vp)
+          out += `<text x="${sx+3}" y="${y+12}"
+                   style="font-size:8.5px;font-weight:700;fill:#12141a;opacity:.8"
+                   >${tile.vp}v</text>`;
         out += `<title>${NAME[tile.industry]} L${tile.level}, seat ${tile.owner}`
              + `${flipped ? ' — flipped' : ' — NOT flipped, scores nothing yet'}</title>`;
         if (tile.resources)
@@ -407,6 +438,15 @@ function draw(s) {
   }
   // Only the live layer is re-serialised. #lay-fx survives a redraw, which is
   // what lets a hover ghost exist at all, and <defs> keeps stable ids.
+  if (resFilter === 'beer')
+    for (const mo of s.all_merchants) {
+      const mid = mo.id || mo;
+      if (!resTown.beer[mid]) continue;
+      const [mx, my] = C[mid];
+      tgt += `<rect x="${mx-58}" y="${my-28}" width="116" height="56" rx="12"
+               fill="none" stroke="var(--accent)" stroke-width="1.4"
+               stroke-dasharray="3 3" opacity="0.85"/>`;
+    }
   document.getElementById('lay-live').innerHTML = out + tgt;
   clearGhost();
 
@@ -437,12 +477,22 @@ function draw(s) {
     const pct = Math.round(100 * held / cap);
     const note = held === 0 ? '<span class="gone">empty — builds sell out</span>'
                : held <= 3 ? '<span class="warn">short</span>' : '';
-    const ladder = (name === 'coal' ? s.coal_prices : s.iron_prices) || [];
+    // Cubes sit at the EXPENSIVE end and the empty spaces are a prefix at the
+    // cheap end, so the ladder read left to right is the order you will pay:
+    // the leftmost cube is the next one you buy.
+    const slots = (name === 'coal' ? s.coal_slots : s.iron_slots) || [];
+    const empty = (name === 'coal' ? s.coal_empty_price : s.iron_empty_price);
+    const cells = slots.map(sl =>
+      `<span class="slot ${sl.cube ? 'full' : ''}" title="£${sl.price}${
+        sl.cube ? '' : ' — empty'}"></span>`).join('');
+    const scale = slots.map((sl, i) =>
+      `<span class="sprice">${i % 2 ? '' : sl.price}</span>`).join('');
     return `<div class="mkt"><span style="width:34px">${name}</span>
-      <span class="bar"><i style="width:${pct}%"></i></span>
+      <span class="ladder">${cells}</span>
       <span>${held}/${cap} · £${price}</span> ${note}</div>
-      <div class="meta" style="margin:-2px 0 5px 40px">next ${
-        ladder.length ? ladder.map(v => '£' + v).join(' ') : '—'}</div>`;
+      <div class="mkt"><span style="width:34px"></span>
+        <span class="ladder">${scale}</span>
+        <span class="meta">empty £${empty}</span></div>`;
   };
   // Deck exhaustion is what ends each era, and the hand shrinks to one card
   // per remaining action once it runs dry -- invisible until it bites.
@@ -453,6 +503,12 @@ function draw(s) {
         : `Bot ${s.current} to move`;
   turnEl.style.color = (s.current === s.seat && !s.finished)
       ? 'var(--accent)' : 'var(--dim)';
+  const rchip = (k) => `<a href="#" onclick="pickRes('${k}');return false"
+      style="color:${resFilter === k ? 'var(--accent)' : 'inherit'};
+             text-decoration:none;font-weight:${resFilter === k ? 700 : 400}"
+      >${k} ${resTotal[k]}</a>`;
+  document.getElementById('res').innerHTML =
+    'on the board: ' + ['coal','iron','beer'].map(rchip).join(' · ');
   document.getElementById('deck').textContent =
     `deck ${s.deck} · discard ${s.discard} · wild ${s.wild_city}c/${s.wild_ind}i`;
   const lg = (svgBits, text) =>
@@ -761,6 +817,7 @@ function pickLine(id) {
   else { focus = id; draw(S); }
 }
 function pickMat(i) { matSeat = i; draw(S); }
+function pickRes(k) { resFilter = (resFilter === k ? null : k); draw(S); }
 // The log's debug form gives net cost and income spaces; the prose form is what
 // the exported file and the real Boomforge logs say. Both are useful, so both.
 function toggleLog() { logProse = !logProse; draw(S); }

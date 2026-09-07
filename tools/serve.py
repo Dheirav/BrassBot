@@ -243,6 +243,14 @@ def mat_ladder(state, seat):
     return out
 
 
+def _slots(market, held):
+    """The ladder as it physically sits: one entry per space, cheapest first,
+    saying what that space costs and whether a cube is in it."""
+    empty = market.capacity - held
+    return [{"price": pr, "cube": i >= empty}
+            for i, pr in enumerate(market.prices)]
+
+
 def _ladder(market, held, n: int = 6):
     """What the next `n` cubes cost, one at a time.
 
@@ -279,6 +287,7 @@ def snapshot() -> dict:
             "town": town, "slot": slot, "owner": tile.owner,
             "industry": tile.industry.value, "level": tile.level,
             "flipped": tile.flipped, "resources": tile.resources,
+            "vp": state.data.tile(tile.industry, tile.level).vp,
         })
     links = [{"id": lid, "owner": owner,
               "ends": list(state.data.link_by_id[lid].ends)}
@@ -397,6 +406,10 @@ def snapshot() -> dict:
         # and a mine built into a short market sells its cubes on placement.
         "coal_price": state.data.coal.price_to_buy_one(state.coal),
         "iron_price": state.data.iron.price_to_buy_one(state.iron),
+        "coal_slots": _slots(state.data.coal, state.coal),
+        "iron_slots": _slots(state.data.iron, state.iron),
+        "coal_empty_price": state.data.coal.empty_price,
+        "iron_empty_price": state.data.iron.empty_price,
         "coal_prices": _ladder(state.data.coal, state.coal),
         "iron_prices": _ladder(state.data.iron, state.iron),
         "coal_cap": state.data.coal.capacity,
