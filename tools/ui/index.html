@@ -199,6 +199,8 @@
       same format as the pasted Boomforge logs, so the analysis scripts can read it"
       >⭳ Export log</button>
     <span id="exported" class="meta"></span>
+    <button id="restartbtn" onclick="arm('restart')"></button>
+    <button id="endbtn" onclick="arm('end')"></button>
   </div>
   <details><summary class="legendsum">Legend</summary>
     <div id="legend" class="meta"></div></details>
@@ -595,8 +597,22 @@ function draw(s) {
   };
   // Deck exhaustion is what ends each era, and the hand shrinks to one card
   // per remaining action once it runs dry -- invisible until it bites.
+  const rb = document.getElementById('restartbtn');
+  if (rb) {
+    rb.textContent = armed === 'restart' ? 'click again to restart' : '↻ Restart';
+    rb.className = armed === 'restart' ? 'sel' : '';
+    rb.title = 'deal a fresh board with the same players and opponent';
+  }
+  const eb = document.getElementById('endbtn');
+  if (eb) {
+    eb.textContent = armed === 'end' ? 'click again to end' : '⏹ End game';
+    eb.className = armed === 'end' ? 'sel' : '';
+    eb.title = 'stop here and show the standings; this cannot be undone';
+    eb.disabled = !!(s.ended || s.finished);
+  }
   const turnEl = document.getElementById('turn');
-  turnEl.textContent = s.finished ? 'game over'
+  turnEl.textContent = s.ended ? 'ended early'
+      : s.finished ? 'game over'
       : s.current === s.seat
         ? `your turn · ${s.actions_left} action${s.actions_left === 1 ? '' : 's'} left`
         : `Bot ${s.current} to move`;
@@ -768,7 +784,17 @@ function draw(s) {
     title="take back your last action, and the bot replies to it"
     >↺ Undo</button>`;
 
-  if (s.finished) {
+  if (s.ended && !s.finished) {
+    abox.innerHTML = '';
+    const who = i => i === s.seat ? 'You' : 'Bot ' + i;
+    box.innerHTML = `<p><strong>Ended early.</strong> Projected standings —
+      the game did not reach its own scoring, so these include unflipped tiles
+      and links at their expected value.</p>`
+      + s.players.slice().sort((a, b) => b.projected - a.projected).map(p =>
+        `<div><span class="dot" style="background:${COL[p.idx]}"></span>
+         ${who(p.idx)} <strong>${p.projected}</strong>
+         <span class="meta">(${p.vp} banked)</span></div>`).join('');
+  } else if (s.finished) {
     const who = i => i === s.seat ? 'You' : 'Bot ' + i;
     box.innerHTML = `<p><strong>Game over.</strong> Winner: ${
       s.winners.map(who).join(', ')}</p>`
@@ -1056,6 +1082,23 @@ function showGhost(act, id) {
   pv.className = 'on';
 }
 function undo() { card = null; kind = null; post('/api/undo', {}); }
+// Restart and End cannot be undone and are not part of the game, so each
+// takes two clicks -- the button states what it will do rather than a dialog
+// interrupting the board. Arming clears after a few seconds.
+let armed = null, armTimer = null;
+function arm(what) {
+  if (armed === what) {
+    armed = null; clearTimeout(armTimer);
+    if (what === 'restart') post('/api/new', {});
+    else post('/api/end', {});
+    return;
+  }
+  armed = what;
+  clearTimeout(armTimer);
+  armTimer = setTimeout(() => { armed = null; draw(S); }, 4000);
+  draw(S);
+}
+
 function doExport() {
   const note = document.getElementById('exported');
   note.textContent = 'writing…';

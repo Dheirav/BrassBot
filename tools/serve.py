@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -164,6 +165,10 @@ def export_log() -> str:
 
 
 def start(seed: int, players: int, opponent: str) -> None:
+    # Remembered so Restart can deal a fresh board with the same setup rather
+    # than asking for it again.
+    GAME["players"], GAME["opponent"], GAME["seed"] = players, opponent, seed
+    GAME["ended"] = False
     GAME["state"] = new_game(players, seed=seed)
     GAME["bots"] = [make(opponent, seed=seed * 10 + i) for i in range(players)]
     GAME["seat"] = 0
@@ -493,6 +498,10 @@ def snapshot() -> dict:
         "wild_city": state.wild_location,
         "wild_ind": state.wild_industry,
         "can_undo": bool(GAME.get("undo")),
+        # Conceded rather than played out: the standings are real but the game
+        # did not reach its own ending, and the UI says so.
+        "ended": bool(GAME.get("ended")),
+        "seed": GAME.get("seed"),
         "version": GAME.get("version", 0),
         "exported": GAME.get("exported"),
         "moves": moves,
@@ -531,6 +540,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(json.dumps({**snapshot(), "stale": True}).encode(),
                            "application/json")
                 return
+            if GAME.get("ended"):
+                self._send(json.dumps(snapshot()).encode(), "application/json")
+                return
             if not state.finished and state.current.idx == GAME["seat"] \
                     and 0 <= i < len(actions):
                 GAME["undo"].append((state.clone(), len(GAME["log"]),
@@ -550,8 +562,14 @@ class Handler(BaseHTTPRequestHandler):
                 del GAME["lines"][nlines:]
                 bump()
         elif self.path.startswith("/api/new"):
-            start(int(body.get("seed", 1)), int(body.get("players", 4)),
-                  body.get("opponent", "heuristic"))
+            # Restart keeps the table it was set up with; only the deal changes.
+            seed = body.get("seed")
+            start(int(seed) if seed is not None else random.randrange(1, 10 ** 6),
+                  int(body.get("players", GAME.get("players", 4))),
+                  body.get("opponent", GAME.get("opponent", "heuristic")))
+        elif self.path.startswith("/api/end"):
+            GAME["ended"] = True
+            bump()
         self._send(json.dumps(snapshot()).encode(), "application/json")
 
 
