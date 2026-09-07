@@ -39,6 +39,8 @@
   .acts button:disabled { opacity:.3; cursor:not-allowed; border-color:var(--line) }
   .acts button.sel { background:var(--accent); color:#1a1d25 }
   .acts button small { color:inherit; opacity:.65; font-size:10px }
+  .acts button small.why { display:block; font-size:9px; opacity:.85;
+                           color:var(--dim); margin-top:1px }
   aside { grid-column:2; grid-row:1 / span 2;
           background:var(--panel); border-left:1px solid var(--line);
           overflow-y:auto; padding:14px }
@@ -48,7 +50,8 @@
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
   .chip { background:#232733; border:1px solid var(--line); border-radius:6px;
           padding:3px 8px; font-size:12px }
-  .seat { display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:6px 8px;
+  .seat { display:grid; grid-template-columns:1fr repeat(4, minmax(38px, auto));
+          gap:2px 7px; padding:6px 8px; align-items:baseline;
           border-radius:6px; border:1px solid var(--line); margin-bottom:5px }
   .seat.me { border-color:var(--accent) }
   .seat.turn { background:#232733 }
@@ -73,7 +76,6 @@
     *, *::before, *::after { transition-duration:.01ms !important;
                              animation-duration:.01ms !important } }
   .tgt { cursor:pointer }
-  .tgt:hover rect { fill-opacity:0.22 }
   /* An SVG group takes focus but paints no useful outline, so the ring goes on
      the shape itself. */
   .tgt:focus { outline:none }
@@ -200,7 +202,8 @@
   <details><summary class="legendsum">Legend</summary>
     <div id="legend" class="meta"></div></details>
   <h2>Markets</h2><div id="markets"></div>
-  <h2>Players</h2><div id="seats"></div>
+  <h2>Players <span class="meta" style="font-weight:400;font-size:10px">
+    vp · £ · inc · links/cards</span></h2><div id="seats"></div>
   <h2>Mat &mdash; next tile of each industry</h2>
   <div class="kinds" id="mattabs"></div><div class="mat" id="mat"></div>
   <h2>Recent <button id="logmode" onclick="toggleLog()"
@@ -324,16 +327,24 @@ function draw(s) {
     if (!l.vp) continue;
     const cx = l.ends.reduce((a,e)=>a+C[e][0],0)/l.ends.length;
     const cy = l.ends.reduce((a,e)=>a+C[e][1],0)/l.ends.length;
-    out += `<circle cx="${cx}" cy="${cy}" r="8.5" fill="#12141a"
-             stroke="${l.id in built ? COL[built[l.id]] : '#4a5364'}"
-             stroke-width="1"/>
-            <text x="${cx}" y="${cy+3.5}" text-anchor="middle"
-             style="font-size:9px;font-weight:700;fill:var(--accent)"
+    // These were the loudest marks on the board and the least urgent thing
+    // on it. Full strength only while a link is actually being chosen.
+    const loud = kind === 'Network';
+    out += `<circle cx="${cx}" cy="${cy}" r="${loud ? 8.5 : 6.5}"
+             fill="#12141a" fill-opacity="${loud ? 1 : 0.6}"
+             stroke="${l.id in built ? COL[built[l.id]] : '#39404f'}"
+             stroke-width="1" stroke-opacity="${loud ? 1 : 0.6}"/>
+            <text x="${cx}" y="${cy + (loud ? 3.5 : 2.8)}" text-anchor="middle"
+             style="font-size:${loud ? 9 : 7.5}px;font-weight:700;
+                    fill:var(--accent);opacity:${loud ? 1 : 0.55}"
              ><title>this link scores ${l.vp} VP if the era ended now</title
              >${l.vp}</text>`;
   }
 
   // merchants
+  // Known before the merchants draw, so they recede with everything else.
+  const narrowing = Object.keys(tgtTown).length > 0
+                 || Object.keys(tgtLine).length > 0;
   const BONUS = {vp:'VP', income:'INC', money:'£', develop:'DEVELOP'};
   for (const mo of s.all_merchants) {
     const m = mo.id || mo, [x, y] = C[m];
@@ -341,8 +352,9 @@ function draw(s) {
     const btxt = !mo.bonus ? '' : mo.bonus === 'develop' ? 'DEVELOP'
                : mo.bonus === 'money' ? `+£${mo.amount}`
                : `+${mo.amount} ${BONUS[mo.bonus]}`;
-    out += `<rect x="${x-52}" y="${y-22}" width="104" height="44" rx="9"
-            fill="#242938" stroke="${live ? 'var(--accent)' : '#333a4a'}"/>
+    out += `<g opacity="${narrowing && !tgtTown[m] ? 0.38 : 1}">
+            <rect x="${x-44}" y="${y-19}" width="88" height="38" rx="8"
+            fill="#242938" stroke="${live ? '#4a5364' : '#333a4a'}"/>
             <text x="${x}" y="${y-8}" text-anchor="middle">${m}</text>
             <text x="${x}" y="${y+32}" text-anchor="middle" class="tname"
              style="fill:var(--accent);font-weight:700">${btxt}</text>`;
@@ -369,6 +381,7 @@ function draw(s) {
     } else {
       out += `<text x="${x}" y="${y+10}" text-anchor="middle" class="tname">unused</text>`;
     }
+    out += `</g>`;
   }
 
   // Towns: one box per industry slot. A built tile shows its industry as an
@@ -392,7 +405,6 @@ function draw(s) {
       if (sl.beer) { resTotal.beer += sl.beer;
                      resTown.beer[mid] = (resTown.beer[mid] || 0) + sl.beer; }
 
-  const narrowing = Object.keys(tgtTown).length > 0;
   // Merchant boxes are drawn at a fixed size around their coordinate; a town
   // label sitting above its slots lands inside one at Stoke-on-Trent and at the
   // southern farm brewery. Rather than bake offsets that rot when a coordinate
@@ -459,7 +471,14 @@ function draw(s) {
                    style="font-size:8.5px;font-weight:700;fill:#12141a;opacity:.8"
                    >${tile.vp}v</text>`;
         out += `<title>${NAME[tile.industry]} L${tile.level}, seat ${tile.owner}`
-             + `${flipped ? ' — flipped' : ' — NOT flipped, scores nothing yet'}</title>`;
+             + `${flipped ? ' — flipped' : ' — NOT flipped, scores nothing yet'}`
+             + `${tile.level === 1 && s.era === 'canal'
+                  ? ' — level 1: removed at the era boundary' : ''}</title>`;
+        // Level 1 in the Canal Era is swept at the boundary whether it flipped
+        // or not. The mat warned about this and the board did not.
+        if (tile.level === 1 && s.era === 'canal')
+          out += `<path d="M${sx+bw-7} ${y-13} l7 7" stroke="#e05c5c"
+                   stroke-width="2" stroke-linecap="round" opacity="0.9"/>`;
         if (tile.resources)
           out += `<circle cx="${sx+bw-5}" cy="${y-10}" r="5.5" fill="#f0c674"
                    stroke="#12141a" stroke-width="0.8"/>
@@ -505,6 +524,10 @@ function draw(s) {
     if (again) again.focus();
   }
   clearGhost();
+  // play() removes the hovered button without firing mouseleave, so the ring
+  // hi() drew would otherwise outlive the thing that asked for it.
+  const stale = document.getElementById('hl');
+  if (stale) stale.remove();
 
   document.getElementById('era').textContent =
     `${s.era} · round ${s.round}/${s.rounds_this_era}`;
@@ -522,12 +545,14 @@ function draw(s) {
       ${p.idx === s.seat ? 'You' : 'Bot ' + p.idx}
       ${p.idx === s.current ? ' ←' : ''}
       <small>&nbsp;#${(p.order ?? 0) + 1} · spent £${p.spent}</small></span>
-      <span style="text-align:right"><strong>${p.projected}</strong>
-      <small>(${p.vp} banked)</small></span>
-      <span class="meta" style="grid-column:1/3; text-align:right">
-      £${p.money} · inc ${p.income}${
-        p.income_to_next ? `<span class="meta"> +${p.income_to_next}→${p.income + 1}</span>` : ''
-      } · ${p.links_left} links · ${p.hand} cards</span>
+      <span class="num" style="text-align:right"><strong>${p.projected}</strong></span>
+      <span class="num meta" style="text-align:right"
+        title="cash">£${p.money}</span>
+      <span class="num meta" style="text-align:right"
+        title="income level, and spaces to the next">${p.income}${
+          p.income_to_next ? `<sub>+${p.income_to_next}</sub>` : ''}</span>
+      <span class="num meta" style="text-align:right"
+        title="link tiles left / cards in hand">${p.links_left}/${p.hand}</span>
     </div>`).join('');
 
   // Markets: the PRICE is the number you reason with, not the cube count, and
@@ -545,7 +570,7 @@ function draw(s) {
       `<span class="slot ${sl.cube ? 'full' : ''}" title="£${sl.price}${
         sl.cube ? '' : ' — empty'}"></span>`).join('');
     const scale = slots.map((sl, i) =>
-      `<span class="sprice">${i % 2 ? '' : sl.price}</span>`).join('');
+      `<span class="sprice">${i % 2 ? '' : '£' + sl.price}</span>`).join('');
     return `<div class="mkt"><span style="width:34px">${name}</span>
       <span class="ladder">${cells}</span>
       <span>${held}/${cap} · £${price}</span> ${note}</div>
@@ -625,7 +650,8 @@ function draw(s) {
     return `<span class="ind">${MATNAME[ind]}</span>
       <span><span class="lv">L${m.next}</span> <span class="pips">${pips}</span>${flags}</span>
       <span class="meta">£${m.cost}${m.coal ? '+' + m.coal + 'c' : ''}${m.iron ? '+' + m.iron + 'i' : ''}
-        · ${m.vp}vp · +${m.income}inc${beer}
+        · ${m.vp}vp · +${m.income}inc${beer}${
+          m.produces ? ' · puts ' + m.produces : ''}
         ${m.link_vp ? ' · ' + m.link_vp + '⊷' : ''}<br>${afford}</span>`;
   }).join('');
 
@@ -646,6 +672,11 @@ function draw(s) {
   // A card face says what KIND of card it is, what it names, and how many
   // moves it actually unlocks -- so a dead card is visibly dead rather than
   // something you click and find empty.
+  // The move COUNT is a solver statistic -- it is dominated by discard
+  // variants, so it barely differs between cards while sitting on the most
+  // prominent line of each one. What the card can DO is the useful signal.
+  const VERB = {Build:'build', Network:'link', Sell:'sell', Develop:'develop',
+                Scout:'scout', Loan:'loan', Pass:'pass'};
   const CARDHUE = t => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) % 360;
                          return `hsl(${h} 42% 62%)`; };
   const cardTint = c => (c.industries && c.industries.length)
@@ -666,10 +697,12 @@ function draw(s) {
       ${n ? `onclick="pickCard(${i})"` : 'disabled'}>
       <span class="ck">${c.town ? 'City' : 'Industry'}</span>
       <b>${glyph}${cardLabel(c)}</b>
-      <span>${n ? n + ' move' + (n === 1 ? '' : 's') : 'no moves'}</span>
+      <span>${n ? [...new Set((byCard[i] || []).map(m => VERB[m.kind] || m.kind))]
+        .join(' · ') : 'no moves'}</span>
     </button>`;
   }).join('') || '<span class="empty">no cards</span>';
-  document.getElementById('movecount').textContent = s.moves.length + ' moves';
+  document.getElementById('movecount').textContent =
+    s.hand.length + ' cards';
   const meP = s.players[s.seat];
   document.getElementById('cash').textContent = meP ? '£' + meP.money : '';
 
@@ -685,13 +718,32 @@ function draw(s) {
   mine.forEach(m => avail[m.kind] = (avail[m.kind] || 0) + 1);
   if (kind !== null && !avail[kind]) kind = null;
 
+  // A greyed button that will not say WHY is worse than no button: "I am
+  // broke" and "nothing I can reach" are different answers and lead to
+  // different turns. The mat already distinguishes them; the reason just lived
+  // on the wrong panel.
+  const whyNot = (k) => {
+    if (card === null) return 'pick a card first';
+    if (s.moves.some(m => m.kind === k)) return 'another card can';
+    const mats = Object.values(s.mat).filter(m => m.next !== null);
+    if (k === 'Build') {
+      const shorts = mats.filter(m => m.short > 0).map(m => m.short);
+      if (shorts.length === mats.length && shorts.length)
+        return `short £${Math.min(...shorts)}`;
+      return 'no slot in reach';
+    }
+    if (k === 'Sell') return 'nothing sellable, or no beer';
+    if (k === 'Network') return 'no link in reach';
+    return 'not legal this turn';
+  };
   abox.innerHTML = ACTS.map(([k, g]) => {
     const n = avail[k] || 0;
+    const why = n ? '' : whyNot(k);
     return `<button class="${k === kind ? 'sel' : ''}" ${n ? '' : 'disabled'}
       ${n ? `onclick="pickKind('${k}')"` : ''}
-      title="${n ? n + ' option' + (n === 1 ? '' : 's') + ' with this card'
-                 : (card === null ? 'pick a card first' : 'not available with this card')}"
-      >${g} ${k}${n > 1 ? ` <small>${n}</small>` : ''}</button>`;
+      title="${n ? n + ' option' + (n === 1 ? '' : 's') + ' with this card' : why}"
+      >${g} ${k}${n > 1 ? ` <small>${n}</small>` : ''}${
+        n ? '' : `<small class="why">${why}</small>`}</button>`;
   }).join('') +
   // Undo rewinds past the bots' replies to the position you chose from, so it
   // is never greyed by which card is selected -- only by whether there is a
@@ -837,9 +889,11 @@ function costLine(m, s) {
              : d.kind === 'merchant_beer' ? `${TN[d.merchant] || d.merchant} merchant`
              : `${TN[d.town] || d.town}` + (d.owner === null || d.owner === undefined
                  ? '' : d.owner === s.seat ? ', yours' : `, Bot ${d.owner}`);
-  const bits = [`£${m.price}`]
+  const bits = (m.price ? [`£${m.price}`] : [])
     .concat((m.coal || []).map(d => `1 coal (${src(d)})`))
-    .concat((m.iron || []).map(d => `1 iron (${src(d)})`));
+    .concat((m.iron || []).map(d => `1 iron (${src(d)})`))
+    .concat((m.beer || []).map(d => `1 beer (${src(d)})`));
+  if (!bits.length) return '';
   const tail = m.revenue
     ? ` = £${m.outlay} − £${m.revenue} sold = <b>£${m.net}</b>`
     : (bits.length > 1 ? ` = <b>£${m.outlay}</b>` : '');

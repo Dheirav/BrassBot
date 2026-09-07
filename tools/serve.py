@@ -33,7 +33,8 @@ from brassbot.actions import (Build, Develop, Loan, Network,  # noqa: E402
 from brassbot.bots import make  # noqa: E402
 from brassbot.engine import (apply_action, legal_actions, link_icons_at,  # noqa: E402
                               score_era, winners)
-from brassbot.gamedata import (Industry, highest_space_of_level)  # noqa: E402
+from brassbot.gamedata import (Era, Industry,  # noqa: E402
+                                highest_space_of_level)
 from brassbot.network import is_connected_to_merchant  # noqa: E402
 from brassbot.resources import plan_cost  # noqa: E402
 from brassbot.state import new_game  # noqa: E402
@@ -228,6 +229,9 @@ def mat_ladder(state, seat):
             "beer": spec.beer_to_sell if spec else None,
             "income": spec.income if spec else None,
             "link_vp": spec.link_vp if spec else None,
+            # Cubes the tile places when built. A coal mine that puts 2 on the
+            # board into a short market sells them on placement and pays you.
+            "produces": spec.resource_produced if spec else 0,
             # A canal-only tile is swept at the boundary whether it flipped or
             # not; the UI marks those so a player is not surprised by it.
             "canal_only": (spec is not None and spec.canal_era
@@ -250,6 +254,24 @@ def _slots(market, held):
     empty = market.capacity - held
     return [{"price": pr, "cube": i >= empty}
             for i, pr in enumerate(market.prices)]
+
+
+def _draws(state, plan):
+    """Serialise a resource plan with its provenance.
+
+    Connected coal is drawn from ANY player's mine, so naming the owner
+    matters -- taking an opponent's cube flips their tile for them.
+    """
+    out = []
+    for d in plan:
+        owner = None
+        if d.kind == "tile" and d.town is not None:
+            t = state.tiles[d.town][d.slot]
+            owner = t.owner if t else None
+        out.append({"kind": d.kind, "town": d.town, "owner": owner,
+                    "resource": d.resource, "merchant": d.merchant,
+                    "cost": d.cost})
+    return out
 
 
 def _ladder(market, held, n: int = 6):
@@ -322,19 +344,6 @@ def snapshot() -> dict:
                 # carries kind/town/cost -- so provenance is a serialisation
                 # job, not a calculation. "1 iron (market GBP5)" is a different
                 # decision from "1 iron (Coalbrookdale, yours)".
-                def draws(plan):
-                    out = []
-                    for d in plan:
-                        # Connected coal is drawn from ANY player's mine, so
-                        # naming the owner matters -- taking an opponent's cube
-                        # flips their tile for them.
-                        owner = None
-                        if d.kind == "tile" and d.town is not None:
-                            t = state.tiles[d.town][d.slot]
-                            owner = t.owner if t else None
-                        out.append({"kind": d.kind, "town": d.town, "owner": owner,
-                                    "merchant": d.merchant, "cost": d.cost})
-                    return out
                 # A mine or works dumps its cubes into the market on the build
                 # and is PAID for them, so the printed cost overstates what a
                 # build takes out of your pocket -- sometimes by all of it.
@@ -349,13 +358,31 @@ def snapshot() -> dict:
                 outlay = spec.cost + plan_cost(action.coal) + plan_cost(action.iron)
                 m.update(town=action.town, slot=action.slot,
                          industry=action.industry.value, level=lvl,
-                         price=spec.cost, coal=draws(action.coal),
-                         iron=draws(action.iron), outlay=outlay,
+                         price=spec.cost, coal=_draws(state, action.coal),
+                         iron=_draws(state, action.iron), outlay=outlay,
                          revenue=revenue, net=outlay - revenue,
                          overbuild=state.tiles[action.town][action.slot] is not None)
             elif isinstance(action, Network):
-                m.update(lines=list(action.lines), double=len(action.lines) == 2)
+                n = len(action.lines)
+                # A double rail is GBP15 + coal each + a beer that must come
+                # from a BREWERY. Picking it blind and reading the cost in the
+                # log afterwards is the wrong order.
+                price = state.data.constants[
+                    "rail_double_link_cost" if n == 2 else
+                    ("canal_link_cost" if state.era is Era.CANAL
+                     else "rail_link_cost")]
+                m.update(lines=list(action.lines), double=n == 2,
+                         price=price,
+                         coal=_draws(state, action.coal),
+                         beer=_draws(state, action.beer),
+                         outlay=price + plan_cost(action.coal)
+                                + plan_cost(action.beer),
+                         net=price + plan_cost(action.coal)
+                             + plan_cost(action.beer), revenue=0)
             elif isinstance(action, Develop):
+                m.update(price=0, iron=_draws(state, action.iron),
+                         outlay=plan_cost(action.iron),
+                         net=plan_cost(action.iron), revenue=0)
                 # The levels these would REMOVE, so a player can see what a
                 # develop actually costs them rather than only its name.
                 seen, levels = {}, []
