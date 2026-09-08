@@ -22,6 +22,10 @@
              background:rgba(18,20,26,.94); border:1px solid var(--line);
              border-radius:8px; font-size:12px; pointer-events:none; display:none }
   #preview.on { display:block }
+  #zoom { position:absolute; left:14px; top:14px; display:flex; flex-direction:column;
+          gap:4px }
+  #zoom button { width:28px; height:26px; padding:0; font-size:13px; line-height:1;
+                 background:rgba(24,27,35,.92) }
   #preview b { color:var(--accent) }
   #svg { width:100%; height:100%; display:block }
   /* The tray is the whole decision: your cards, what each one lets you do, and
@@ -183,6 +187,11 @@
     <g id="lay-fx"></g>
   </svg>
   <div id="preview"></div>
+  <div id="zoom">
+    <button onclick="zoomBy(0.8)" title="zoom in">+</button>
+    <button onclick="zoomBy(1.25)" title="zoom out">&minus;</button>
+    <button onclick="zoomFit()" title="fit the whole board">⤢</button>
+  </div>
 </div>
 <div id="tray">
   <section><h3>Your hand <span id="movecount"></span></h3>
@@ -266,6 +275,9 @@ function icon(ind, x, y, size, fill, opacity) {
 }
 let S = null, card = null, kind = null, matSeat = 0, focus = null;
 let logProse = false, resFilter = null;
+// Shared by draw() and renderKind(), which are separate top-level functions --
+// as a const inside draw() it was invisible to the Sell renderer.
+let TOWNNAME = {};
 const MATNAME = {coal_mine:'coal', iron_works:'iron', brewery:'brewery',
                  cotton_mill:'cotton', manufacturer:'manuf.', pottery:'pottery'};
 
@@ -701,7 +713,7 @@ function draw(s) {
   s.moves.forEach(m => (byCard[m.card] = byCard[m.card] || []).push(m));
   if (card !== null && !byCard[card]) card = null;
 
-  const TOWNNAME = {};
+  TOWNNAME = {};
   (s.towns || []).forEach(t => TOWNNAME[t.id] = t.name);
   const cardLabel = c => c.town ? (TOWNNAME[c.town] || c.town.replace(/_/g, ' '))
       : (c.industries && c.industries.length
@@ -873,6 +885,17 @@ function hi(town) {
 // choice would remove -- the number that actually matters, since developing
 // clears the lowest tile you hold.
 function renderKind(kind, opts, s) {
+  // What each merchant pays for a sale. Which merchant to sell into is one of
+  // the few free choices in a Sell and the bonus is the entire basis for it,
+  // so it belongs on the option rather than only on the board.
+  const PERK = {};
+  const BN = {vp:'VP', income:'INC', money:'£', develop:'DEVELOP'};
+  for (const mo of (s.all_merchants || [])) {
+    if (!mo.bonus) continue;
+    PERK[mo.id] = mo.bonus === 'develop' ? 'free develop'
+                : mo.bonus === 'money' ? `+£${mo.amount}`
+                : `+${mo.amount} ${BN[mo.bonus]}`;
+  }
   if (kind === 'Develop') {
     const one = opts.filter(m => m.industries.length === 1);
     const two = opts.filter(m => m.industries.length === 2);
@@ -923,7 +946,8 @@ function renderKind(kind, opts, s) {
     const part = (list, note) => list.length
       ? `<p class="hint" style="margin-top:8px">${note}</p>`
         + list.map(m => btn(m, `${m.tiles} tile${m.tiles === 1 ? '' : 's'} — `
-            + m.sales.map(x => (TOWNNAME[x.town] || x.town) + ' → ' + x.merchant)
+            + m.sales.map(x => (TOWNNAME[x.town] || x.town) + ' → ' + x.merchant
+                + (PERK[x.merchant] ? ` <b>${PERK[x.merchant]}</b>` : ''))
                      .join(', '), s)).join('')
       : '';
     // Spending your own barrels flips your own breweries, which is 5-10 VP
@@ -982,6 +1006,45 @@ function pickCard(i) { card = (card === i ? null : i); kind = null; focus = null
     if (g) showGhost(g.dataset.act, g.dataset.id);
   });
   svg.addEventListener('mouseout', e => { if (hit(e)) clearGhost(); });
+
+  // Wheel zooms about the pointer. passive:false because the page must not
+  // scroll underneath the board.
+  const toBoard = e => {
+    const r = svg.getBoundingClientRect();
+    const scale = Math.max(view.w / r.width, view.h / r.height);
+    return [view.x + (e.clientX - r.left - (r.width - view.w / scale) / 2) * scale,
+            view.y + (e.clientY - r.top - (r.height - view.h / scale) / 2) * scale];
+  };
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const [bx, by] = toBoard(e);
+    zoomAt(e.deltaY > 0 ? 1.12 : 0.89, bx, by);
+  }, {passive: false});
+
+  // Drag pans. A click only counts as a click if the pointer barely moved, so
+  // dragging across a target does not also play it.
+  let drag = null;
+  svg.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    drag = {x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: 0};
+  });
+  svg.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const r = svg.getBoundingClientRect();
+    const scale = Math.max(view.w / r.width, view.h / r.height);
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.moved = Math.max(drag.moved, Math.abs(dx) + Math.abs(dy));
+    if (drag.moved < 4) return;
+    view.x = drag.vx - dx * scale;
+    view.y = drag.vy - dy * scale;
+    applyView();
+  });
+  const endDrag = () => { setTimeout(() => { drag = null; }, 0); };
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointerleave', endDrag);
+  svg.addEventListener('click', e => {
+    if (drag && drag.moved >= 4) { e.stopPropagation(); }
+  }, true);
   // Enter and Space must be wired by hand: role="button" describes an SVG
   // group, it does not make it behave like one.
   svg.addEventListener('keydown', e => {
@@ -1043,6 +1106,27 @@ function hiSeat(seat) {
 // The log's debug form gives net cost and income spaces; the prose form is what
 // the exported file and the real Boomforge logs say. Both are useful, so both.
 function toggleLog() { logProse = !logProse; draw(S); }
+
+// The viewBox lives on the <svg> itself, which draw() never rewrites -- only
+// the layers inside it -- so zoom and pan survive every redraw for free.
+const BASE_VIEW = {x: 28, y: 6, w: 754, h: 822};
+let view = {...BASE_VIEW};
+function applyView() {
+  const el = document.getElementById('svg');
+  if (el) el.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+}
+function zoomAt(factor, fx, fy) {
+  // Keep the point under the cursor fixed, which is what makes wheel zoom feel
+  // like moving the paper rather than moving the camera.
+  const w = Math.min(BASE_VIEW.w * 1.6, Math.max(BASE_VIEW.w * 0.25, view.w * factor));
+  const k = w / view.w;
+  view = {w, h: view.h * k,
+          x: fx - (fx - view.x) * k,
+          y: fy - (fy - view.y) * k};
+  applyView();
+}
+function zoomBy(f) { zoomAt(f, view.x + view.w / 2, view.y + view.h / 2); }
+function zoomFit() { view = {...BASE_VIEW}; applyView(); }
 
 function clearGhost() {
   const fx = document.getElementById('lay-fx');
