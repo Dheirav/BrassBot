@@ -292,7 +292,7 @@ function icon(ind, x, y, size, fill, opacity) {
            <path d="${ICON[ind]}"/></g>`;
 }
 let S = null, card = null, kind = null, matSeat = 0, focus = null;
-let logProse = false, resFilter = null;
+let logProse = false, resFilter = null, dev1 = null, dev2 = null;
 // Shared by draw() and renderKind(), which are separate top-level functions --
 // as a const inside draw() it was invisible to the Sell renderer.
 let TOWNNAME = {};
@@ -953,19 +953,50 @@ function renderKind(kind, opts, s) {
                 : `+${mo.amount} ${BN[mo.bonus]}`;
   }
   if (kind === 'Develop') {
-    const one = opts.filter(m => m.industries.length === 1);
-    const two = opts.filter(m => m.industries.length === 2);
-    const label = m => m.industries.map((ind, j) =>
-      `${MATNAME[ind] || ind} L${m.levels[j]}`).join('  +  ');
-    const sel = (list, id, note) => list.length ? `
-      <p class="hint">${note}</p>
-      <div class="row" style="margin-bottom:10px">
-        <select id="${id}">${list.map(m =>
-          `<option value="${m.index}">${label(m)}</option>`).join('')}</select>
-        <button onclick="play(+document.getElementById('${id}').value)">Develop</button>
-      </div>` : '';
-    return sel(one, 'dev1', 'Remove one tile (1 iron):')
-         + sel(two, 'dev2', 'Remove two tiles in one action (1 iron each):');
+    // Two slots, each a choice of industry. Fill one and you develop one tile;
+    // fill both and you develop two. The old version asked you to find your
+    // combination inside one of two separate dropdowns, each with its own
+    // button -- which is the same decision presented as two.
+    const key = a => a.slice().sort().join('|');
+    const byKey = {};
+    opts.forEach(m => byKey[key(m.industries)] = m);
+    const all = [...new Set(opts.flatMap(m => m.industries))].sort();
+    if (dev1 && !all.includes(dev1)) { dev1 = null; dev2 = null; }
+
+    // What can share the action with whatever is in the first slot.
+    const partners = !dev1 ? [] : [...new Set(opts
+      .filter(m => m.industries.length === 2 && m.industries.includes(dev1))
+      .map(m => { const c = m.industries.slice(); c.splice(c.indexOf(dev1), 1);
+                  return c[0]; }))].sort();
+    if (dev2 && !partners.includes(dev2)) dev2 = null;
+
+    const chosen = byKey[key([dev1, dev2].filter(Boolean))];
+    const opt = (v, cur, txt) =>
+      `<option value="${v}" ${v === cur ? 'selected' : ''}>${txt}</option>`;
+    const lvl = i => chosen && chosen.levels[i] != null ? ` L${chosen.levels[i]}` : '';
+    const order = chosen ? chosen.industries : [];
+    const lvlOf = ind => {
+      const i = order.indexOf(ind);
+      return i < 0 ? '' : lvl(i);
+    };
+
+    return `<p class="hint">Pick what to remove. One slot develops one tile,
+      both develop two — 1 iron each.</p>
+      <div class="row" style="gap:6px;margin-bottom:9px">
+        <select onchange="setDev(1, this.value)">
+          ${opt('', dev1 || '', '— first —')}
+          ${all.map(i => opt(i, dev1 || '', (MATNAME[i] || i))).join('')}
+        </select>
+        <span class="meta">${dev1 ? (MATNAME[dev1] || dev1) + lvlOf(dev1) : ''}</span>
+        <select onchange="setDev(2, this.value)" ${dev1 ? '' : 'disabled'}>
+          ${opt('', dev2 || '', partners.length ? '— none —' : '— none available —')}
+          ${partners.map(i => opt(i, dev2 || '', (MATNAME[i] || i))).join('')}
+        </select>
+        <span class="meta">${dev2 ? (MATNAME[dev2] || dev2) + lvlOf(dev2) : ''}</span>
+      </div>
+      ${chosen
+        ? btn(chosen, `Develop ${chosen.industries.length === 2 ? '2 tiles' : '1 tile'}`, s)
+        : '<p class="hint">Choose an industry for the first slot.</p>'}`;
   }
 
   if (kind === 'Build') {
@@ -1046,7 +1077,10 @@ function btn(m, text, s) {
     >${text}${s ? costLine(m, s) : ''}</button>`;
 }
 
-function pickCard(i) { card = (card === i ? null : i); kind = null; focus = null; draw(S); }
+function pickCard(i) {
+  card = (card === i ? null : i); kind = null; focus = null; dev1 = dev2 = null;
+  draw(S);
+}
 
 // One delegated listener instead of an inline handler per target. event.target
 // is the inner shape, never the group, so closest() is what resolves it.
@@ -1133,6 +1167,10 @@ function pickLine(id) {
   else { focus = id; draw(S); }
 }
 function pickMat(i) { matSeat = i; draw(S); }
+function setDev(slot, v) {
+  if (slot === 1) { dev1 = v || null; dev2 = null; } else { dev2 = v || null; }
+  draw(S);
+}
 function pickRes(k) { resFilter = (resFilter === k ? null : k); draw(S); }
 
 // Ring one seat's tiles. This writes the fx layer directly rather than calling
@@ -1260,7 +1298,9 @@ function doExport() {
     .then(s => { draw(s);
       note.textContent = s.exported ? '→ ' + s.exported.split('/').pop() : 'failed'; });
 }
-function pickKind(k) { kind = (kind === k ? null : k); focus = null; draw(S); }
+function pickKind(k) {
+  kind = (kind === k ? null : k); focus = null; dev1 = dev2 = null; draw(S);
+}
 function play(i) {
   document.getElementById('details').innerHTML = '<p class="empty">Playing…</p>';
   card = null; kind = null; focus = null;

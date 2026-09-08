@@ -408,11 +408,23 @@ def snapshot() -> dict:
                          net=plan_cost(action.iron), revenue=0)
                 # The levels these would REMOVE, so a player can see what a
                 # develop actually costs them rather than only its name.
+                # Removing two of one industry does NOT step up a level each
+                # time: brewery holds TWO level-1 tiles, so developing both
+                # removes L1 and L1. Incrementing the level per removal printed
+                # "brewery L1 + brewery L2" for a pair that is really L1 + L1,
+                # and a player looking for L1+L1 concluded it was not offered.
                 seen, levels = {}, []
                 for ind in action.industries:
                     n = seen.get(ind, 0)
-                    base = state.players[seat].lowest_level(ind)
-                    levels.append((base + n) if base else None)
+                    counts, lvl, skip = state.players[seat].mat[ind], None, n
+                    for i, c in enumerate(counts):
+                        if not c:
+                            continue
+                        if skip < c:
+                            lvl = i + 1
+                            break
+                        skip -= c
+                    levels.append(lvl)
                     seen[ind] = n + 1
                 m.update(industries=[i2.value for i2 in action.industries],
                          levels=levels)
