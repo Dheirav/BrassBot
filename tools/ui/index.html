@@ -144,7 +144,7 @@
      with a tinted oval behind it, the name on a band at the foot. The face is
      light because a card is a physical object, and it sits on the dark tray the
      way a card sits on a table. */
-  .card { width:96px; padding:0; overflow:hidden; cursor:pointer;
+  .card { width:74px; padding:0; overflow:hidden; cursor:grab;
           border-radius:9px; border:2px solid var(--ct, #8b93a7);
           background:#f4f0e6; color:#2a2620; text-align:center;
           display:flex; flex-direction:column }
@@ -152,14 +152,16 @@
   .card.sel { box-shadow:0 0 0 3px var(--accent), 0 4px 10px rgba(0,0,0,.45);
               transform:translateY(-3px) }
   .card.dead { filter:grayscale(1); opacity:.55; cursor:not-allowed }
-  .card .ck { display:block; font-size:8.5px; letter-spacing:1.1px; padding:4px 0 2px;
+  .card.drag { opacity:.35 }
+  .card.over { box-shadow:-3px 0 0 var(--accent) }
+  .card .ck { display:block; font-size:7.5px; letter-spacing:.9px; padding:3px 0 1px;
               text-transform:uppercase; color:#6f675c; font-weight:600 }
-  .card .art { position:relative; height:40px; display:flex; align-items:center;
+  .card .art { position:relative; height:34px; display:flex; align-items:center;
                justify-content:center; background:var(--cbg, #eae4d6) }
-  .card .art::before { content:''; position:absolute; width:56px; height:30px;
+  .card .art::before { content:''; position:absolute; width:44px; height:26px;
                        border-radius:50%; background:rgba(255,255,255,.55) }
   .card .art svg { position:relative }
-  .card b { display:block; font-size:12.5px; font-weight:700; padding:5px 2px 6px;
+  .card b { display:block; font-size:11.5px; font-weight:700; padding:4px 2px 5px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
             background:var(--cband, #e3dccb); border-top:1px solid rgba(0,0,0,.10);
             line-height:1.15; letter-spacing:.1px }
@@ -774,7 +776,13 @@ function draw(s) {
     return h;
   };
 
-  document.getElementById('hand').innerHTML = s.hand.map((c, i) => {
+  // The hand is drawn in the order YOU arranged it, not the order the server
+  // happens to hold it in. Reconciled by card identity so an arrangement
+  // survives playing a card and drawing a new one -- cards that are still
+  // there keep their place, and anything new joins the end.
+  reconcileHand(s.hand);
+  document.getElementById('hand').innerHTML = handOrder.map((i, pos) => {
+    const c = s.hand[i];
     const n = (byCard[i] || []).length;
     // Every card gets a mark: its industry when it names one, a townhouse for
     // a location, crossed arrows for a wild.
@@ -795,7 +803,13 @@ function draw(s) {
     return `<button class="card ${i === card ? 'sel' : ''} ${n ? '' : 'dead'}"
       style="--ct:hsl(${hue} 45% 46%); --cbg:hsl(${hue} 38% 91%);
              --cband:hsl(${hue} 34% 85%)"
-      title="${verbs}"
+      title="${verbs} — drag to reorder"
+      draggable="true"
+      ondragstart="dragCard(event, ${pos})"
+      ondragover="overCard(event, ${pos})"
+      ondragleave="this.classList.remove('over')"
+      ondragend="endCard(event)"
+      ondrop="dropCard(event, ${pos})"
       ${n ? `onclick="pickCard(${i})"` : 'disabled'}>
       <span class="ck">${c.town ? 'City' : 'Industry'}</span>
       <span class="art">${glyph}</span>
@@ -1167,6 +1181,51 @@ function pickLine(id) {
   else { focus = id; draw(S); }
 }
 function pickMat(i) { matSeat = i; draw(S); }
+// --- hand arrangement ----------------------------------------------------
+// Kept as display positions into the server's hand, reconciled each draw by
+// card identity rather than index, because playing a card renumbers everything
+// after it.
+let handOrder = [], handSig = [], dragFrom = null;
+const cardSig = c =>
+  `${c.kind}|${c.town || ''}|${(c.industries || []).join(',')}`;
+
+function reconcileHand(hand) {
+  const sigs = hand.map(cardSig), used = hand.map(() => false), next = [];
+  for (const sig of handSig) {
+    const i = sigs.findIndex((x, j) => !used[j] && x === sig);
+    if (i >= 0) { used[i] = true; next.push(i); }
+  }
+  hand.forEach((_, i) => { if (!used[i]) next.push(i); });
+  handOrder = next;
+  handSig = next.map(i => sigs[i]);
+}
+
+function dragCard(e, pos) {
+  dragFrom = pos;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(pos));
+  e.currentTarget.classList.add('drag');
+}
+function overCard(e, pos) {
+  if (dragFrom === null || dragFrom === pos) return;
+  e.preventDefault();
+  e.currentTarget.classList.add('over');
+}
+function endCard(e) {
+  dragFrom = null;
+  document.querySelectorAll('.card.drag, .card.over')
+    .forEach(el => el.classList.remove('drag', 'over'));
+}
+function dropCard(e, pos) {
+  e.preventDefault();
+  if (dragFrom === null || dragFrom === pos) return endCard(e);
+  const moved = handOrder.splice(dragFrom, 1)[0];
+  handOrder.splice(pos, 0, moved);
+  handSig = handOrder.map(i => cardSig(S.hand[i]));
+  endCard(e);
+  draw(S);
+}
+
 function setDev(slot, v) {
   if (slot === 1) { dev1 = v || null; dev2 = null; } else { dev2 = v || null; }
   draw(S);
