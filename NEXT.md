@@ -199,12 +199,32 @@ penalty on the OTHER sellables; it never makes the bot pursue anything. That
 arm measured "penalise manufacturer and pottery". It was reported here as
 answering the cotton question and it does not.
 
-The surviving explanation is depth: cotton L3 is **develop -> develop -> build**,
-three sequential actions, against a two-action `pair_search` window -- and width
-was just measured null at 48 and 72. It generalises past cotton: **any line
-needing three linked actions is invisible to this bot.** That is the real open
-question, and neither of the two search attempts on record (planner, MCTS)
-addressed it.
+**CORRECTED.** This section first said cotton L3 was "three sequential actions
+against a two-action window". Both halves were wrong, and the correction matters
+because it points somewhere else entirely.
+
+Cotton carries L1x3 and L2x2, so **five** tiles sit below L3 and a Develop clears
+two: three develops plus the build is **four** actions. And they are not
+sequential -- in the human game the cotton actions fall at log positions 3, 40,
+80 and 83, spread across the whole Canal Era with dozens of actions in between.
+**Widening or deepening the turn window would not reach this**, because the
+actions are not consecutive.
+
+Three things that are easy to confuse, and are all now closed:
+
+| | what it is | status |
+| --- | --- | --- |
+| `pair_search=2` | the two actions of ONE turn -- no opponent move and no card draw between them, which is what makes it exact and cheap | shipped, worth +7.6 |
+| four consecutive actions | the DOUBLE TURN: last in round N, first in round N+1 | closed, upper bound +4.81; a turn-ORDER question, not a depth one |
+| width 48 / 72 | more branches at the same depth | closed, null |
+
+So the real problem is **credit assignment, not window size**: the bot will not
+pay for a Develop whose return arrives several turns later. That is worse news
+than a search limit, because the obvious fix is already measured -- within
+(industry, era, round), the correlation between `mat_potential`'s estimate and
+the VP that industry goes on to bank is **+0.014**, and best-of-next-2,
+best-of-next-3 and sum-remaining are all under 0.05. There is no signal in the
+shape to exploit, so a deeper search is not obviously the answer either.
 
 #### The canal-bank correlation in the human logs is NOT significant
 
@@ -651,12 +671,15 @@ measured seat-balanced.**
    heuristic it is compared against is far stronger now.
 3. More agent playtests. Highest measured yield for rules bugs, and a poll costs
    41% fewer tokens since the move list was collapsed.
-5. **Three-action lines are invisible.** The cotton evidence above is the
-   clearest case: the bot cannot reach a tile that needs develop -> develop ->
-   build, whatever its weights say, and `pair_search` width is now measured
-   null so there is no cheap fix. Any attempt here is a search-depth change,
-   which is the third such attempt after the planner and MCTS both failed --
-   scope it before building it.
+5. **Long-payoff Develops are invisible.** The bot will not pay for a Develop
+   whose return arrives several turns later -- cotton L3 costs three develops
+   and a build, scattered across an era, and it reaches L3 in 1 game in 60 even
+   when told cotton is its main industry. This is NOT a search-window problem
+   (the actions are not consecutive) and not a width problem (48 and 72 both
+   null). `mat_potential` already credits develops and its shape carries no
+   signal: r=+0.014 against what the industry goes on to bank. Anyone picking
+   this up should start by finding a SHAPE that predicts, not by deepening a
+   search -- the planner and MCTS both already failed on this project.
 6. **The 9.52 turns a game the bot declines BOTH a build and a link.** Largest
    unexplained inefficiency we have, and it is not money: an agent's last action
    was a forced Pass with GBP 29 unspent because the coal market was full, no
