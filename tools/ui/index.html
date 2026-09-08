@@ -33,7 +33,10 @@
      turn is read left to right instead of hunted for in a sidebar. */
   #tray { grid-column:1; grid-row:2; display:grid;
           box-shadow:0 -8px 20px rgba(0,0,0,.28);
-          grid-template-columns:minmax(0,1.5fr) 190px minmax(0,1.4fr);
+          /* The hand needs the room now the cards are card-sized; details is a
+             list you read one line of, not a panel that needs a third of the
+             tray. */
+          grid-template-columns:minmax(0,2.3fr) 196px minmax(0,1fr);
           gap:1px; background:var(--line); border-top:1px solid var(--line) }
   #tray > section { background:var(--panel2); padding:9px 11px 11px;
                     min-height:132px; overflow:auto; max-height:34vh }
@@ -132,19 +135,30 @@
   /* Cards first. Brass is played by choosing a card and then seeing what it
      allows -- a flat list of 100 move strings is not a decision anyone can
      make. */
-  .cards { display:flex; flex-wrap:wrap; gap:6px }
-  .card { min-width:86px; padding:5px 7px 6px; border-radius:7px; cursor:pointer;
-          border-top:3px solid var(--ct, #4a5364);
-          background:#232733; border:1px solid var(--line); text-align:left }
-  .card:hover { border-color:var(--accent); background:#242836 }
-  .card.sel { border-color:var(--accent); background:#2c3040;
-              box-shadow:0 0 0 1px var(--accent) inset }
-  .card.dead { opacity:.4; cursor:not-allowed }
-  .card b { display:block; font-size:13px; margin-top:2px; letter-spacing:.1px }
-  .card span { font-size:10.5px; color:var(--dim) }
-  .card .ck { display:block; font-size:8px; letter-spacing:.9px; opacity:.9;
-              text-transform:uppercase; color:var(--ct, var(--dim)); font-weight:700 }
-  .card svg { vertical-align:-2px; margin-right:3px }
+  .cards { display:flex; flex-wrap:wrap; gap:7px }
+  /* Three zones, as the reference draws them: kind at the top, an artwork panel
+     with a tinted oval behind it, the name on a band at the foot. The face is
+     light because a card is a physical object, and it sits on the dark tray the
+     way a card sits on a table. */
+  .card { width:96px; padding:0; overflow:hidden; cursor:pointer;
+          border-radius:9px; border:2px solid var(--ct, #8b93a7);
+          background:#f4f0e6; color:#2a2620; text-align:center;
+          display:flex; flex-direction:column }
+  .card:hover { filter:brightness(1.05) }
+  .card.sel { box-shadow:0 0 0 3px var(--accent), 0 4px 10px rgba(0,0,0,.45);
+              transform:translateY(-3px) }
+  .card.dead { filter:grayscale(1); opacity:.55; cursor:not-allowed }
+  .card .ck { display:block; font-size:8.5px; letter-spacing:1.1px; padding:4px 0 2px;
+              text-transform:uppercase; color:#6f675c; font-weight:600 }
+  .card .art { position:relative; height:40px; display:flex; align-items:center;
+               justify-content:center; background:var(--cbg, #eae4d6) }
+  .card .art::before { content:''; position:absolute; width:56px; height:30px;
+                       border-radius:50%; background:rgba(255,255,255,.55) }
+  .card .art svg { position:relative }
+  .card b { display:block; font-size:12.5px; font-weight:700; padding:5px 2px 6px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            background:var(--cband, #e3dccb); border-top:1px solid rgba(0,0,0,.10);
+            line-height:1.15; letter-spacing:.1px }
   .kinds { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 }
   .kind { padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12.5px;
           background:#232733; border:1px solid var(--line) }
@@ -722,7 +736,14 @@ function draw(s) {
 
   TOWNNAME = {};
   (s.towns || []).forEach(t => TOWNNAME[t.id] = t.name);
-  const cardLabel = c => c.town ? (TOWNNAME[c.town] || c.town.replace(/_/g, ' '))
+  // "Stoke-on-Trent" over two lines is a different shape from every other card
+  // and breaks the row. The reference abbreviates; so does this.
+  const SHORT = {birmingham: "B'ham", worcester: 'Worc.', wolverhampton: 'Wolver.',
+                 coalbrookdale: 'Coalbr.', kidderminster: 'Kidder.',
+                 stoke_on_trent: 'Stoke', burton_on_trent: 'Burton',
+                 farm_northern: 'Farm N', farm_southern: 'Farm S'};
+  const cardLabel = c => c.town ? (SHORT[c.town] || TOWNNAME[c.town]
+                                   || c.town.replace(/_/g, ' '))
       : (c.industries && c.industries.length
          ? c.industries.map(i => MATNAME[i] || i).join(' / ')
          : c.kind.replace(/_/g, ' '));
@@ -738,10 +759,16 @@ function draw(s) {
   // Loan, Pass and Scout come with almost any card, so printing them on every
   // card face says nothing and buries the two verbs that actually differ.
   const UNIVERSAL = new Set(['loan', 'pass', 'scout']);
-  const CARDHUE = t => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) % 360;
-                         return `hsl(${h} 42% 62%)`; };
-  const cardTint = c => (c.industries && c.industries.length)
-      ? 'hsl(28 60% 62%)' : CARDHUE(c.town || c.kind);
+  // One hue per card, driving border, art panel and name band together -- which
+  // is what makes the reference's hand read as a row of distinct cards rather
+  // than a row of identical boxes.
+  const cardHue = c => {
+    const key = (c.industries && c.industries.length)
+      ? c.industries.join('/') : (c.town || c.kind);
+    let h = 0;
+    for (const ch of key) h = (h * 37 + ch.charCodeAt(0)) % 360;
+    return h;
+  };
 
   document.getElementById('hand').innerHTML = s.hand.map((c, i) => {
     const n = (byCard[i] || []).length;
@@ -751,16 +778,24 @@ function draw(s) {
               : c.town ? 'city'
               : (c.industries && c.industries.length) ? c.industries[0] : 'wild';
     const glyph = ICON[ind]
-      ? `<svg width="13" height="13" viewBox="0 0 13 13">${icon(ind, 0, 0, 13, '#c9d1e0', .95)}</svg>`
+      ? `<svg width="30" height="30" viewBox="0 0 30 30">${
+          icon(ind, 1, 1, 28, '#4a4034', .92)}</svg>`
       : '';
+    // The verbs move into the tooltip: the reference's card carries only its
+    // kind, its art and its name. The verbs were our addition, not something
+    // the card itself says.
+    const verbs = n ? (v => v.length ? v.join(' · ') : 'loan or pass only')(
+      [...new Set((byCard[i] || []).map(m => VERB[m.kind]))]
+        .filter(v => v && !UNIVERSAL.has(v))) : 'no moves';
+    const hue = cardHue(c);
     return `<button class="card ${i === card ? 'sel' : ''} ${n ? '' : 'dead'}"
-      style="--ct:${cardTint(c)}"
+      style="--ct:hsl(${hue} 45% 46%); --cbg:hsl(${hue} 38% 91%);
+             --cband:hsl(${hue} 34% 85%)"
+      title="${verbs}"
       ${n ? `onclick="pickCard(${i})"` : 'disabled'}>
       <span class="ck">${c.town ? 'City' : 'Industry'}</span>
-      <b>${glyph}${cardLabel(c)}</b>
-      <span>${n ? (v => v.length ? v.join(' · ') : 'loan or pass only')(
-        [...new Set((byCard[i] || []).map(m => VERB[m.kind]))]
-          .filter(v => v && !UNIVERSAL.has(v))) : 'no moves'}</span>
+      <span class="art">${glyph}</span>
+      <b>${cardLabel(c)}</b>
     </button>`;
   }).join('') || '<span class="empty">no cards</span>';
   document.getElementById('movecount').textContent =
