@@ -304,6 +304,9 @@ let sc1 = null, sc2 = null;
 // TOWNNAME was caught living inside draw() by the Sell renderer, and cardLabel
 // by the Scout renderer -- anything both use belongs out here.
 let TOWNNAME = {};
+// Identity of a card, so two copies of the same one are treated as the same
+// card -- which is what they are.
+const sigAt = i => (S && S.hand && S.hand[i]) ? cardSig(S.hand[i]) : `#${i}`;
 // "Stoke-on-Trent" over two lines is a different shape from every other card
 // and breaks the row. The reference abbreviates; so does this.
 // TOWNSHORT, not SHORT: that name was already taken by the industry
@@ -755,9 +758,16 @@ function draw(s) {
   // --- hand -> action type -> choice ------------------------------------
   // Cards carry a count of what they can actually do, so a dead card is
   // visibly dead instead of being something you click and find empty.
+  // Two cards with the same face are interchangeable, but the engine
+  // enumerates one index per DISTINCT card -- so a second copy picked up only
+  // whatever _discard_variants attached to it and offered 1 move where its twin
+  // offered 65. Group by what the card IS, not which slot it sits in.
   const byCard = {};
-  s.moves.forEach(m => (byCard[m.card] = byCard[m.card] || []).push(m));
-  if (card !== null && !byCard[card]) card = null;
+  s.moves.forEach(m => {
+    const k = sigAt(m.card);
+    (byCard[k] = byCard[k] || []).push(m);
+  });
+  if (card !== null && !byCard[sigAt(card)]) card = null;
 
   TOWNNAME = {};
   (s.towns || []).forEach(t => TOWNNAME[t.id] = t.name);
@@ -791,7 +801,7 @@ function draw(s) {
   reconcileHand(s.hand);
   document.getElementById('hand').innerHTML = handOrder.map((i, pos) => {
     const c = s.hand[i];
-    const n = (byCard[i] || []).length;
+    const n = (byCard[sigAt(i)] || []).length;
     // Every card gets a mark: its industry when it names one, a townhouse for
     // a location, crossed arrows for a wild.
     const ind = (c.industries && c.industries.length === 1) ? c.industries[0]
@@ -805,7 +815,7 @@ function draw(s) {
     // kind, its art and its name. The verbs were our addition, not something
     // the card itself says.
     const verbs = n ? (v => v.length ? v.join(' · ') : 'loan or pass only')(
-      [...new Set((byCard[i] || []).map(m => VERB[m.kind]))]
+      [...new Set((byCard[sigAt(i)] || []).map(m => VERB[m.kind]))]
         .filter(v => v && !UNIVERSAL.has(v))) : 'no moves';
     const hue = cardHue(c);
     return `<button class="card ${i === card ? 'sel' : ''} ${n ? '' : 'dead'}"
@@ -838,7 +848,7 @@ function draw(s) {
   if (tray) tray.dataset.mode = (card !== null && kind !== null) ? 'options' : 'browse';
   const abox = document.getElementById('actions'),
         box  = document.getElementById('details');
-  const mine = card === null ? [] : (byCard[card] || []);
+  const mine = card === null ? [] : (byCard[sigAt(card)] || []);
   const avail = {};
   mine.forEach(m => avail[m.kind] = (avail[m.kind] || 0) + 1);
   // Scout discards three cards but the engine labels only the most expendable
@@ -846,7 +856,7 @@ function draw(s) {
   // you can perfectly well scout away as one of the other two.
   if (card !== null) {
     const n = (s.moves || []).filter(m => m.kind === 'Scout'
-      && [m.card, ...m.extra].includes(card)).length;
+      && [m.card, ...m.extra].some(i => sigAt(i) === sigAt(card))).length;
     if (n) avail.Scout = n;
   }
   if (kind !== null && !avail[kind]) kind = null;
@@ -1068,8 +1078,13 @@ function renderKind(kind, opts, s) {
     const pairKey = a => a.slice().sort((x, y) => x - y).join('|');
     const triple = m => [m.card, ...m.extra];
     const withCard = (s.moves || [])
-      .filter(m => m.kind === 'Scout' && triple(m).includes(card));
-    const others = m => triple(m).filter(i => i !== card);
+      .filter(m => m.kind === 'Scout' && triple(m).some(i => sigAt(i) === sigAt(card)));
+    // Drop ONE index matching the chosen card, not every copy of its face: a
+    // triple may legitimately hold both of your two identical cards.
+    const others = m => {
+      const t = triple(m), j = t.findIndex(i => sigAt(i) === sigAt(card));
+      return t.filter((_, k) => k !== j);
+    };
     const byPair = {};
     withCard.forEach(m => byPair[pairKey(others(m))] = m);
     const firsts = [...new Set(withCard.flatMap(others))].sort((a, b) => a - b);
