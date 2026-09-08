@@ -159,6 +159,46 @@ transitions, restarts animations, and destroys focus. Splitting it into
 root, is the prerequisite for hover-ghost placement -- show the tile you would
 place at 40% opacity with its cost, before you commit.
 
+#### The shipped weights were re-examined for VARIANCE, and they are clean
+
+Every weight on the vector was chosen on its MEAN delta alone, because
+`verify-weight.py` could not report anything else until 2026-09-08. A weight
+that lifts the average while making bad games worse would have looked identical
+in every report this project has ever produced -- and that is the opposite of
+playing consistently. So each big shipped weight was reverted and the spread
+read:
+
+| reverting | mean | win% | P10 | median | P90 | sd |
+| --- | --- | --- | --- | --- | --- | --- |
+| `unflipped` 0.5625 -> 0.375 | -1.41 +- 0.65 | 45% | -20.0 | -2.0 | +15.0 | 16.2 |
+| `doomed_build` 1.0 -> 0 | -2.26 +- 0.68 | 44% | -19.5 | -2.0 | +16.0 | 15.9 |
+| `blocked` 3 -> 6 | -3.32 +- 0.79 | 40% | -22.0 | -3.8 | +15.5 | 18.4 |
+| `canal_double` 1.25 -> 0.75 | -2.33 +- 0.57 | 42% | -19.0 | -2.2 | +14.5 | 13.3 |
+
+**None of them is buying its mean by widening the tail.** Reverting any one
+hurts across the whole distribution -- win rate to 40-45%, median negative, and
+no tightening of spread. There is no hidden variance debt in what is shipped.
+
+`canal_double` is the cleanest weight on the vector by this measure: reverting
+it costs 2.33 VP AND leaves the widest spread narrowed to sd 13.3 against 16-18
+for the others. `blocked` is the most load-bearing, at -3.32 and a 40% win rate.
+
+**Caveat on `doomed_build`:** chi2 6.28/2, blocks disagree again. The sign is
+consistent and the magnitude is not, so read its -2.26 as softer than the
+others. It is already pinned to 0 at 3p for being null there, which makes it the
+least stable weight in the set.
+
+Quote the win rate and P10 alongside the mean from now on. The first real use of
+it caught a 2.2 sigma block that had won only 56% of its paired games -- obvious
+noise, and invisible under the old reporting.
+
+#### Closed: cotton with cheap borrowing
+
+`commit=0` with `loan_bias=0.375` measures **+0.75 +- 0.60** (1.2 sigma, blocks
+agree). Null. Note this was launched to test "cotton plus the capital cotton
+needs", and it does not: see the cotton section below -- `commit=0` does not
+make the bot play cotton at all. It measures a weight pair and nothing more.
+
 #### Closed: `pair_search` WIDTH buys nothing
 
     24  baseline

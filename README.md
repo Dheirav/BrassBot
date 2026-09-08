@@ -67,6 +67,39 @@ player at 4p and experts convert them at ~5 VP each. The realistic target is
 150–165; 200+ belongs to the 2-player game, which has 39 actions.
 `docs/research-landscape.md` has the evidence.
 
+## Playing it
+
+There is a board you can play on, in a browser, against any of the bots.
+
+```bash
+PYTHONPATH=. .venv/bin/python tools/serve.py --name "Your Name"
+# then open http://localhost:8765
+```
+
+Pick a card, pick an action, then click the highlighted town or link on the map.
+Hovering a legal target draws the tile you would place and names its exact cost,
+including where each cube comes from and whose mine it is — `£5 + 1 iron
+(market £2) = £7` — before you commit to anything.
+
+| flag | |
+| --- | --- |
+| `--port 8765` | change it if the port is busy |
+| `--seed N` | a specific deal; omit for a fresh one each start |
+| `--players 4` | 2, 3 or 4 |
+| `--opponent heuristic` | `heuristic`, `planner`, `greedy`, `book`, `learned`, `random` |
+| `--name "You"` | your seat's name in exported logs |
+
+**Export log** writes the finished game to `logs/` in the same format as the
+pasted-in real games, so games you play here pool with those and every analysis
+script reads them unchanged. Pass the `--name` you play under elsewhere if you
+want them counted together.
+
+Two things about the server worth knowing: it holds **one game**, so a second
+browser tab is playing the same one (a stale tab is refused rather than allowed
+to play a move you cannot see); and **Undo rewinds past the bots' replies**, so
+taking a move back after seeing what they did leaks information a real game
+would not. That is right for analysis and wrong for honest play.
+
 ## Using it
 
 ```bash
