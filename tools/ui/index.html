@@ -3,7 +3,8 @@
 <title>BrassBot</title>
 <style>
   :root {
-    --bg:#12141a; --panel:#1a1d25; --line:#2b303c; --text:#e6e8ee;
+    --bg:#0f1116; --panel:#181b23; --panel2:#1e222c;
+    --line:#2b303c; --text:#e6e8ee;
     --dim:#8b93a7; --accent:#e0a458;
     /* Okabe-Ito, the standard colourblind-safe set: sky / vermillion /
        bluish-green / reddish-purple. Separated in lightness as well as hue so
@@ -27,11 +28,12 @@
      the choice that follows. Keeping it in one strip under the board means a
      turn is read left to right instead of hunted for in a sidebar. */
   #tray { grid-column:1; grid-row:2; display:grid;
+          box-shadow:0 -8px 20px rgba(0,0,0,.28);
           grid-template-columns:minmax(0,1.5fr) 190px minmax(0,1.4fr);
           gap:1px; background:var(--line); border-top:1px solid var(--line) }
-  #tray > section { background:var(--panel); padding:8px 10px 10px;
+  #tray > section { background:var(--panel2); padding:9px 11px 11px;
                     min-height:132px; overflow:auto; max-height:34vh }
-  #tray h3 { margin:0 0 7px; font-size:10.5px; letter-spacing:.9px;
+  #tray h3 { margin:0 0 8px; font-size:10px; letter-spacing:1.1px;
              text-transform:uppercase; color:var(--dim); font-weight:700;
              display:flex; justify-content:space-between; align-items:center }
   .acts { display:grid; grid-template-columns:1fr 1fr; gap:5px }
@@ -43,23 +45,25 @@
                            color:var(--dim); margin-top:1px }
   aside { grid-column:2; grid-row:1 / span 2;
           background:var(--panel); border-left:1px solid var(--line);
+          box-shadow:-8px 0 20px rgba(0,0,0,.28);
           overflow-y:auto; padding:14px }
-  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em;
-       color:var(--dim); margin:18px 0 8px; font-weight:600 }
-  h2:first-child { margin-top:0 }
+  h2 { font-size:10px; text-transform:uppercase; letter-spacing:.11em;
+       color:var(--dim); margin:16px 0 8px; font-weight:700;
+       border-top:1px solid var(--line); padding-top:10px }
+  h2:first-child { margin-top:0; border-top:none; padding-top:0 }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
   .chip { background:#232733; border:1px solid var(--line); border-radius:6px;
           padding:3px 8px; font-size:12px }
-  .seat { display:grid; grid-template-columns:1fr repeat(4, minmax(38px, auto));
-          gap:2px 7px; padding:6px 8px; align-items:baseline;
+  .seat { display:grid; grid-template-columns:1fr repeat(4, minmax(34px, auto));
+          gap:2px 8px; padding:7px 9px; align-items:baseline;
           border-radius:6px; border:1px solid var(--line); margin-bottom:5px }
   .seat.me { border-color:var(--accent) }
   .seat.turn { background:#232733 }
   .dot { width:9px; height:9px; border-radius:50%; display:inline-block;
          margin-right:6px; vertical-align:middle }
   button { font:inherit; background:#232733; color:var(--text);
-           border:1px solid var(--line); border-radius:6px; padding:6px 10px;
-           cursor:pointer }
+           border:1px solid #333a4a; border-radius:6px; padding:6px 10px;
+           cursor:pointer; transition:border-color .12s, background .12s }
   button:hover { border-color:var(--accent) }
   button.sel { background:var(--accent); color:#1a1d25; border-color:var(--accent) }
   .move { display:block; width:100%; text-align:left; margin-bottom:4px;
@@ -67,8 +71,8 @@
   .empty { color:var(--dim); font-style:italic }
   text { font:600 10px ui-sans-serif,system-ui,sans-serif; fill:var(--text);
          pointer-events:none }
-  .tname { font-size:9px; fill:var(--dim);
-           paint-order:stroke fill; stroke:var(--bg); stroke-width:2.5px;
+  .tname { font-size:10.5px; fill:#b9c1d1; letter-spacing:.2px;
+           paint-order:stroke fill; stroke:var(--bg); stroke-width:3px;
            stroke-linejoin:round }
   text, .num, .mat, .seat { font-variant-numeric:tabular-nums lining-nums }
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px }
@@ -115,6 +119,7 @@
          margin-bottom:4px }
   .seat small { color:var(--dim) }
   .move.hi { border-color:var(--accent) }
+  .move:hover { border-color:var(--accent); background:#242836 }
   .cost { display:block; font-size:10.5px; color:var(--dim); margin-top:2px }
   .rnd { font-size:9.5px; letter-spacing:.8px; text-transform:uppercase;
          color:var(--dim); border-bottom:1px solid var(--line);
@@ -127,12 +132,13 @@
   .card { min-width:86px; padding:5px 7px 6px; border-radius:7px; cursor:pointer;
           border-top:3px solid var(--ct, #4a5364);
           background:#232733; border:1px solid var(--line); text-align:left }
-  .card:hover { border-color:var(--accent) }
-  .card.sel { border-color:var(--accent); background:#2c3040 }
+  .card:hover { border-color:var(--accent); background:#242836 }
+  .card.sel { border-color:var(--accent); background:#2c3040;
+              box-shadow:0 0 0 1px var(--accent) inset }
   .card.dead { opacity:.4; cursor:not-allowed }
-  .card b { display:block; font-size:12.5px; margin-top:1px }
+  .card b { display:block; font-size:13px; margin-top:2px; letter-spacing:.1px }
   .card span { font-size:10.5px; color:var(--dim) }
-  .card .ck { display:block; font-size:8.5px; letter-spacing:.8px;
+  .card .ck { display:block; font-size:8px; letter-spacing:.9px; opacity:.9;
               text-transform:uppercase; color:var(--ct, var(--dim)); font-weight:700 }
   .card svg { vertical-align:-2px; margin-right:3px }
   .kinds { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 }
@@ -146,7 +152,7 @@
          background:#39405a; font-size:10.5px; font-weight:700; margin-right:5px }
 </style>
 <div id="board">
-  <svg id="svg" viewBox="0 0 1000 820">
+  <svg id="svg" viewBox="28 6 754 822">
     <defs>
       <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
         <feGaussianBlur stdDeviation="2.5"/></filter>
@@ -282,7 +288,7 @@ function note(msg) {
 function draw(s) {
   S = s;
   const C = s.coords, svg = document.getElementById('svg');
-  let out = '<rect x="-40" y="-30" width="1080" height="880" fill="url(#gboard)"/>';
+  let out = '<rect x="28" y="6" width="754" height="822" fill="url(#gboard)"/>';
 
   // Where the chosen card and action can actually land. Brass is played on the
   // map, so once you have said "Build" the question is WHERE -- and answering
@@ -561,7 +567,9 @@ function draw(s) {
       <span><span class="dot" style="background:${COL[p.idx]}"></span>
       ${p.idx === s.seat ? 'You' : 'Bot ' + p.idx}
       ${p.idx === s.current ? ' ←' : ''}
-      <small>&nbsp;#${(p.order ?? 0) + 1} · spent £${p.spent}</small></span>
+      <small style="white-space:nowrap"
+        title="turn position, and cash spent this round -- least spent goes first next round"
+        >&nbsp;#${(p.order ?? 0) + 1} · £${p.spent}sp</small></span>
       <span class="num" style="text-align:right"><strong>${p.projected}</strong></span>
       <span class="num meta" style="text-align:right"
         title="cash">£${p.money}</span>
@@ -708,6 +716,9 @@ function draw(s) {
   // prominent line of each one. What the card can DO is the useful signal.
   const VERB = {Build:'build', Network:'link', Sell:'sell', Develop:'develop',
                 Scout:'scout', Loan:'loan', Pass:'pass'};
+  // Loan, Pass and Scout come with almost any card, so printing them on every
+  // card face says nothing and buries the two verbs that actually differ.
+  const UNIVERSAL = new Set(['loan', 'pass', 'scout']);
   const CARDHUE = t => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) % 360;
                          return `hsl(${h} 42% 62%)`; };
   const cardTint = c => (c.industries && c.industries.length)
@@ -728,8 +739,9 @@ function draw(s) {
       ${n ? `onclick="pickCard(${i})"` : 'disabled'}>
       <span class="ck">${c.town ? 'City' : 'Industry'}</span>
       <b>${glyph}${cardLabel(c)}</b>
-      <span>${n ? [...new Set((byCard[i] || []).map(m => VERB[m.kind] || m.kind))]
-        .join(' · ') : 'no moves'}</span>
+      <span>${n ? (v => v.length ? v.join(' · ') : 'loan or pass only')(
+        [...new Set((byCard[i] || []).map(m => VERB[m.kind]))]
+          .filter(v => v && !UNIVERSAL.has(v))) : 'no moves'}</span>
     </button>`;
   }).join('') || '<span class="empty">no cards</span>';
   document.getElementById('movecount').textContent =
@@ -775,7 +787,7 @@ function draw(s) {
       ${n ? `onclick="pickKind('${k}')"` : ''}
       title="${n ? n + ' option' + (n === 1 ? '' : 's') + ' with this card' : why}"
       >${g} ${k}${n > 1 ? ` <small>${n}</small>` : ''}${
-        n ? '' : `<small class="why">${why}</small>`}</button>`;
+        n || card === null ? '' : `<small class="why">${why}</small>`}</button>`;
   }).join('') +
   // Undo rewinds past the bots' replies to the position you chose from, so it
   // is never greyed by which card is selected -- only by whether there is a
