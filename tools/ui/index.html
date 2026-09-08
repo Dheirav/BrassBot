@@ -3,9 +3,13 @@
 <title>BrassBot</title>
 <style>
   :root {
-    --bg:#0f1116; --panel:#181b23; --panel2:#1e222c;
-    --line:#2b303c; --text:#e6e8ee;
-    --dim:#8b93a7; --accent:#e0a458;
+    /* Everything used to sit between #0f and #2b -- a four-step range at the
+       very bottom of the scale, so surfaces, borders and empty slots were all
+       the same near-black and nothing separated from anything else. Lifted as a
+       ladder, with each level distinguishable from the one below it. */
+    --bg:#161922; --panel:#1f2431; --panel2:#282e3c;
+    --line:#3b4354; --text:#f0f2f7;
+    --dim:#a7b0c3; --accent:#e0a458;
     /* Okabe-Ito, the standard colourblind-safe set: sky / vermillion /
        bluish-green / reddish-purple. Separated in lightness as well as hue so
        they survive greyscale too. */
@@ -48,7 +52,7 @@
   .acts { display:grid; grid-template-columns:1fr 1fr; gap:5px }
   .acts button { text-align:left; padding:6px 8px; font-size:12px }
   .acts button:disabled { opacity:.3; cursor:not-allowed; border-color:var(--line) }
-  .acts button.sel { background:var(--accent); color:#1a1d25 }
+  .acts button.sel { background:var(--accent); color:#20242f }
   .acts button small { color:inherit; opacity:.65; font-size:10px }
   .acts button { display:flex; align-items:baseline; gap:5px;
                  white-space:nowrap; overflow:hidden }
@@ -63,26 +67,26 @@
        border-top:1px solid var(--line); padding-top:10px }
   h2:first-child { margin-top:0; border-top:none; padding-top:0 }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
-  .chip { background:#232733; border:1px solid var(--line); border-radius:6px;
+  .chip { background:#2c3240; border:1px solid var(--line); border-radius:6px;
           padding:3px 8px; font-size:12px }
   .seat { display:grid; grid-template-columns:1fr repeat(4, minmax(34px, auto));
           gap:2px 8px; padding:7px 9px; align-items:baseline;
           border-radius:6px; border:1px solid var(--line); margin-bottom:5px }
   .seat.me { border-color:var(--accent) }
-  .seat.turn { background:#232733 }
+  .seat.turn { background:#2c3240 }
   .dot { width:9px; height:9px; border-radius:50%; display:inline-block;
          margin-right:6px; vertical-align:middle }
-  button { font:inherit; background:#232733; color:var(--text);
-           border:1px solid #333a4a; border-radius:6px; padding:6px 10px;
+  button { font:inherit; background:#2c3240; color:var(--text);
+           border:1px solid #434c5f; border-radius:6px; padding:6px 10px;
            cursor:pointer; transition:border-color .12s, background .12s }
   button:hover { border-color:var(--accent) }
-  button.sel { background:var(--accent); color:#1a1d25; border-color:var(--accent) }
+  button.sel { background:var(--accent); color:#20242f; border-color:var(--accent) }
   .move { display:block; width:100%; text-align:left; margin-bottom:4px;
           font-size:12.5px; white-space:normal }
   .empty { color:var(--dim); font-style:italic }
   text { font:600 10px ui-sans-serif,system-ui,sans-serif; fill:var(--text);
          pointer-events:none }
-  .tname { font-size:10.5px; fill:#b9c1d1; letter-spacing:.2px;
+  .tname { font-size:10.5px; fill:#ccd3e1; letter-spacing:.2px;
            paint-order:stroke fill; stroke:var(--bg); stroke-width:3px;
            stroke-linejoin:round }
   text, .num, .mat, .seat { font-variant-numeric:tabular-nums lining-nums }
@@ -113,17 +117,17 @@
   .meta { color:var(--dim); font-size:11px }
   .mat .meta { text-align:right }
   .pips { display:flex; gap:2px }
-  .pip { width:7px; height:12px; border-radius:2px; background:#2b303c }
-  .pip.have { background:#4a5364 }
+  .pip { width:7px; height:12px; border-radius:2px; background:#3b4354 }
+  .pip.have { background:#5c667c }
   .pip.next { background:var(--accent) }
   .warn { color:#e0a458 }
   .ok { color:#6ec07a }
   .gone { color:#e05c5c }
-  .bar { height:6px; background:#2b303c; border-radius:3px; overflow:hidden;
+  .bar { height:6px; background:#3b4354; border-radius:3px; overflow:hidden;
          min-width:70px; flex:1 }
   .bar > i { display:block; height:100%; background:var(--accent) }
   .ladder { display:flex; gap:2px; flex:1 }
-  .slot { flex:1; height:13px; border-radius:2px; border:1px solid #39404f }
+  .slot { flex:1; height:13px; border-radius:2px; border:1px solid #4b5568 }
   .slot.full { background:var(--accent); border-color:var(--accent) }
   .sprice { flex:1; font-size:8px; color:var(--dim); text-align:left }
   .mkt { display:flex; align-items:center; gap:8px; font-size:12px;
@@ -145,7 +149,7 @@
      light because a card is a physical object, and it sits on the dark tray the
      way a card sits on a table. */
   .card { width:74px; padding:0; overflow:hidden; cursor:grab;
-          border-radius:9px; border:2px solid var(--ct, #8b93a7);
+          border-radius:9px; border:2px solid var(--ct, #a7b0c3);
           background:#f4f0e6; color:#2a2620; text-align:center;
           display:flex; flex-direction:column }
   .card:hover { filter:brightness(1.05) }
@@ -167,9 +171,9 @@
             line-height:1.15; letter-spacing:.1px }
   .kinds { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 }
   .kind { padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12.5px;
-          background:#232733; border:1px solid var(--line) }
-  .kind.sel { background:var(--accent); color:#1a1d25; border-color:var(--accent) }
-  select { font:inherit; background:#232733; color:var(--text); padding:5px 8px;
+          background:#2c3240; border:1px solid var(--line) }
+  .kind.sel { background:var(--accent); color:#20242f; border-color:var(--accent) }
+  select { font:inherit; background:#2c3240; color:var(--text); padding:5px 8px;
            border:1px solid var(--line); border-radius:6px; width:100% }
   .hint { color:var(--dim); font-size:11.5px; margin:4px 0 8px }
   .lvl { display:inline-block; min-width:17px; padding:0 4px; border-radius:4px;
@@ -197,11 +201,11 @@
         <stop offset="0" stop-color="var(--p3)" stop-opacity="1"/>
         <stop offset="1" stop-color="var(--p3)" stop-opacity="0.72"/></linearGradient>
       <linearGradient id="gslot" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#232836"/>
-        <stop offset="1" stop-color="#171a22"/></linearGradient>
+        <stop offset="0" stop-color="#2f3647"/>
+        <stop offset="1" stop-color="#232936"/></linearGradient>
       <radialGradient id="gboard" cx="0.5" cy="0.42" r="0.75">
-        <stop offset="0" stop-color="#171a22"/>
-        <stop offset="1" stop-color="#0f1116"/></radialGradient>
+        <stop offset="0" stop-color="#242b39"/>
+        <stop offset="1" stop-color="#1a1e28"/></radialGradient>
     </defs>
     <g id="lay-live"></g>
     <g id="lay-fx"></g>
@@ -371,7 +375,7 @@ function draw(s) {
   for (const l of (s.all_links || []))
     if (!(l.id in built)) {
       const usable = s.era === 'canal' ? l.canal : l.rail;
-      out += spokes(l.ends, usable ? '#39404f' : '#22262f', usable ? 2 : 1.2,
+      out += spokes(l.ends, usable ? '#4b5568' : '#22262f', usable ? 2 : 1.2,
                     s.era === 'canal');
     }
   for (const l of s.links) out += spokes(l.ends, COL[l.owner], 4, false);
@@ -399,8 +403,8 @@ function draw(s) {
     // on it. Full strength only while a link is actually being chosen.
     const loud = kind === 'Network';
     out += `<circle cx="${cx}" cy="${cy}" r="${loud ? 8.5 : 6.5}"
-             fill="#12141a" fill-opacity="${loud ? 1 : 0.6}"
-             stroke="${l.id in built ? COL[built[l.id]] : '#39404f'}"
+             fill="#1b1f28" fill-opacity="${loud ? 1 : 0.6}"
+             stroke="${l.id in built ? COL[built[l.id]] : '#4b5568'}"
              stroke-width="1" stroke-opacity="${loud ? 1 : 0.6}"/>
             <text x="${cx}" y="${cy + (loud ? 3.5 : 2.8)}" text-anchor="middle"
              style="font-size:${loud ? 9 : 7.5}px;font-weight:700;
@@ -424,14 +428,14 @@ function draw(s) {
                : `+${mo.amount} ${BONUS[mo.bonus]}`;
     out += `<g opacity="${narrowing && !tgtTown[m] ? 0.45 : 1}">
             <rect x="${x-46}" y="${y-22}" width="92" height="54" rx="9"
-            fill="#242938" stroke="${live ? '#4a5364' : '#333a4a'}"/>
+            fill="#242938" stroke="${live ? '#5c667c' : '#434c5f'}"/>
             <text x="${x}" y="${y-10}" text-anchor="middle">${m}</text>`;
     if (btxt)
       // A tinted band, so the reward reads as the merchant's own and not as
       // something written on the map near it.
       out += `<rect x="${x-45}" y="${y+14}" width="90" height="17" rx="0"
                fill="var(--accent)" fill-opacity="0.13"/>
-              <path d="M${x-45} ${y+14} h90" stroke="#4a5364" stroke-width="1"/>
+              <path d="M${x-45} ${y+14} h90" stroke="#5c667c" stroke-width="1"/>
               <text x="${x}" y="${y+26}" text-anchor="middle"
                style="font-size:11px;font-weight:700;fill:var(--accent);
                       letter-spacing:.3px">${btxt}</text>`;
@@ -445,15 +449,15 @@ function draw(s) {
                    class="tname">—</text>`;
         else if (sl.kind === 'any')
           out += `<text x="${gx+11}" y="${y+8}" text-anchor="middle"
-                   style="font-size:9px;font-weight:700;fill:#c9d1e0">ANY</text>`;
+                   style="font-size:9px;font-weight:700;fill:#dbe1ec">ANY</text>`;
         else
-          out += icon(sl.kind, gx + 3, y - 6, 15, '#c9d1e0', 0.95);
+          out += icon(sl.kind, gx + 3, y - 6, 15, '#dbe1ec', 0.95);
         // The barrel is the thing that decides whether a sale is possible.
         out += sl.beer
           ? `<circle cx="${gx+22}" cy="${y-1}" r="5" fill="#e0a458"
-              stroke="#12141a" stroke-width="0.8"><title>beer available</title></circle>`
+              stroke="#1b1f28" stroke-width="0.8"><title>beer available</title></circle>`
           : `<circle cx="${gx+22}" cy="${y-1}" r="5" fill="none"
-              stroke="#4a5364" stroke-dasharray="2 2"><title>beer gone</title></circle>`;
+              stroke="#5c667c" stroke-dasharray="2 2"><title>beer gone</title></circle>`;
       });
     } else {
       out += `<text x="${x}" y="${y+10}" text-anchor="middle" class="tname">unused</text>`;
@@ -538,14 +542,14 @@ function draw(s) {
                   <path d="M${sx+1.5} ${y+12.5} h${bw-3}" stroke="#000"
                    stroke-opacity="0.42" stroke-width="1" fill="none"/>`;
         out += icon(tile.industry, sx + bw/2 - 8, y - 10, 17,
-                    flipped ? '#12141a' : c, flipped ? 0.85 : 1);
+                    flipped ? '#1b1f28' : c, flipped ? 0.85 : 1);
         out += `<text x="${sx+bw-4}" y="${y+12}" text-anchor="end"
-                style="font-size:9px;font-weight:700;fill:${flipped ? '#12141a' : c}"
+                style="font-size:9px;font-weight:700;fill:${flipped ? '#1b1f28' : c}"
                 >${tile.level}</text>`;
         // Only a flipped tile is worth anything, so only a flipped one says so.
         if (flipped && tile.vp)
           out += `<text x="${sx+3}" y="${y+12}"
-                   style="font-size:8.5px;font-weight:700;fill:#12141a;opacity:.8"
+                   style="font-size:8.5px;font-weight:700;fill:#1b1f28;opacity:.8"
                    >${tile.vp}v</text>`;
         out += `<title>${NAME[tile.industry]} L${tile.level}, seat ${tile.owner}`
              + `${flipped ? ' — flipped' : ' — NOT flipped, scores nothing yet'}`
@@ -558,19 +562,19 @@ function draw(s) {
                    stroke-width="2" stroke-linecap="round" opacity="0.9"/>`;
         if (tile.resources)
           out += `<circle cx="${sx+bw-5}" cy="${y-10}" r="5.5" fill="#f0c674"
-                   stroke="#12141a" stroke-width="0.8"/>
+                   stroke="#1b1f28" stroke-width="0.8"/>
                   <text x="${sx+bw-5}" y="${y-7}" text-anchor="middle"
-                   style="font-size:8px;font-weight:700;fill:#1a1d25"
+                   style="font-size:8px;font-weight:700;fill:#20242f"
                    >${tile.resources}</text>`;
       } else {
         out += `<rect x="${sx}" y="${y-13}" width="${bw}" height="27" rx="5"
-                fill="url(#gslot)" stroke="#2b303c"/>
+                fill="url(#gslot)" stroke="#3b4354"/>
                 <path d="M${sx+1.5} ${y-11.5} h${bw-3}" stroke="#fff"
                  stroke-opacity="0.06" stroke-width="1" fill="none"/>`;
         const k = slot.length, isize = k > 2 ? 11 : 13;
         slot.forEach((ind, j) => {
           const ix = sx + bw/2 - (k * isize) / 2 + j * isize;
-          out += icon(ind, ix, y - isize/2, isize, '#6d7688', 0.75);
+          out += icon(ind, ix, y - isize/2, isize, '#8d97ab', 0.75);
         });
         out += `<title>${slot.map(i2 => NAME[i2]).join(' or ')}</title>`;
       }
@@ -693,20 +697,20 @@ function draw(s) {
      <span>${text}</span>`;
   document.getElementById('legend').innerHTML =
     Object.keys(NAME).map(k =>
-      lg(icon(k, 1, 1, 14, '#8b93a7', .9), NAME[k])).join('')
+      lg(icon(k, 1, 1, 14, '#a7b0c3', .9), NAME[k])).join('')
     + lg(`<rect x="1" y="3" width="14" height="10" rx="3" fill="var(--p0)"/>`,
          'flipped — has scored')
     + lg(`<rect x="1" y="3" width="14" height="10" rx="3" fill="none"
            stroke="var(--p0)" stroke-width="2" stroke-dasharray="3 2"/>`,
          'built, NOT flipped — scores nothing yet')
     + lg(`<circle cx="8" cy="8" r="5" fill="#e0a458"/>`, 'beer still on the tile')
-    + lg(`<circle cx="8" cy="8" r="6.5" fill="#12141a" stroke="#4a5364"/>
+    + lg(`<circle cx="8" cy="8" r="6.5" fill="#1b1f28" stroke="#5c667c"/>
           <text x="8" y="11" text-anchor="middle"
            style="font-size:8px;font-weight:700;fill:#e0a458">2</text>`,
          'what this link scores now')
-    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="#39404f" stroke-width="2"
+    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="#4b5568" stroke-width="2"
            stroke-dasharray="4 3"/>`, 'canal route')
-    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="#39404f" stroke-width="2"/>`,
+    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="#4b5568" stroke-width="2"/>`,
          'rail route');
   document.getElementById('markets').innerHTML =
     mkt('coal', s.coal_market, s.coal_cap, s.coal_price) +
@@ -1357,7 +1361,7 @@ function showGhost(act, id) {
         g += `<rect x="${sx}" y="${y-13}" width="${bw}" height="27" rx="5"
                fill="${col}" fill-opacity="0.40" stroke="${col}" stroke-width="1.5"/>`;
         if (m.industry)
-          g += icon(m.industry, sx + bw/2 - 8, y - 10, 17, '#12141a', 0.75);
+          g += icon(m.industry, sx + bw/2 - 8, y - 10, 17, '#1b1f28', 0.75);
       }
     }
   } else {
