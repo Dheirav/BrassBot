@@ -33,13 +33,15 @@
      turn is read left to right instead of hunted for in a sidebar. */
   #tray { grid-column:1; grid-row:2; display:grid;
           box-shadow:0 -8px 20px rgba(0,0,0,.28);
-          /* The hand needs the room now the cards are card-sized; details is a
-             list you read one line of, not a panel that needs a third of the
-             tray. */
+          /* Browsing: the hand has the room. Once an action is chosen the
+             options need it instead, so the columns trade width between them --
+             the band never changes height and the board never moves. */
           grid-template-columns:minmax(0,2.3fr) 196px minmax(0,1fr);
+          transition:grid-template-columns .16s ease;
           gap:1px; background:var(--line); border-top:1px solid var(--line) }
+  #tray[data-mode="options"] { grid-template-columns:minmax(0,1.15fr) 196px minmax(0,2fr) }
   #tray > section { background:var(--panel2); padding:9px 11px 11px;
-                    min-height:132px; overflow:auto; max-height:34vh }
+                    height:178px; overflow:auto }
   #tray h3 { margin:0 0 8px; font-size:10px; letter-spacing:1.1px;
              text-transform:uppercase; color:var(--dim); font-weight:700;
              display:flex; justify-content:space-between; align-items:center }
@@ -48,8 +50,10 @@
   .acts button:disabled { opacity:.3; cursor:not-allowed; border-color:var(--line) }
   .acts button.sel { background:var(--accent); color:#1a1d25 }
   .acts button small { color:inherit; opacity:.65; font-size:10px }
-  .acts button small.why { display:block; font-size:9px; opacity:.85;
-                           color:var(--dim); margin-top:1px }
+  .acts button { display:flex; align-items:baseline; gap:5px;
+                 white-space:nowrap; overflow:hidden }
+  .acts button small.why { font-size:9.5px; opacity:.8; color:var(--dim);
+                           overflow:hidden; text-overflow:ellipsis }
   aside { grid-column:2; grid-row:1 / span 2;
           background:var(--panel); border-left:1px solid var(--line);
           box-shadow:-8px 0 20px rgba(0,0,0,.28);
@@ -808,6 +812,8 @@ function draw(s) {
   // cannot take would remove the reason you cannot take them.
   const ACTS = [['Build','⌂'], ['Network','↑'], ['Sell','⌗'], ['Develop','↗'],
                 ['Scout','⌕'], ['Loan','£'], ['Pass','▷']];
+  const tray = document.getElementById('tray');
+  if (tray) tray.dataset.mode = (card !== null && kind !== null) ? 'options' : 'browse';
   const abox = document.getElementById('actions'),
         box  = document.getElementById('details');
   const mine = card === null ? [] : (byCard[card] || []);
@@ -819,29 +825,37 @@ function draw(s) {
   // broke" and "nothing I can reach" are different answers and lead to
   // different turns. The mat already distinguishes them; the reason just lived
   // on the wrong panel.
+  // Returns [short, full]: the short form shares the button's line with its
+  // label, the full one is the tooltip.
   const whyNot = (k) => {
-    if (card === null) return 'pick a card first';
-    if (s.moves.some(m => m.kind === k)) return 'another card can';
+    if (card === null) return ['', 'pick a card first'];
+    if (s.moves.some(m => m.kind === k))
+      return ['other card', 'another card in hand can do this, but not this one'];
     const mats = Object.values(s.mat).filter(m => m.next !== null);
     if (k === 'Build') {
       // If nothing is buildable and anything is short of cash, cash is the
       // binding constraint worth naming -- the cheapest gap is the useful one.
       const shorts = mats.filter(m => m.short > 0).map(m => m.short);
-      if (shorts.length) return `short £${Math.min(...shorts)}`;
-      return 'no slot in reach';
+      if (shorts.length)
+        return [`short £${Math.min(...shorts)}`,
+                `the cheapest tile you could place costs £${Math.min(...shorts)} more than you hold`];
+      return ['no slot', 'no reachable slot takes anything you can still build'];
     }
-    if (k === 'Sell') return 'nothing sellable, or no beer';
-    if (k === 'Network') return 'no link in reach';
-    return 'not legal this turn';
+    if (k === 'Sell') return ['no sale', 'nothing of yours is sellable, or there is no beer for it'];
+    if (k === 'Network') return ['no link', 'no link you can reach is still unbuilt'];
+    if (k === 'Scout') return ['no scout', 'scouting needs two cards to discard and no wild in hand'];
+    return ['—', 'not legal this turn'];
   };
+  const WHY = {};
+  ACTS.forEach(([k]) => { WHY[k] = whyNot(k); });
   abox.innerHTML = ACTS.map(([k, g]) => {
     const n = avail[k] || 0;
-    const why = n ? '' : whyNot(k);
+    const [why, whyFull] = n ? ['', ''] : WHY[k];
     return `<button class="${k === kind ? 'sel' : ''}" ${n ? '' : 'disabled'}
       ${n ? `onclick="pickKind('${k}')"` : ''}
-      title="${n ? n + ' option' + (n === 1 ? '' : 's') + ' with this card' : why}"
+      title="${n ? n + ' option' + (n === 1 ? '' : 's') + ' with this card' : whyFull}"
       >${g} ${k}${n > 1 ? ` <small>${n}</small>` : ''}${
-        n || card === null ? '' : `<small class="why">${why}</small>`}</button>`;
+        n || !why ? '' : `<small class="why">${why}</small>`}</button>`;
   }).join('') +
   // Undo rewinds past the bots' replies to the position you chose from, so it
   // is never greyed by which card is selected -- only by whether there is a
