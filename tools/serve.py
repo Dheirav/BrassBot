@@ -311,17 +311,49 @@ def _ladder(market, held, n: int = 6):
     return out
 
 
-def _with_buildable(mat, moves):
-    """Mark the industries a Build is actually legal for this turn.
+def _with_buildable(state, seat, mat, moves):
+    """Mark the industries a Build is legal for, and say why when it is not.
 
-    Cash is only one of the reasons a build is unavailable -- the others are no
-    matching card, no reachable slot, and no tile left. Taking this from the
-    legal move list makes "can build now" exact, so the cash hint is only ever
-    shown as the explanation when money really is what is missing.
+    "Blocked" collapses four different situations that call for four different
+    turns: no tile left, no card that names it, not enough cash, or nothing
+    reachable to put it on. The legal move list settles WHETHER; these settle
+    WHICH, so the player is told the thing they would have to change.
     """
     live = {m["industry"] for m in moves if m["kind"] == "Build"}
+    hand = state.players[seat].hand
     for name, entry in mat.items():
         entry["buildable"] = name in live
+        if entry["buildable"]:
+            entry["reason"] = None
+            continue
+        if entry["next"] is None:
+            entry["reason"] = "none left"
+            continue
+        industry = Industry(name)
+        # Could any card in hand name this industry at a town with a free slot?
+        # An industry card says the industry outright; a location card allows
+        # whatever that town's empty slots accept.
+        playable = False
+        for card in hand:
+            if card.industries and industry in card.industries:
+                playable = True
+                break
+            if card.is_wild:
+                playable = True
+                break
+            if card.town:
+                town = state.data.towns.get(card.town)
+                slots = state.tiles.get(card.town, ())
+                if town and any(tile is None and industry in spec
+                                for tile, spec in zip(slots, town.slots)):
+                    playable = True
+                    break
+        if not playable:
+            entry["reason"] = "no card for it"
+        elif entry["short"]:
+            entry["reason"] = f"short £{entry['short']}"
+        else:
+            entry["reason"] = "no slot in reach"
     return mat
 
 
@@ -507,14 +539,14 @@ def snapshot() -> dict:
         "hand": [{"kind": c.kind.value, "town": c.town,
                   "industries": sorted(i.value for i in (c.industries or ()))}
                  for c in me.hand],
-        "mat": _with_buildable(mat_ladder(state, seat), moves),
+        "mat": _with_buildable(state, seat, mat_ladder(state, seat), moves),
         # Every seat's next tile, so an opponent one develop from a level-3
         # cotton is visible rather than a surprise.
         # Our own row carries `buildable`, taken from the legal move list, so
         # "can build now" is exact rather than inferred from cash. Opponents get
         # the ladder without it -- affordability is only meaningful on the seat
         # that is actually to move.
-        "mats": [_with_buildable(mat_ladder(state, i), moves) if i == seat
+        "mats": [_with_buildable(state, i, mat_ladder(state, i), moves) if i == seat
                  else mat_ladder(state, i)
                  for i in range(state.n_players)],
         "deck": len(state.deck),

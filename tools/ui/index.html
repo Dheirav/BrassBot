@@ -69,7 +69,7 @@
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
   .chip { background:#2c3240; border:1px solid var(--line); border-radius:6px;
           padding:3px 8px; font-size:12px }
-  .seat { display:grid; grid-template-columns:1fr repeat(4, minmax(34px, auto));
+  .seat { display:grid; grid-template-columns:1fr repeat(5, minmax(30px, auto));
           gap:2px 8px; padding:7px 9px; align-items:baseline;
           border-radius:6px; border:1px solid var(--line); margin-bottom:5px }
   .seat.me { border-color:var(--accent) }
@@ -243,9 +243,10 @@
   </div>
   <details><summary class="legendsum">Legend</summary>
     <div id="legend" class="meta"></div></details>
-  <h2>Markets</h2><div id="markets"></div>
+  <details open><summary class="legendsum">Markets</summary>
+    <div id="markets"></div></details>
   <h2>Players <span class="meta" style="font-weight:400;font-size:10px">
-    vp · £ · inc · links/cards</span></h2><div id="seats"></div>
+    proj · banked · £ · inc · links/cards</span></h2><div id="seats"></div>
   <h2>Mat &mdash; next tile of each industry</h2>
   <div class="kinds" id="mattabs"></div><div class="mat" id="mat"></div>
   <h2>Recent <button id="logmode" onclick="toggleLog()"
@@ -397,21 +398,23 @@ function draw(s) {
   // What each line is worth at this instant. Link VP is the icons showing at
   // both ends and counts every player's tiles, not just yours -- so these
   // numbers climb as the board fills, which is why a link bought early scores
-  // against a bare board. Zeroes are left off; the empty lines are the point.
+  // against a bare board. Zeroes are drawn too, dimmed: an unlabelled line is
+  // ambiguous -- worth nothing, or the UI simply did not say?
   for (const l of (s.all_links || [])) {
-    if (!l.vp) continue;
     const cx = l.ends.reduce((a,e)=>a+C[e][0],0)/l.ends.length;
     const cy = l.ends.reduce((a,e)=>a+C[e][1],0)/l.ends.length;
     // These were the loudest marks on the board and the least urgent thing
     // on it. Full strength only while a link is actually being chosen.
     const loud = kind === 'Network';
+    const zero = !l.vp;
     out += `<circle cx="${cx}" cy="${cy}" r="${loud ? 8.5 : 6.5}"
-             fill="#1b1f28" fill-opacity="${loud ? 1 : 0.6}"
+             fill="#1b1f28" fill-opacity="${zero ? 0.45 : loud ? 1 : 0.6}"
              stroke="${l.id in built ? COL[built[l.id]] : '#4b5568'}"
-             stroke-width="1" stroke-opacity="${loud ? 1 : 0.6}"/>
+             stroke-width="1" stroke-opacity="${zero ? 0.35 : loud ? 1 : 0.6}"/>
             <text x="${cx}" y="${cy + (loud ? 3.5 : 2.8)}" text-anchor="middle"
              style="font-size:${loud ? 9 : 7.5}px;font-weight:700;
-                    fill:var(--accent);opacity:${loud ? 1 : 0.55}"
+                    fill:${zero ? 'var(--dim)' : 'var(--accent)'};
+                    opacity:${zero ? 0.5 : loud ? 1 : 0.55}"
              ><title>this link scores ${l.vp} VP if the era ended now</title
              >${l.vp}</text>`;
   }
@@ -631,7 +634,11 @@ function draw(s) {
       <small style="white-space:nowrap"
         title="turn position, and cash spent this round -- least spent goes first next round"
         >&nbsp;#${(p.order ?? 0) + 1} · £${p.spent}sp</small></span>
-      <span class="num" style="text-align:right"><strong>${p.projected}</strong></span>
+      <span class="num" style="text-align:right"
+        title="projected final score, if the game ended now"
+        ><strong>${p.projected}</strong></span>
+      <span class="num meta" style="text-align:right"
+        title="VP actually banked so far">${p.vp}</span>
       <span class="num meta" style="text-align:right"
         title="cash">£${p.money}</span>
       <span class="num meta" style="text-align:right"
@@ -740,15 +747,18 @@ function draw(s) {
     // Whether you can actually place this next tile right now. `buildable` is
     // exact -- it comes from the legal move list -- so the cash figure is only
     // offered as the reason when money is genuinely what is missing.
+    // "blocked" collapsed four situations that call for four different turns.
+    // The server now says which one, so the player is told the thing they would
+    // have to change.
     const afford = m.buildable === undefined
       ? `<span class="meta">£${m.cash} all in</span>`
       : m.buildable
       ? '<span class="ok">can build now</span>'
-      : m.short > 0
-        ? `<span class="warn" title="approx: market cubes get dearer as you buy, and your own connected sources are free">need ~£${m.short} more</span>`
-        : '<span class="gone" title="not money — no matching card, no reachable slot, or none left">blocked</span>';
+      : `<span class="${/^short/.test(m.reason || '') ? 'warn' : 'gone'}">${
+          m.reason || 'blocked'}</span>`;
     return `<span class="ind">${MATNAME[ind]}</span>
-      <span><span class="lv">L${m.next}</span> <span class="pips">${pips}</span>${flags}</span>
+      <span><span class="lv">L${m.next}</span> <span class="pips">${pips}</span>
+        <span class="meta">${m.remaining} left</span>${flags}</span>
       <span class="meta">£${m.cost}${m.coal ? '+' + m.coal + 'c' : ''}${m.iron ? '+' + m.iron + 'i' : ''}
         · ${m.vp}vp · +${m.income}inc${beer}${
           m.produces ? ' · puts ' + m.produces : ''}
