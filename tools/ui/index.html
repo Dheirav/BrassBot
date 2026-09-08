@@ -841,6 +841,14 @@ function draw(s) {
   const mine = card === null ? [] : (byCard[card] || []);
   const avail = {};
   mine.forEach(m => avail[m.kind] = (avail[m.kind] || 0) + 1);
+  // Scout discards three cards but the engine labels only the most expendable
+  // of them as "the card", so counting by that greys the button out for a card
+  // you can perfectly well scout away as one of the other two.
+  if (card !== null) {
+    const n = (s.moves || []).filter(m => m.kind === 'Scout'
+      && [m.card, ...m.extra].includes(card)).length;
+    if (n) avail.Scout = n;
+  }
   if (kind !== null && !avail[kind]) kind = null;
 
   // A greyed button that will not say WHY is worse than no button: "I am
@@ -1053,14 +1061,22 @@ function renderKind(kind, opts, s) {
     // Scout discards THREE cards: the one played, plus two you choose. Every
     // option rendered as the same sentence before, so the choice the rules give
     // you was on screen as twenty identical lines.
+    // All three cards are discarded, so which one the engine calls "the card"
+    // is arbitrary -- it names the most expendable of each triple. Filtering on
+    // that left a valuable card with one option or none, when what matters is
+    // the SET of three. Any triple containing your card qualifies.
     const pairKey = a => a.slice().sort((x, y) => x - y).join('|');
+    const triple = m => [m.card, ...m.extra];
+    const withCard = (s.moves || [])
+      .filter(m => m.kind === 'Scout' && triple(m).includes(card));
+    const others = m => triple(m).filter(i => i !== card);
     const byPair = {};
-    opts.forEach(m => byPair[pairKey(m.extra)] = m);
-    const firsts = [...new Set(opts.flatMap(m => m.extra))].sort((a, b) => a - b);
+    withCard.forEach(m => byPair[pairKey(others(m))] = m);
+    const firsts = [...new Set(withCard.flatMap(others))].sort((a, b) => a - b);
     if (sc1 !== null && !firsts.includes(sc1)) { sc1 = null; sc2 = null; }
-    const partners = sc1 === null ? [] : [...new Set(opts
-      .filter(m => m.extra.includes(sc1))
-      .map(m => m.extra.find(x => x !== sc1) ?? sc1))].sort((a, b) => a - b);
+    const partners = sc1 === null ? [] : [...new Set(withCard
+      .filter(m => others(m).includes(sc1))
+      .flatMap(m => others(m).filter(x => x !== sc1)))].sort((a, b) => a - b);
     if (sc2 !== null && !partners.includes(sc2)) sc2 = null;
 
     const nm = i => cardLabel(s.hand[i]);
@@ -1070,7 +1086,7 @@ function renderKind(kind, opts, s) {
 
     return `<p class="hint">Scouting spends three cards — the one you played,
       plus two more — and gives you a wild location and a wild industry.
-      Giving up: <b>${cardLabel(s.hand[opts[0].card])}</b>.</p>
+      Giving up: <b>${cardLabel(s.hand[card])}</b>.</p>
       <div class="row" style="gap:6px;margin-bottom:9px">
         <select onchange="setScout(1, this.value)">
           ${optTag('', sc1 === null ? '' : sc1, '— second card —')}
@@ -1081,7 +1097,7 @@ function renderKind(kind, opts, s) {
           ${partners.map(i => optTag(i, sc2, nm(i))).join('')}
         </select>
       </div>
-      ${pick ? btn(pick, `Scout — give up ${cardLabel(s.hand[pick.card])}, `
+      ${pick ? btn(pick, `Scout — give up ${cardLabel(s.hand[card])}, `
                         + `${nm(sc1)}, ${nm(sc2)}`, s)
              : '<p class="hint">Choose the two other cards to discard.</p>'}`;
   }
