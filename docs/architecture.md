@@ -20,8 +20,16 @@ brassbot/            the game, and the bots that play it
   yardstick.py       compare play against expert bands, not against our bots
   features.py        feature vectors, for the learned-value experiments
 tools/               command line entry points (see README for usage)
+  serve.py           the playable UI's server: one game in a module dict
+  ui/index.html      the whole client -- one file, inline SVG, no build step
+  play.py            the same game one move at a time, for a shell or an agent
+  verify-weight.py   the measurement that decides what ships
+  regime-split.py    the same, partitioned by a board feature (mode-selection)
 tests/               205 tests; several pin rules that agents found broken
 ```
+
+Note what is NOT covered by tests: everything in `tools/`. The UI is verified by
+driving a real browser against a real server (Playwright), not by unit tests.
 
 ## How one decision flows
 
@@ -56,6 +64,41 @@ a target to distil.
 | change how far the bot looks | `planner.py`, or `pair_search` in `bots/heuristic.py` |
 | change resource sourcing | `resources.py` |
 | add a measurement | `evaluate.py`, or a script in `tools/` |
+| change what the UI shows | `snapshot()` in `tools/serve.py`, then `draw()` in `tools/ui/index.html` |
+
+## The UI
+
+`tools/serve.py` holds **one game in a module-level `GAME` dict** and serves
+`snapshot()` as JSON; `tools/ui/index.html` is the entire client. There is no
+build step, no framework and no external asset -- it is served as one file.
+
+Four things about it are load-bearing:
+
+**A move is sent as an INDEX into `legal_actions()`, which the server
+regenerates on every request.** Two tabs on one game, or a click racing an undo,
+once applied a still-in-range index to a different list and played an action
+nobody chose, silently. Every request now carries the snapshot `version` its
+indices were drawn against and a mismatch is refused. **Any new endpoint taking
+an index needs the same guard.**
+
+**The board is three SVG layers.** `<defs>` holds gradients and filters and is
+never re-serialised, so their ids stay stable; `#lay-live` is rebuilt wholesale
+on every state change; `#lay-fx` is not, which is the only reason a hover ghost
+can exist. Assigning `innerHTML` destroys the focused node, so `draw()` records
+which target held focus and restores it -- without that, keyboard play is
+impossible.
+
+**Clicks and hovers are delegated from the SVG root** via
+`e.target.closest('[data-act]')`, because `event.target` is always the inner
+shape and never the group.
+
+**The server is stateful and shared.** Two browser tabs, and any script driving
+it, are playing the same game. A test that plays moves changes what the next
+test sees -- which has produced "bugs" that were only an exhausted board.
+
+Undo rewinds *past* the bots' replies, so taking a move back after seeing what
+they did leaks information a real game would not. That is right for analysis and
+wrong for honest play; it is a property of the tool, not a defect.
 
 ## Things that will bite you
 
