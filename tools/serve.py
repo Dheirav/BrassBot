@@ -329,6 +329,15 @@ def _with_buildable(state, seat, mat, moves):
         if entry["next"] is None:
             entry["reason"] = "none left"
             continue
+        # Era first: a canal-only tile in the Rail Era cannot be placed at any
+        # price or from any position, so naming cash or reach as the blocker
+        # sends the player to fix something that is not the problem.
+        if entry["canal_only"] and state.era is not Era.CANAL:
+            entry["reason"] = "canal-only — gone this era"
+            continue
+        if entry["rail_only"] and state.era is not Era.RAIL:
+            entry["reason"] = "rail-only — not until rail"
+            continue
         industry = Industry(name)
         # Could any card in hand name this industry at a town with a free slot?
         # An industry card says the industry outright; a location card allows
@@ -383,7 +392,8 @@ def snapshot() -> dict:
     me = state.players[seat]
     proj = project_vp(state)
     moves = []
-    if not state.finished and state.current.idx == seat:
+    if not state.finished and not GAME.get("ended") \
+            and state.current.idx == seat:
         for i, action in enumerate(legal_actions(state)):
             # Which CARD an action spends, and enough structure for the UI to
             # group by it. A flat list of 87 strings is not a decision anyone

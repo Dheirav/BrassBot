@@ -94,6 +94,10 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration:.01ms !important;
                              animation-duration:.01ms !important } }
+  /* Decorative overlays. They are drawn ON TOP of the board, so without this
+     a ghost sits under the cursor and swallows hovers and clicks aimed at the
+     very target it is previewing. */
+  #lay-fx, #lay-seat { pointer-events:none }
   .tgt { cursor:pointer }
   /* An SVG group takes focus but paints no useful outline, so the ring goes on
      the shape itself. */
@@ -209,6 +213,7 @@
     </defs>
     <g id="lay-live"></g>
     <g id="lay-fx"></g>
+    <g id="lay-seat"></g>
   </svg>
   <div id="preview"></div>
   <div id="zoom">
@@ -350,7 +355,7 @@ function draw(s) {
   // that from a list of 57 sentences is a different game from pointing at the
   // town. These drive the highlights below and the clicks that follow.
   const selMoves = (card === null || kind === null) ? []
-      : s.moves.filter(m => m.card === card && m.kind === kind);
+      : s.moves.filter(m => sigAt(m.card) === sigAt(card) && m.kind === kind);
   const tgtTown = {}, tgtLine = {};
   // SVG paints in document order, so anything drawn after a target would sit on
   // top of it and swallow the click. Targets are collected here and appended
@@ -1226,8 +1231,13 @@ function pickCard(i) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     drag.moved = Math.max(drag.moved, Math.abs(dx) + Math.abs(dy));
     if (drag.moved < 4) return;
-    view.x = drag.vx - dx * scale;
-    view.y = drag.vy - dy * scale;
+    // Clamped to a board's width of slack either side, so a pan can never
+    // strand the map off screen.
+    const slack = 400;
+    view.x = Math.max(BASE_VIEW.x - slack,
+             Math.min(BASE_VIEW.x + BASE_VIEW.w + slack, drag.vx - dx * scale));
+    view.y = Math.max(BASE_VIEW.y - slack,
+             Math.min(BASE_VIEW.y + BASE_VIEW.h + slack, drag.vy - dy * scale));
     applyView();
   });
   const endDrag = () => { setTimeout(() => { drag = null; }, 0); };
@@ -1256,14 +1266,15 @@ function pickCard(i) {
 // One option under the pointer plays immediately; several narrow the list and
 // wait, because picking the slot or the sale is still a real choice.
 function pickTown(t) {
-  const ms = (S.moves || []).filter(m => m.card === card && m.kind === kind
+  const ms = (S.moves || []).filter(m => sigAt(m.card) === sigAt(card)
+      && m.kind === kind
       && (m.town === t || (m.sales || []).some(sa => sa.town === t)));
   if (ms.length === 1) play(ms[0].index);
   else { focus = t; draw(S); }
 }
 function pickLine(id) {
-  const ms = (S.moves || []).filter(m => m.card === card && m.kind === kind
-      && (m.lines || []).includes(id));
+  const ms = (S.moves || []).filter(m => sigAt(m.card) === sigAt(card)
+      && m.kind === kind && (m.lines || []).includes(id));
   if (ms.length === 1) play(ms[0].index);
   else { focus = id; draw(S); }
 }
@@ -1328,7 +1339,10 @@ function pickRes(k) { resFilter = (resFilter === k ? null : k); draw(S); }
 // draw(), because rebuilding the whole board to answer "which are theirs?"
 // would throw away focus and any ghost on every mouse move.
 function hiSeat(seat) {
-  const fx = document.getElementById('lay-fx');
+  // Its own layer: it used to share #lay-fx with the ghost, so hovering a seat
+  // erased a keyboard ghost and left its cost banner describing a tile that was
+  // no longer drawn.
+  const fx = document.getElementById('lay-seat');
   if (!fx || !S) return;
   if (seat === null) { fx.innerHTML = ''; return; }
   const C = S.coords, byTown = {};
@@ -1385,7 +1399,8 @@ function clearGhost() {
 // most of what makes a 54-option turn hard to read.
 function showGhost(act, id) {
   if (!S || card === null || kind === null) return;
-  const ms = (S.moves || []).filter(m => m.card === card && m.kind === kind
+  const ms = (S.moves || []).filter(m => sigAt(m.card) === sigAt(card)
+      && m.kind === kind
       && (act === 'town'
           ? (m.town === id || (m.sales || []).some(sa => sa.town === id))
           : (m.lines || []).includes(id)));
