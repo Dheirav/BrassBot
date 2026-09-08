@@ -295,9 +295,24 @@ function icon(ind, x, y, size, fill, opacity) {
 }
 let S = null, card = null, kind = null, matSeat = 0, focus = null;
 let logProse = false, resFilter = null, dev1 = null, dev2 = null;
-// Shared by draw() and renderKind(), which are separate top-level functions --
-// as a const inside draw() it was invisible to the Sell renderer.
+let sc1 = null, sc2 = null;
+// Shared by draw() and renderKind(), which are separate top-level functions.
+// TOWNNAME was caught living inside draw() by the Sell renderer, and cardLabel
+// by the Scout renderer -- anything both use belongs out here.
 let TOWNNAME = {};
+// "Stoke-on-Trent" over two lines is a different shape from every other card
+// and breaks the row. The reference abbreviates; so does this.
+// TOWNSHORT, not SHORT: that name was already taken by the industry
+// abbreviations above, and the collision silently blanked the whole page.
+const TOWNSHORT = {birmingham: "B'ham", worcester: 'Worc.', wolverhampton: 'Wolver.',
+                   coalbrookdale: 'Coalbr.', kidderminster: 'Kidder.',
+                   stoke_on_trent: 'Stoke', burton_on_trent: 'Burton',
+                   farm_northern: 'Farm N', farm_southern: 'Farm S'};
+const cardLabel = c => c.town
+  ? (TOWNSHORT[c.town] || TOWNNAME[c.town] || c.town.replace(/_/g, ' '))
+  : (c.industries && c.industries.length
+     ? c.industries.map(i => MATNAME[i] || i).join(' / ')
+     : c.kind.replace(/_/g, ' '));
 const MATNAME = {coal_mine:'coal', iron_works:'iron', brewery:'brewery',
                  cotton_mill:'cotton', manufacturer:'manuf.', pottery:'pottery'};
 
@@ -742,17 +757,6 @@ function draw(s) {
 
   TOWNNAME = {};
   (s.towns || []).forEach(t => TOWNNAME[t.id] = t.name);
-  // "Stoke-on-Trent" over two lines is a different shape from every other card
-  // and breaks the row. The reference abbreviates; so does this.
-  const SHORT = {birmingham: "B'ham", worcester: 'Worc.', wolverhampton: 'Wolver.',
-                 coalbrookdale: 'Coalbr.', kidderminster: 'Kidder.',
-                 stoke_on_trent: 'Stoke', burton_on_trent: 'Burton',
-                 farm_northern: 'Farm N', farm_southern: 'Farm S'};
-  const cardLabel = c => c.town ? (SHORT[c.town] || TOWNNAME[c.town]
-                                   || c.town.replace(/_/g, ' '))
-      : (c.industries && c.industries.length
-         ? c.industries.map(i => MATNAME[i] || i).join(' / ')
-         : c.kind.replace(/_/g, ' '));
 
   // A card face says what KIND of card it is, what it names, and how many
   // moves it actually unlocks -- so a dead card is visibly dead rather than
@@ -1041,6 +1045,43 @@ function renderKind(kind, opts, s) {
                            .replace(/^linked /, '').replace(/ · card.*$/, ''), s)).join('') : '');
   }
 
+  if (kind === 'Scout') {
+    // Scout discards THREE cards: the one played, plus two you choose. Every
+    // option rendered as the same sentence before, so the choice the rules give
+    // you was on screen as twenty identical lines.
+    const pairKey = a => a.slice().sort((x, y) => x - y).join('|');
+    const byPair = {};
+    opts.forEach(m => byPair[pairKey(m.extra)] = m);
+    const firsts = [...new Set(opts.flatMap(m => m.extra))].sort((a, b) => a - b);
+    if (sc1 !== null && !firsts.includes(sc1)) { sc1 = null; sc2 = null; }
+    const partners = sc1 === null ? [] : [...new Set(opts
+      .filter(m => m.extra.includes(sc1))
+      .map(m => m.extra.find(x => x !== sc1) ?? sc1))].sort((a, b) => a - b);
+    if (sc2 !== null && !partners.includes(sc2)) sc2 = null;
+
+    const nm = i => cardLabel(s.hand[i]);
+    const pick = (sc1 !== null && sc2 !== null) ? byPair[pairKey([sc1, sc2])] : null;
+    const optTag = (v, cur, txt) =>
+      `<option value="${v}" ${String(v) === String(cur) ? 'selected' : ''}>${txt}</option>`;
+
+    return `<p class="hint">Scouting spends three cards — the one you played,
+      plus two more — and gives you a wild location and a wild industry.
+      Giving up: <b>${cardLabel(s.hand[opts[0].card])}</b>.</p>
+      <div class="row" style="gap:6px;margin-bottom:9px">
+        <select onchange="setScout(1, this.value)">
+          ${optTag('', sc1 === null ? '' : sc1, '— second card —')}
+          ${firsts.map(i => optTag(i, sc1, nm(i))).join('')}
+        </select>
+        <select onchange="setScout(2, this.value)" ${sc1 === null ? 'disabled' : ''}>
+          ${optTag('', sc2 === null ? '' : sc2, '— third card —')}
+          ${partners.map(i => optTag(i, sc2, nm(i))).join('')}
+        </select>
+      </div>
+      ${pick ? btn(pick, `Scout — give up ${cardLabel(s.hand[pick.card])}, `
+                        + `${nm(sc1)}, ${nm(sc2)}`, s)
+             : '<p class="hint">Choose the two other cards to discard.</p>'}`;
+  }
+
   if (kind === 'Sell') {
     const g = {own: [], merchant: []};
     opts.forEach(m => g[m.own_beer ? 'own' : 'merchant'].push(m));
@@ -1092,7 +1133,8 @@ function btn(m, text, s) {
 }
 
 function pickCard(i) {
-  card = (card === i ? null : i); kind = null; focus = null; dev1 = dev2 = null;
+  card = (card === i ? null : i); kind = null; focus = null;
+  dev1 = dev2 = null; sc1 = sc2 = null;
   draw(S);
 }
 
@@ -1226,6 +1268,11 @@ function dropCard(e, pos) {
   draw(S);
 }
 
+function setScout(slot, v) {
+  const n = v === '' ? null : +v;
+  if (slot === 1) { sc1 = n; sc2 = null; } else { sc2 = n; }
+  draw(S);
+}
 function setDev(slot, v) {
   if (slot === 1) { dev1 = v || null; dev2 = null; } else { dev2 = v || null; }
   draw(S);
@@ -1358,7 +1405,9 @@ function doExport() {
       note.textContent = s.exported ? '→ ' + s.exported.split('/').pop() : 'failed'; });
 }
 function pickKind(k) {
-  kind = (kind === k ? null : k); focus = null; dev1 = dev2 = null; draw(S);
+  kind = (kind === k ? null : k); focus = null;
+  dev1 = dev2 = null; sc1 = sc2 = null;
+  draw(S);
 }
 function play(i) {
   document.getElementById('details').innerHTML = '<p class="empty">Playing…</p>';

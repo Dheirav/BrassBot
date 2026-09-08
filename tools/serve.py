@@ -428,6 +428,11 @@ def snapshot() -> dict:
                     seen[ind] = n + 1
                 m.update(industries=[i2.value for i2 in action.industries],
                          levels=levels)
+            elif isinstance(action, Scout):
+                # Scouting discards THREE cards: the one played plus two more.
+                # Without these the options are twenty identical sentences and
+                # you cannot tell which two you are giving up.
+                m.update(extra=list(action.extra))
             elif isinstance(action, Sell):
                 m.update(beer=_draws(state, getattr(action, "beer", ())),
                          price=0, revenue=0,
@@ -610,6 +615,16 @@ def main() -> None:
     # import time it leaked into every analysis script that imported `describe`
     # and silently handed the BOT a three-times-larger move list.
     _engine.MAX_DISCARD_VARIANTS = 8      # a full hand
+
+    # Same reasoning for Scout, which discards THREE cards. The engine draws its
+    # triples from the SCOUT_POOL most "expendable" cards by a hand-written
+    # ranking, so with a full hand the two cards it judged least expendable
+    # could never be scouted away. That is a sensible prune for a bot whose
+    # evaluation cannot price a card -- widening it there measured null in all
+    # four arms tried -- and it is not the bot's decision to make for a person.
+    # The rules let you discard any three.
+    _engine.SCOUT_POOL = 8                # every card in hand is a candidate
+    _engine.MAX_SCOUT_VARIANTS = 56       # C(8,3), so no triple is cut
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seed", type=int, default=1)
