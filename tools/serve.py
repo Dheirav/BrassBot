@@ -517,6 +517,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(body)))
+        # The page is re-read from disk on every request precisely so the UI can
+        # be edited while a game is running -- but a browser that caches it
+        # serves the old file back on refresh, which looks exactly like the edit
+        # never landed. It cost half an hour of "it's not there" once.
+        self.send_header("Cache-Control", "no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(body)
 

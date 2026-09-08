@@ -388,29 +388,36 @@ function draw(s) {
                : mo.bonus === 'money' ? `+£${mo.amount}`
                : `+${mo.amount} ${BONUS[mo.bonus]}`;
     out += `<g opacity="${narrowing && !tgtTown[m] ? 0.45 : 1}">
-            <rect x="${x-44}" y="${y-19}" width="88" height="38" rx="8"
+            <rect x="${x-46}" y="${y-22}" width="92" height="54" rx="9"
             fill="#242938" stroke="${live ? '#4a5364' : '#333a4a'}"/>
-            <text x="${x}" y="${y-8}" text-anchor="middle">${m}</text>
-            <text x="${x}" y="${y+32}" text-anchor="middle" class="tname"
-             style="fill:var(--accent);font-weight:700">${btxt}</text>`;
+            <text x="${x}" y="${y-10}" text-anchor="middle">${m}</text>`;
+    if (btxt)
+      // A tinted band, so the reward reads as the merchant's own and not as
+      // something written on the map near it.
+      out += `<rect x="${x-45}" y="${y+14}" width="90" height="17" rx="0"
+               fill="var(--accent)" fill-opacity="0.13"/>
+              <path d="M${x-45} ${y+14} h90" stroke="#4a5364" stroke-width="1"/>
+              <text x="${x}" y="${y+26}" text-anchor="middle"
+               style="font-size:11px;font-weight:700;fill:var(--accent);
+                      letter-spacing:.3px">${btxt}</text>`;
     if (live) {
       // Each slot: what it takes, and whether its beer barrel is still there.
       const sw = 30, tot = live.length * sw;
       live.forEach((sl, j) => {
         const gx = x - tot/2 + j*sw;
         if (sl.kind === 'blank')
-          out += `<text x="${gx+11}" y="${y+11}" text-anchor="middle"
+          out += `<text x="${gx+11}" y="${y+8}" text-anchor="middle"
                    class="tname">—</text>`;
         else if (sl.kind === 'any')
-          out += `<text x="${gx+11}" y="${y+11}" text-anchor="middle"
-                   style="font-size:9px;font-weight:700;fill:var(--accent)">ANY</text>`;
+          out += `<text x="${gx+11}" y="${y+8}" text-anchor="middle"
+                   style="font-size:9px;font-weight:700;fill:#c9d1e0">ANY</text>`;
         else
-          out += icon(sl.kind, gx + 3, y - 2, 15, '#c9d1e0', 0.95);
+          out += icon(sl.kind, gx + 3, y - 6, 15, '#c9d1e0', 0.95);
         // The barrel is the thing that decides whether a sale is possible.
         out += sl.beer
-          ? `<circle cx="${gx+22}" cy="${y+3}" r="5" fill="#e0a458"
+          ? `<circle cx="${gx+22}" cy="${y-1}" r="5" fill="#e0a458"
               stroke="#12141a" stroke-width="0.8"><title>beer available</title></circle>`
-          : `<circle cx="${gx+22}" cy="${y+3}" r="5" fill="none"
+          : `<circle cx="${gx+22}" cy="${y-1}" r="5" fill="none"
               stroke="#4a5364" stroke-dasharray="2 2"><title>beer gone</title></circle>`;
       });
     } else {
@@ -446,7 +453,7 @@ function draw(s) {
   // moves, test it and drop the label below the slots when the space is taken.
   const mrect = s.all_merchants.map(mo => {
     const [mx, my] = C[mo.id || mo];
-    return [mx - 44, my - 19, mx + 44, my + 19];
+    return [mx - 46, my - 22, mx + 46, my + 32];
   });
   const clashes = (cx, cy, txt) => {
     const hw = txt.length * 2.3 + 2;
