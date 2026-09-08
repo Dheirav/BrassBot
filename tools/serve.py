@@ -457,7 +457,14 @@ def snapshot() -> dict:
         "round": state.round,
         "rounds_this_era": state.rounds_this_era,
         "turn_order": list(state.turn_order),
-        "current": state.current.idx,
+        # A finished game has no player to move: the engine leaves turn_pos one
+        # past the end, so asking raises. snapshot() is the first thing the UI
+        # requests after the final action, so this crashed the page exactly when
+        # the game ended -- and only a game played to its natural end, which is
+        # why hand testing never hit it.
+        "current": (state.current.idx
+                    if not state.finished
+                    and state.turn_pos < len(state.turn_order) else -1),
         # The first Canal round is one action and every other turn is two, so
         # without this you cannot tell whether the board in front of you is
         # still yours to change.
