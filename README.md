@@ -109,10 +109,25 @@ This is an unauthenticated development server: there are no accounts and no
 passwords, so anyone who can reach the port can play and can open any table.
 That is fine on a home network and is not something to expose to the internet.
 
-**Export log** writes the finished game to `logs/` in the same format as the
-pasted-in real games, so games you play here pool with those and every analysis
-script reads them unchanged. Pass the `--name` you play under elsewhere if you
-want them counted together.
+**Export log** writes two files. The prose log goes to `logs/` in the same format
+as the pasted-in real games, so games you play here pool with those and every
+analysis script reads them unchanged. Pass the `--name` you play under elsewhere
+if you want them counted together.
+
+Beside it goes a `.replay.json`: the seed, the seat, and the index of every
+action chosen. The engine is deterministic, so that reconstructs the game
+exactly, hand and market included, which a pasted log can never do. Review your
+decisions with it:
+
+```bash
+PYTHONPATH=. .venv/bin/python tools/review.py logs/<game>.replay.json
+```
+
+At each of your turns it enumerates what was legal, scores every option the way
+the bot scores a position, and reports where your choice ranked and how far
+behind the bot's pick it was. Read the gaps rather than the ranks: most
+decisions score within a point of each other, and the bot is not obviously
+stronger than you, so a disagreement means the moment is worth a look.
 
 Two things about the server worth knowing: it holds **one game**, so a second
 browser tab is playing the same one (a stale tab is refused rather than allowed

@@ -157,9 +157,18 @@ def bump(g: dict) -> None:
     g["version"] = g.get("version", 0) + 1
 
 
-def record(g: dict, action) -> None:
-    """Log an action, then any era scoring it triggered."""
+def record(g: dict, action, index: int | None = None) -> None:
+    """Log an action, then any era scoring it triggered.
+
+    `index` is the action's position in the legal-move list it was chosen from.
+    Stored, because the engine is deterministic: the seed plus every chosen
+    index replays the whole game exactly, hands and market included, which the
+    prose log can never do. It also survives a retune, since the indices are
+    what was actually played rather than what the bot would pick today.
+    """
     state = g["state"]
+    if index is not None:
+        g.setdefault("replay", []).append(index)
     g["log"].append({"seat": state.current.idx,
                         "text": describe(state, action),
                         "pretty": move_label(state, action),
@@ -193,6 +202,15 @@ def export_log(g: dict) -> str:
     path = LOGS / (datetime.now().strftime("%Y%m%d-%H%M%S")
                    + f"{tag}-ui-{state.n_players}p.log")
     path.write_text("\n".join(top + body) + "\n")
+    # Everything a review needs to reconstruct the game exactly. The prose log
+    # is for reading and for pooling with the pasted ones; this is for analysis.
+    path.with_suffix(".replay.json").write_text(json.dumps({
+        "seed": g.get("seed"), "players": state.n_players,
+        "opponent": g.get("opponent", "heuristic"),
+        "seat": g.get("seat", 0), "name": g.get("name", "You"),
+        "finished": state.finished,
+        "actions": list(g.get("replay", [])),
+    }, indent=1) + "\n")
     return str(path)
 
 
@@ -210,6 +228,7 @@ def start(g: dict, seed: int, players: int, opponent: str) -> None:
     # the position you actually chose from -- rewinding only your own move
     # would leave you staring at a board they had already answered.
     g["undo"] = []
+    g["replay"] = []
     g["exported"] = None
     # A move is sent as an INDEX into the legal-action list, which the server
     # regenerates per request. Two tabs on one game, or a click racing an undo,
@@ -227,7 +246,8 @@ def advance(g: dict) -> None:
         actions = legal_actions(state)
         if not actions:
             break
-        record(g, bots[actor].choose(state, actions))
+        chosen = bots[actor].choose(state, actions)
+        record(g, chosen, actions.index(chosen))
 
 
 def project_vp(state):
@@ -663,9 +683,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if not state.finished and state.current.idx == g["seat"] \
                     and 0 <= i < len(actions):
-                g["undo"].append((state.clone(), len(g["log"]), len(g["lines"])))
+                g["undo"].append((state.clone(), len(g["log"]), len(g["lines"]),
+                                  len(g.get("replay", []))))
                 del g["undo"][:-40]
-                record(g, actions[i])
+                record(g, actions[i], i)
                 advance(g)
         elif self.path.startswith("/api/export"):
             # Writing a file is the player's call, not the server's -- a game
@@ -673,10 +694,11 @@ class Handler(BaseHTTPRequestHandler):
             g["exported"] = export_log(g)
         elif self.path.startswith("/api/undo"):
             if g["undo"]:
-                st, nlog, nlines = g["undo"].pop()
+                st, nlog, nlines, nrep = g["undo"].pop()
                 g["state"] = st
                 del g["log"][nlog:]
                 del g["lines"][nlines:]
+                del g.setdefault("replay", [])[nrep:]
                 bump(g)
         elif self.path.startswith("/api/new"):
             # Restart keeps the table it was set up with; only the deal changes.
