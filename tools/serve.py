@@ -20,7 +20,10 @@ import argparse
 import json
 import random
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import secrets
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -50,7 +53,35 @@ LOGNAME = {"coal_mine": "coal", "iron_works": "iron", "cotton_mill": "cotton",
            "brewery": "brewery", "manufacturer": "manufacturer",
            "pottery": "pottery"}
 
-GAME: dict = {}
+# One game per room, so several people can play at once without sharing a
+# board. A room is created the first time it is asked for and the plain URL
+# lands in "main". Each carries its own lock: ThreadingHTTPServer means two
+# requests for the same room really can arrive together.
+GAMES: dict = {}
+GAMES_LOCK = threading.Lock()
+DEFAULTS: dict = {"players": 4, "opponent": "heuristic", "name": "You"}
+
+
+def room_of(path: str, body: dict | None = None) -> str:
+    """The room named by ?room= or the request body, else "main".
+
+    Restricted to a short alphanumeric alphabet: the name reaches a filename
+    through the export path, so it must never carry a separator.
+    """
+    raw = str(body.get("room")) if body and body.get("room") else \
+        (parse_qs(urlparse(path).query).get("room") or ["main"])[0]
+    return "".join(c for c in raw.lower() if c.isalnum())[:12] or "main"
+
+
+def game_for(room: str) -> dict:
+    with GAMES_LOCK:
+        g = GAMES.get(room)
+        if g is None:
+            g = {"lock": threading.Lock(), "room": room, "name": DEFAULTS["name"]}
+            GAMES[room] = g
+            start(g, random.randrange(1, 10 ** 6),
+                  DEFAULTS["players"], DEFAULTS["opponent"])
+        return g
 
 
 def town_name(state, tid: str) -> str:
@@ -118,84 +149,85 @@ def move_label(state, action) -> str:
     return log_line(state, action, "").strip()
 
 
-def who(seat: int) -> str:
-    return GAME.get("name", "You") if seat == GAME.get("seat", 0) else f"Bot {seat}"
+def who(g: dict, seat: int) -> str:
+    return g.get("name", "You") if seat == g.get("seat", 0) else f"Bot {seat}"
 
 
-def bump() -> None:
-    GAME["version"] = GAME.get("version", 0) + 1
+def bump(g: dict) -> None:
+    g["version"] = g.get("version", 0) + 1
 
 
-def record(action) -> None:
+def record(g: dict, action) -> None:
     """Log an action, then any era scoring it triggered."""
-    state = GAME["state"]
-    GAME["log"].append({"seat": state.current.idx,
+    state = g["state"]
+    g["log"].append({"seat": state.current.idx,
                         "text": describe(state, action),
                         "pretty": move_label(state, action),
                         "round": state.round, "era": state.era.value})
-    GAME["lines"].append(log_line(state, action, who(state.current.idx)))
+    g["lines"].append(log_line(state, action, who(g, state.current.idx)))
     before = len(state.era_scores)
     apply_action(state, action)
-    bump()
+    bump(g)
     for rec in state.era_scores[before:]:
         parts = []
         for i, pl in enumerate(state.players):
             gained = rec.link_vp[i] + rec.industry_vp[i]
-            parts.append(f"{who(i)} +{gained} VP ({pl.vp})")
-        GAME["lines"].append(f"{rec.era.value} era scored: " + ", ".join(parts))
+            parts.append(f"{who(g, i)} +{gained} VP ({pl.vp})")
+        g["lines"].append(f"{rec.era.value} era scored: " + ", ".join(parts))
 
 
-def export_log() -> str:
+def export_log(g: dict) -> str:
     """Write the game so far in the pasted-log format, newest line first.
 
     Same shape as logs/*.log so tools that read those -- the playstyle and
     canal-bank analyses -- can pool UI games with the Boomforge ones.
     """
-    state = GAME["state"]
-    top = ([f"game over, winner: {', '.join(who(i) for i in winners(state))}"]
+    state = g["state"]
+    top = ([f"game over, winner: {', '.join(who(g, i) for i in winners(state))}"]
            if state.finished else
            [f"game in progress · {state.era.value} era round {state.round}"])
-    body = list(reversed(GAME["lines"]))
+    body = list(reversed(g["lines"]))
     LOGS.mkdir(exist_ok=True)
     from datetime import datetime
+    tag = "" if g.get("room", "main") == "main" else f"-{g['room']}"
     path = LOGS / (datetime.now().strftime("%Y%m%d-%H%M%S")
-                   + f"-ui-{state.n_players}p.log")
+                   + f"{tag}-ui-{state.n_players}p.log")
     path.write_text("\n".join(top + body) + "\n")
     return str(path)
 
 
-def start(seed: int, players: int, opponent: str) -> None:
+def start(g: dict, seed: int, players: int, opponent: str) -> None:
     # Remembered so Restart can deal a fresh board with the same setup rather
     # than asking for it again.
-    GAME["players"], GAME["opponent"], GAME["seed"] = players, opponent, seed
-    GAME["ended"] = False
-    GAME["state"] = new_game(players, seed=seed)
-    GAME["bots"] = [make(opponent, seed=seed * 10 + i) for i in range(players)]
-    GAME["seat"] = 0
-    GAME["log"] = []
-    GAME["lines"] = []
+    g["players"], g["opponent"], g["seed"] = players, opponent, seed
+    g["ended"] = False
+    g["state"] = new_game(players, seed=seed)
+    g["bots"] = [make(opponent, seed=seed * 10 + i) for i in range(players)]
+    g["seat"] = 0
+    g["log"] = []
+    g["lines"] = []
     # One snapshot per human action, so Undo rewinds past the bots' replies to
     # the position you actually chose from -- rewinding only your own move
     # would leave you staring at a board they had already answered.
-    GAME["undo"] = []
-    GAME["exported"] = None
+    g["undo"] = []
+    g["exported"] = None
     # A move is sent as an INDEX into the legal-action list, which the server
     # regenerates per request. Two tabs on one game, or a click racing an undo,
     # would apply a still-in-range index to a different list and play an action
     # nobody chose. The version pins an index to the position it was drawn for.
-    GAME["version"] = 0
-    advance()
+    g["version"] = 0
+    advance(g)
 
 
-def advance() -> None:
+def advance(g: dict) -> None:
     """Let the bots play until it is the human's turn, or the game ends."""
-    state, bots, seat = GAME["state"], GAME["bots"], GAME["seat"]
+    state, bots, seat = g["state"], g["bots"], g["seat"]
     while not state.finished and state.current.idx != seat:
         actor = state.current.idx
         actions = legal_actions(state)
         if not actions:
             break
-        record(bots[actor].choose(state, actions))
+        record(g, bots[actor].choose(state, actions))
 
 
 def project_vp(state):
@@ -366,8 +398,8 @@ def _with_buildable(state, seat, mat, moves):
     return mat
 
 
-def snapshot() -> dict:
-    state, seat = GAME["state"], GAME["seat"]
+def snapshot(g: dict) -> dict:
+    state, seat = g["state"], g["seat"]
     tiles = []
     for town, slot, tile in state.all_tiles():
         tiles.append({
@@ -392,7 +424,7 @@ def snapshot() -> dict:
     me = state.players[seat]
     proj = project_vp(state)
     moves = []
-    if not state.finished and not GAME.get("ended") \
+    if not state.finished and not g.get("ended") \
             and state.current.idx == seat:
         for i, action in enumerate(legal_actions(state)):
             # Which CARD an action spends, and enough structure for the UI to
@@ -563,15 +595,18 @@ def snapshot() -> dict:
         "discard": sum(len(p.discard) for p in state.players),
         "wild_city": state.wild_location,
         "wild_ind": state.wild_industry,
-        "can_undo": bool(GAME.get("undo")),
+        "can_undo": bool(g.get("undo")),
+        "room": g.get("room", "main"),
+        "rooms": sorted(GAMES),
         # Conceded rather than played out: the standings are real but the game
         # did not reach its own ending, and the UI says so.
-        "ended": bool(GAME.get("ended")),
-        "seed": GAME.get("seed"),
-        "version": GAME.get("version", 0),
-        "exported": GAME.get("exported"),
+        "ended": bool(g.get("ended")),
+        "seed": g.get("seed"),
+        "version": g.get("version", 0),
+        "stale": bool(g.pop("stale_reply", False)),
+        "exported": g.get("exported"),
         "moves": moves,
-        "log": GAME["log"][-14:],
+        "log": g["log"][-14:],
     }
 
 
@@ -593,55 +628,79 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/api/state"):
-            self._send(json.dumps(snapshot()).encode(), "application/json")
+            g = game_for(room_of(self.path))
+            with g["lock"]:
+                self._send(json.dumps(snapshot(g)).encode(), "application/json")
         else:
             self._send(UI.read_bytes(), "text/html; charset=utf-8")
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(length) or "{}")
+        try:
+            body = json.loads(self.rfile.read(length) or "{}")
+            if not isinstance(body, dict):
+                body = {}
+        except ValueError:
+            body = {}
+        g = game_for(room_of(self.path, body))
+        # One request at a time per table. Threading means two clicks really can
+        # arrive together, and every branch below mutates the game.
+        with g["lock"]:
+            self._handle(g, body)
+            self._send(json.dumps(snapshot(g)).encode(), "application/json")
+
+    def _handle(self, g: dict, body: dict) -> None:
         if self.path.startswith("/api/move"):
-            state = GAME["state"]
+            state = g["state"]
             actions = legal_actions(state)
             i = int(body.get("index", -1))
-            stale = int(body.get("version", -1)) != GAME.get("version", 0)
-            if stale:
+            if int(body.get("version", -1)) != g.get("version", 0):
                 # Refuse rather than guess: the index was drawn against a board
                 # that no longer exists.
-                self._send(json.dumps({**snapshot(), "stale": True}).encode(),
-                           "application/json")
+                g["stale_reply"] = True
                 return
-            if GAME.get("ended"):
-                self._send(json.dumps(snapshot()).encode(), "application/json")
+            if g.get("ended"):
                 return
-            if not state.finished and state.current.idx == GAME["seat"] \
+            if not state.finished and state.current.idx == g["seat"] \
                     and 0 <= i < len(actions):
-                GAME["undo"].append((state.clone(), len(GAME["log"]),
-                                     len(GAME["lines"])))
-                del GAME["undo"][:-40]
-                record(actions[i])
-                advance()
+                g["undo"].append((state.clone(), len(g["log"]), len(g["lines"])))
+                del g["undo"][:-40]
+                record(g, actions[i])
+                advance(g)
         elif self.path.startswith("/api/export"):
             # Writing a file is the player's call, not the server's -- a game
             # abandoned halfway is not a log anyone wants on disk.
-            GAME["exported"] = export_log()
+            g["exported"] = export_log(g)
         elif self.path.startswith("/api/undo"):
-            if GAME["undo"]:
-                st, nlog, nlines = GAME["undo"].pop()
-                GAME["state"] = st
-                del GAME["log"][nlog:]
-                del GAME["lines"][nlines:]
-                bump()
+            if g["undo"]:
+                st, nlog, nlines = g["undo"].pop()
+                g["state"] = st
+                del g["log"][nlog:]
+                del g["lines"][nlines:]
+                bump(g)
         elif self.path.startswith("/api/new"):
             # Restart keeps the table it was set up with; only the deal changes.
             seed = body.get("seed")
-            start(int(seed) if seed is not None else random.randrange(1, 10 ** 6),
-                  int(body.get("players", GAME.get("players", 4))),
-                  body.get("opponent", GAME.get("opponent", "heuristic")))
+            start(g, int(seed) if seed is not None else random.randrange(1, 10 ** 6),
+                  int(body.get("players", g.get("players", 4))),
+                  body.get("opponent", g.get("opponent", "heuristic")))
         elif self.path.startswith("/api/end"):
-            GAME["ended"] = True
-            bump()
-        self._send(json.dumps(snapshot()).encode(), "application/json")
+            g["ended"] = True
+            bump(g)
+
+
+def _lan_addresses() -> list:
+    """Best-effort local addresses to hand someone on the same network."""
+    import socket
+    out = []
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("8.8.8.8", 80))       # no packet is sent; this just picks
+        out.append(sock.getsockname()[0])   # the interface that would be used
+        sock.close()
+    except OSError:
+        pass
+    return out
 
 
 def main() -> None:
@@ -674,6 +733,10 @@ def main() -> None:
     ap.add_argument("--opponent", default="heuristic",
                     help="bot spec for the other seats, e.g. planner")
     ap.add_argument("--port", type=int, default=8765)
+    # 127.0.0.1 by default: this is an unauthenticated dev server, so opening it
+    # to the network has to be a deliberate act. --host 0.0.0.0 serves the LAN.
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="0.0.0.0 to let other devices on your network play")
     # Exported logs are pooled with the pasted Boomforge ones, and those scripts
     # filter on the player's name -- so pass the same name you play under there
     # if you want your UI games counted alongside them.
@@ -681,11 +744,31 @@ def main() -> None:
                     help="name for your seat in exported logs")
     args = ap.parse_args()
 
-    GAME["name"] = args.name
-    start(args.seed, args.players, args.opponent)
-    print(f"BrassBot UI on http://localhost:{args.port}  "
-          f"({args.players}p, seed {args.seed}, opponents: {args.opponent})")
-    HTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
+    DEFAULTS.update(players=args.players, opponent=args.opponent,
+                    name=args.name)
+    # "main" is dealt from --seed so a solo session stays reproducible; every
+    # other room gets its own random deal when someone first asks for it.
+    main_game = {"lock": threading.Lock(), "room": "main", "name": args.name}
+    GAMES["main"] = main_game
+    start(main_game, args.seed, args.players, args.opponent)
+
+    # flush=True throughout: stdout is block-buffered when it is not a terminal,
+    # so redirected to a log the address you need to share never appears.
+    print(f"BrassBot UI on http://{args.host}:{args.port}  "
+          f"({args.players}p, seed {args.seed}, opponents: {args.opponent})",
+          flush=True)
+    if args.host != "127.0.0.1":
+        for ip in _lan_addresses():
+            print(f"  share this: http://{ip}:{args.port}", flush=True)
+            print(f"  a second table: http://{ip}:{args.port}/?room=alice",
+                  flush=True)
+        print("  every room is its own game: one player against three bots, "
+              "and rooms cannot see each other.", flush=True)
+        print("  NOTE: no accounts and no passwords. Anyone who can reach this "
+              "port can play, and can open any room.", flush=True)
+    # Threaded: a bot's turn takes real time, and on one thread it would block
+    # every other table's requests behind it.
+    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
 
 
 if __name__ == "__main__":

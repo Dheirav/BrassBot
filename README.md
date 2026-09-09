@@ -88,6 +88,26 @@ including where each cube comes from and whose mine it is — `£5 + 1 iron
 | `--players 4` | 2, 3 or 4 |
 | `--opponent heuristic` | `heuristic`, `planner`, `greedy`, `book`, `learned`, `random` |
 | `--name "You"` | your seat's name in exported logs |
+| `--host 0.0.0.0` | let other devices on your network play; default is localhost only |
+
+### Several people at once
+
+Each URL is its own table, one human against three bots, and tables cannot see
+each other:
+
+```
+http://<your-ip>:8765/             table "main", dealt from --seed
+http://<your-ip>:8765/?room=alice  table "alice", its own random deal
+http://<your-ip>:8765/?room=bob    table "bob"
+```
+
+A table is created the first time somebody asks for it, and the header shows
+which one you are on. Started with `--host 0.0.0.0` the server prints the
+address to share.
+
+This is an unauthenticated development server: there are no accounts and no
+passwords, so anyone who can reach the port can play and can open any table.
+That is fine on a home network and is not something to expose to the internet.
 
 **Export log** writes the finished game to `logs/` in the same format as the
 pasted-in real games, so games you play here pool with those and every analysis

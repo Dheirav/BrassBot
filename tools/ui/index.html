@@ -236,6 +236,7 @@
     <span class="chip" id="market"></span>
     <span class="chip" id="deck"></span>
     <span class="chip" id="res"></span>
+    <span class="chip" id="room"></span>
   </div>
   <div class="row" style="margin-bottom:8px">
     <span class="chip" id="turn"></span>
@@ -333,9 +334,15 @@ const MATNAME = {coal_mine:'coal', iron_works:'iron', brewery:'brewery',
 // a click made against a board that has since moved is refused rather than
 // applied to a different action. Failures have to be visible: a silent catch
 // leaves "Playing..." on screen forever.
+// The room this tab is playing. The plain URL is "main"; ?room=anything is a
+// separate table with its own board, so several people can play at once.
+const ROOM = (new URLSearchParams(location.search).get('room') || 'main')
+  .toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'main';
+
 const post = (url, body) => fetch(url, {method:'POST',
   headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({...(body||{}), version: S ? S.version : -1})})
+  body:JSON.stringify({...(body||{}), room: ROOM,
+                       version: S ? S.version : -1})})
   .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
   .then(s => { draw(s); if (s.stale) note('the board moved — that move was not played'); })
   .catch(e => note('request failed: ' + e.message));
@@ -699,6 +706,11 @@ function draw(s) {
         : `Bot ${s.current} to move`;
   turnEl.style.color = (s.current === s.seat && !s.finished)
       ? 'var(--accent)' : 'var(--dim)';
+  const roomEl = document.getElementById('room');
+  if (roomEl)
+    roomEl.innerHTML = `table <b>${s.room || 'main'}</b>` + (
+      (s.rooms || []).length > 1
+        ? ` <span class="meta">of ${s.rooms.length}</span>` : '');
   const rchip = (k) => `<a href="#" onclick="pickRes('${k}');return false"
       style="color:${resFilter === k ? 'var(--accent)' : 'inherit'};
              text-decoration:none;font-weight:${resFilter === k ? 700 : 400}"
@@ -1459,7 +1471,7 @@ function doExport() {
   const note = document.getElementById('exported');
   note.textContent = 'writing…';
   fetch('/api/export', {method:'POST', headers:{'Content-Type':'application/json'},
-                        body:'{}'})
+                        body: JSON.stringify({room: ROOM})})
     .then(r => r.json())
     .then(s => { draw(s);
       note.textContent = s.exported ? '→ ' + s.exported.split('/').pop() : 'failed'; });
@@ -1474,5 +1486,6 @@ function play(i) {
   card = null; kind = null; focus = null;
   post('/api/move', {index: i});
 }
-fetch('/api/state').then(r => r.json()).then(draw);
+fetch('/api/state?room=' + encodeURIComponent(ROOM))
+  .then(r => r.json()).then(draw);
 </script>
