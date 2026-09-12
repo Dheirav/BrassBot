@@ -81,6 +81,15 @@ Hovering a legal target draws the tile you would place and names its exact cost,
 including where each cube comes from and whose mine it is — `£5 + 1 iron
 (market £2) = £7` — before you commit to anything.
 
+The VP track is drawn as the frame of the board, the way it is printed on the
+real one, with a solid disc for VP banked and a dashed ring for where you would
+finish if the game ended now. For the whole Canal Era the banked figure is near
+zero for everyone, so the ring is the one that moves.
+
+`⏻ Stop server` shuts the process down, which ends **every** table it is
+serving, not only yours. It takes two clicks and exports nothing, so export
+anything worth keeping first.
+
 | flag | |
 | --- | --- |
 | `--port 8765` | change it if the port is busy |

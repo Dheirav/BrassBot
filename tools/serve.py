@@ -17,7 +17,10 @@ doing, which text never quite manages.
 from __future__ import annotations
 
 import argparse
+import errno
+import importlib
 import json
+import os
 import random
 import sys
 import secrets
@@ -29,7 +32,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "ui"))
 
-from layout import ALL as COORDS  # noqa: E402
+import layout as _layout  # noqa: E402
 
 import brassbot.engine as _engine  # noqa: E402
 from brassbot.actions import (Build, Develop, Loan, Network,  # noqa: E402
@@ -45,7 +48,12 @@ from brassbot.state import new_game  # noqa: E402
 from tools.play import describe  # noqa: E402
 
 UI = Path(__file__).resolve().parent / "ui" / "index.html"
-LOGS = Path(__file__).resolve().parent.parent / "logs"
+# Overridable so the test suite does not write into the analysis corpus. A
+# finished game now exports itself, and the suite plays several to completion,
+# so without this every run dropped a handful of junk games into logs/ beside
+# the real ones -- which the playstyle scripts read.
+LOGS = Path(os.environ.get("BRASSBOT_LOGS")
+            or Path(__file__).resolve().parent.parent / "logs")
 
 # The pasted Boomforge logs name industries the way the board does, not the way
 # our data keys them, and every analysis script in tools/ reads that wording.
@@ -59,6 +67,11 @@ LOGNAME = {"coal_mine": "coal", "iron_works": "iron", "cotton_mill": "cotton",
 # requests for the same room really can arrive together.
 GAMES: dict = {}
 GAMES_LOCK = threading.Lock()
+# The running server, so /api/shutdown can stop the loop it is being served
+# from. There is exactly one per process, which is why a module global is
+# honest here rather than lazy.
+SERVER = None
+STOPPING = threading.Event()
 DEFAULTS: dict = {"players": 4, "opponent": "heuristic", "name": "You"}
 
 
@@ -169,6 +182,7 @@ def record(g: dict, action, index: int | None = None) -> None:
     state = g["state"]
     if index is not None:
         g.setdefault("replay", []).append(index)
+    tally(g, action)
     g["log"].append({"seat": state.current.idx,
                         "text": describe(state, action),
                         "pretty": move_label(state, action),
@@ -176,6 +190,7 @@ def record(g: dict, action, index: int | None = None) -> None:
     g["lines"].append(log_line(state, action, who(g, state.current.idx)))
     before = len(state.era_scores)
     apply_action(state, action)
+    settle_spend(g)
     bump(g)
     for rec in state.era_scores[before:]:
         parts = []
@@ -183,6 +198,95 @@ def record(g: dict, action, index: int | None = None) -> None:
             gained = rec.link_vp[i] + rec.industry_vp[i]
             parts.append(f"{who(g, i)} +{gained} VP ({pl.vp})")
         g["lines"].append(f"{rec.era.value} era scored: " + ", ".join(parts))
+
+
+def tally(g: dict, action) -> None:
+    """Count what each seat did, by era, for the end-of-game breakdown.
+
+    The era scoring records what each player GOT; this records what they DID
+    to get it, which is the half a person learns from. Kept per era because
+    the two halves of a game are different games: a Canal Era of loans and
+    breweries and a Rail Era of double links look identical summed.
+    """
+    state = g["state"]
+    seat, era = state.current.idx, state.era.value
+    st = g.setdefault("stats", {})
+    me = st.setdefault(seat, {"actions": {}, "built": {}, "developed": {},
+                              "loans": 0, "spent": 0, "sold": 0,
+                              "links": {"canal": 0, "rail": 0}})
+    kind = type(action).__name__
+    per = me["actions"].setdefault(era, {})
+    per[kind] = per.get(kind, 0) + 1
+    if isinstance(action, Build):
+        k = action.industry.value
+        me["built"][k] = me["built"].get(k, 0) + 1
+    elif isinstance(action, Network):
+        me["links"][era] += len(action.lines)
+    elif isinstance(action, Develop):
+        for ind in action.industries:
+            me["developed"][ind.value] = me["developed"].get(ind.value, 0) + 1
+    elif isinstance(action, Loan):
+        me["loans"] += 1
+    elif isinstance(action, Sell):
+        me["sold"] += len(action.sales)
+    me["_money_before"] = state.players[seat].money
+
+
+def settle_spend(g: dict) -> None:
+    """After an action is applied: what it cost, net of anything it paid."""
+    st = g.get("stats", {})
+    for seat, me in st.items():
+        if "_money_before" in me:
+            delta = me.pop("_money_before") - g["state"].players[seat].money
+            if delta > 0:
+                me["spent"] += delta
+
+
+def summary(g: dict) -> dict:
+    """The breakdown a finished game is worth reading.
+
+    Per seat: what each era scored and from what, what was built and how much
+    of it ever flipped, how the actions split, loans, spend, and where the
+    money and income ended. `era_scores` is the engine's own record of the
+    scoring; nothing here is recomputed from the board.
+    """
+    state = g["state"]
+    n = state.n_players
+    st = g.get("stats", {})
+    order = sorted(range(n), key=lambda i: (-state.players[i].vp,
+                                            -state.players[i].income,
+                                            -state.players[i].money))
+    eras = [{"era": r.era.value,
+             "link_vp": list(r.link_vp), "industry_vp": list(r.industry_vp),
+             "links": list(r.links_scored), "flipped": list(r.tiles_flipped),
+             "stranded": list(r.tiles_stranded)}
+            for r in state.era_scores]
+    seats = []
+    for i, p in enumerate(state.players):
+        me = st.get(i, {})
+        # The only VP that arrive outside an era scoring are merchant sell
+        # bonuses, Shrewsbury's 4 and Nottingham's 3, so the residual IS that
+        # figure. Exact by construction, and the first test run of this
+        # function found the breakdown 3 short before it existed.
+        scored = sum(e["link_vp"][i] + e["industry_vp"][i] for e in eras)
+        seats.append({
+            "bonus_vp": p.vp - scored,
+            "idx": i, "name": who(g, i), "rank": order.index(i) + 1,
+            "vp": p.vp, "income": p.income, "money": p.money,
+            "eras": [{"era": e["era"], "link_vp": e["link_vp"][i],
+                      "industry_vp": e["industry_vp"][i],
+                      "links": e["links"][i], "flipped": e["flipped"][i],
+                      "stranded": e["stranded"][i]} for e in eras],
+            "actions": me.get("actions", {}),
+            "built": me.get("built", {}),
+            "developed": me.get("developed", {}),
+            "links_built": me.get("links", {"canal": 0, "rail": 0}),
+            "loans": me.get("loans", 0), "spent": me.get("spent", 0),
+            "sold": me.get("sold", 0),
+        })
+    return {"finished": state.finished, "ended": bool(g.get("ended")),
+            "winners": [who(g, i) for i in winners(state)] if state.finished else [],
+            "seats": seats}
 
 
 def export_log(g: dict) -> str:
@@ -199,8 +303,11 @@ def export_log(g: dict) -> str:
     LOGS.mkdir(exist_ok=True)
     from datetime import datetime
     tag = "" if g.get("room", "main") == "main" else f"-{g['room']}"
-    path = LOGS / (datetime.now().strftime("%Y%m%d-%H%M%S")
-                   + f"{tag}-ui-{state.n_players}p.log")
+    # Named once per game and then reused, so replaying to the end after an undo
+    # rewrites that game's log rather than leaving a second copy of it.
+    path = Path(g["exported"]) if g.get("exported") else \
+        LOGS / (datetime.now().strftime("%Y%m%d-%H%M%S")
+                + f"{tag}-ui-{state.n_players}p.log")
     path.write_text("\n".join(top + body) + "\n")
     # Everything a review needs to reconstruct the game exactly. The prose log
     # is for reading and for pooling with the pasted ones; this is for analysis.
@@ -209,6 +316,14 @@ def export_log(g: dict) -> str:
         "opponent": g.get("opponent", "heuristic"),
         "seat": g.get("seat", 0), "name": g.get("name", "You"),
         "finished": state.finished,
+        # An index means nothing without the list it indexes. The server widens
+        # the engine's move list so a person can choose any card, and a replay
+        # run against the engine's defaults gets a shorter list and reads the
+        # wrong action from the second move on. Recorded so the reader need not
+        # know how this server happened to be configured.
+        "engine": {"MAX_DISCARD_VARIANTS": _engine.MAX_DISCARD_VARIANTS,
+                   "SCOUT_POOL": _engine.SCOUT_POOL,
+                   "MAX_SCOUT_VARIANTS": _engine.MAX_SCOUT_VARIANTS},
         "actions": list(g.get("replay", [])),
     }, indent=1) + "\n")
     return str(path)
@@ -229,6 +344,7 @@ def start(g: dict, seed: int, players: int, opponent: str) -> None:
     # would leave you staring at a board they had already answered.
     g["undo"] = []
     g["replay"] = []
+    g["stats"] = {}
     g["exported"] = None
     # A move is sent as an INDEX into the legal-action list, which the server
     # regenerates per request. Two tabs on one game, or a click racing an undo,
@@ -248,6 +364,26 @@ def advance(g: dict) -> None:
             break
         chosen = bots[actor].choose(state, actions)
         record(g, chosen, actions.index(chosen))
+    autosave(g)
+
+
+def autosave(g: dict) -> str | None:
+    """Write a finished game out without being asked.
+
+    A game that reaches its own ending is worth keeping every time, and the
+    moment you are least likely to click Export is the moment the winner
+    appears. Only on a real ending: a game abandoned halfway is not a log
+    anybody wants on disk, and that one stays a deliberate press of the button.
+    """
+    if not (g["state"].finished or g.get("ended")):
+        return None
+    first = g.get("exported") is None
+    g["exported"] = export_log(g)
+    # Said once, in the terminal the server runs in, because whoever wants to
+    # know a file appeared is usually not the person looking at the browser.
+    if first:
+        print(f"saved {g['exported']}", flush=True)
+    return g["exported"]
 
 
 def project_vp(state):
@@ -316,6 +452,19 @@ def mat_ladder(state, seat):
             "cash": (None if spec is None else
                      spec.cost + spec.coal_cost * coal_price
                      + spec.iron_cost * iron_price),
+            # The whole remaining pile, not just the tile on top of it. You
+            # cannot plan a Develop without it: the question a Develop answers
+            # is "what is underneath", and every level's numbers differ.
+            "stack": [
+                {"level": lv, "left": n, "cost": t.cost, "vp": t.vp,
+                 "coal": t.coal_cost, "iron": t.iron_cost,
+                 "beer": t.beer_to_sell, "income": t.income,
+                 "link_vp": t.link_vp,
+                 "canal_only": t.canal_era and not t.rail_era,
+                 "rail_only": t.rail_era and not t.canal_era}
+                for lv, n, t in ((i + 1, c, state.data.tile(industry, i + 1))
+                                 for i, c in enumerate(counts))
+            ],
         }
     for entry in out.values():
         entry["short"] = (None if entry["cash"] is None
@@ -416,6 +565,40 @@ def _with_buildable(state, seat, mat, moves):
         else:
             entry["reason"] = "no slot in reach"
     return mat
+
+
+_LAYOUT_MTIME = None
+
+
+def coords() -> dict:
+    """The map coordinates, re-read when the file changes.
+
+    index.html is re-read from disk on every request precisely so the UI can be
+    edited while a game is running. The coordinates were the exception: imported
+    once at startup, so moving a town did nothing at all until someone restarted
+    the server -- which looks exactly like the edit never landing. It cost a
+    round of "the markets still overlap the frame" on a map that had already
+    been fixed on disk.
+    """
+    global _LAYOUT_MTIME
+    try:
+        stamp = Path(_layout.__file__).stat().st_mtime
+    except OSError:
+        return _layout.ALL
+    if stamp != _LAYOUT_MTIME:
+        if _LAYOUT_MTIME is None:
+            _LAYOUT_MTIME = stamp          # imported at startup, already fresh
+        else:
+            try:
+                importlib.reload(_layout)
+            except Exception as exc:
+                # A save in progress is a truncated file, and stamping it would
+                # mean never looking again. Leave the stamp alone so the next
+                # request retries, and keep serving the coordinates we have.
+                print(f"layout.py not reloaded: {exc}", flush=True)
+            else:
+                _LAYOUT_MTIME = stamp
+    return _layout.ALL
 
 
 def snapshot(g: dict) -> dict:
@@ -536,7 +719,7 @@ def snapshot(g: dict) -> dict:
                          tiles=len(action.sales))
             moves.append(m)
     return {
-        "coords": COORDS,
+        "coords": coords(),
         "towns": [{"id": t.id, "name": t.name,
                    "slots": [sorted(i.value for i in s) for s in t.slots],
                    "farm": t.farm_brewery}
@@ -625,6 +808,17 @@ def snapshot(g: dict) -> dict:
         "version": g.get("version", 0),
         "stale": bool(g.pop("stale_reply", False)),
         "exported": g.get("exported"),
+        # Only once there is something to sum up. The client shows it in place
+        # of the move list, which is empty at exactly the same moment.
+        "summary": (summary(g) if state.finished or g.get("ended") else None),
+        # Whether what is on disk is the finished game or a mid-game snapshot,
+        # so the UI can say "saved" instead of prompting for a press.
+        "autosaved": bool(g.get("exported")
+                          and (g["state"].finished or g.get("ended"))),
+        # Every table shares one process, so stopping the server stops all of
+        # them. Every open page needs to say so rather than sit there polling a
+        # socket that has gone.
+        "stopping": STOPPING.is_set(),
         "moves": moves,
         "log": g["log"][-14:],
     }
@@ -684,7 +878,8 @@ class Handler(BaseHTTPRequestHandler):
             if not state.finished and state.current.idx == g["seat"] \
                     and 0 <= i < len(actions):
                 g["undo"].append((state.clone(), len(g["log"]), len(g["lines"]),
-                                  len(g.get("replay", []))))
+                                  len(g.get("replay", [])),
+                                  json.loads(json.dumps(g.get("stats", {})))))
                 del g["undo"][:-40]
                 record(g, actions[i], i)
                 advance(g)
@@ -694,11 +889,13 @@ class Handler(BaseHTTPRequestHandler):
             g["exported"] = export_log(g)
         elif self.path.startswith("/api/undo"):
             if g["undo"]:
-                st, nlog, nlines, nrep = g["undo"].pop()
+                st, nlog, nlines, nrep, stats = g["undo"].pop()
                 g["state"] = st
                 del g["log"][nlog:]
                 del g["lines"][nlines:]
                 del g.setdefault("replay", [])[nrep:]
+                # JSON round-trip turned the seat keys into strings.
+                g["stats"] = {int(k): v for k, v in stats.items()}
                 bump(g)
         elif self.path.startswith("/api/new"):
             # Restart keeps the table it was set up with; only the deal changes.
@@ -708,7 +905,16 @@ class Handler(BaseHTTPRequestHandler):
                   body.get("opponent", g.get("opponent", "heuristic")))
         elif self.path.startswith("/api/end"):
             g["ended"] = True
+            autosave(g)
             bump(g)
+        elif self.path.startswith("/api/shutdown"):
+            # shutdown() blocks until serve_forever() returns, and serve_forever
+            # is the loop currently waiting on THIS request, so calling it here
+            # deadlocks the process against itself. A daemon thread lets the
+            # response go out first and the loop end after it.
+            STOPPING.set()
+            if SERVER is not None:
+                threading.Thread(target=SERVER.shutdown, daemon=True).start()
 
 
 def _lan_addresses() -> list:
@@ -774,6 +980,19 @@ def main() -> None:
     GAMES["main"] = main_game
     start(main_game, args.seed, args.players, args.opponent)
 
+    # Bind BEFORE announcing. The banner used to print first, so a port that
+    # was already taken still advertised "share this: http://<ip>:8765" and then
+    # died three lines later with the traceback scrolled past it.
+    global SERVER
+    try:
+        SERVER = ThreadingHTTPServer((args.host, args.port), Handler)
+    except OSError as exc:
+        print(f"cannot listen on {args.host}:{args.port} -- {exc}", flush=True)
+        if exc.errno == errno.EADDRINUSE:
+            print("  something is already on that port. Stop it, or pass "
+                  "--port with a free one.", flush=True)
+        raise SystemExit(1)
+
     # flush=True throughout: stdout is block-buffered when it is not a terminal,
     # so redirected to a log the address you need to share never appears.
     print(f"BrassBot UI on http://{args.host}:{args.port}  "
@@ -790,7 +1009,12 @@ def main() -> None:
               "port can play, and can open any room.", flush=True)
     # Threaded: a bot's turn takes real time, and on one thread it would block
     # every other table's requests behind it.
-    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
+    try:
+        SERVER.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    SERVER.server_close()
+    print("BrassBot UI stopped. Unexported games are gone.", flush=True)
 
 
 if __name__ == "__main__":

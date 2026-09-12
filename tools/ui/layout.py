@@ -10,8 +10,8 @@ Coordinates are in a 0-1000 x 0-800 space; the page scales them.
 
 TOWNS = {
     # Staffordshire / north
-    "stoke_on_trent": (330, 70),
-    "leek": (430, 40),
+    "stoke_on_trent": (330, 95),
+    "leek": (430, 65),
     "stone": (330, 170),
     "uttoxeter": (450, 160),
     # Derbyshire / north-east
@@ -35,16 +35,16 @@ TOWNS = {
     "coventry": (640, 520),
     "redditch": (470, 640),
     # Farm breweries
-    "farm_northern": (200, 180),
-    "farm_southern": (620, 690),
+    "farm_northern": (250, 340),
+    "farm_southern": (150, 640),
 }
 
 MERCHANTS = {
-    "warrington": (250, 30),
-    "nottingham": (750, 120),
-    "shrewsbury": (60, 420),
+    "warrington": (196, 64),
+    "nottingham": (730, 120),
+    "shrewsbury": (80, 420),
     "oxford": (720, 660),
-    "gloucester": (400, 780),
+    "gloucester": (400, 725),
 }
 
 ALL = {**TOWNS, **MERCHANTS}

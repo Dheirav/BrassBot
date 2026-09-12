@@ -3,91 +3,242 @@
 <title>BrassBot</title>
 <style>
   :root {
-    /* Everything used to sit between #0f and #2b -- a four-step range at the
-       very bottom of the scale, so surfaces, borders and empty slots were all
-       the same near-black and nothing separated from anything else. Lifted as a
-       ladder, with each level distinguishable from the one below it. */
-    --bg:#161922; --panel:#1f2431; --panel2:#282e3c;
-    --line:#3b4354; --text:#f0f2f7;
-    --dim:#a7b0c3; --accent:#e0a458;
-    /* Okabe-Ito, the standard colourblind-safe set: sky / vermillion /
-       bluish-green / reddish-purple. Separated in lightness as well as hue so
-       they survive greyscale too. */
-    --p0:#56B4E9; --p1:#D55E00; --p2:#009E73; --p3:#CC79A7;
+    /* Paper, not panel. This used to be a dark theme, and the reason to leave
+       it is not taste: on a dark ground nothing separates from the background
+       unless it carries some colour of its own, so every surface needed a tint
+       and the colours that actually MEAN something (whose tile, which market,
+       what is illegal) had to shout over all of it. On paper, plain grey
+       separates, which leaves colour free to carry meaning and nothing else. */
+    --bg:#e7dfcb;        /* the page, and the ground the board sits on */
+    --panel:#f8f4ea;     /* the right rail */
+    --panel2:#f3eee1;    /* the tray under the board */
+    --raise:#e9e1cd;     /* a chip, a button, any unpressed surface */
+    --raise2:#dbd1b6;    /* hover, and the row whose turn it is */
+    --line:#cdc0a3;      /* every hairline */
+    --line2:#b4a482;     /* a border meant to be seen, not merely felt */
+    --ink3:#8b7d63;      /* third-rank ink: pips, quiet strokes, empty slots */
+    --text:#2e2a21; --dim:#786c59;
+    --dim2:#5c5344;      /* dim, but for figures rather than captions */
+    --accent:#a9660f;    /* burnt amber: the one colour that means "yours" */
+    --onaccent:#fdf8ec;  /* text ON the accent, which is now dark, not light */
+    --badge:#fbf6ea;     /* the disc a number sits in, out on the board */
+    --boardA:#f4eedd; --boardB:#e4d9c0;   /* the board's own paper gradient */
+    --ok:#2f7d32; --warn:#8a5a00; --bad:#a52016;
+    /* The industries, in the colours the physical tiles use. Every icon that
+       stands for an INDUSTRY rather than for a player's tile is drawn in one of
+       these, so the shape and the colour say the same thing and either one is
+       enough. Darkened where the printed colour would not hold on cream, and
+       the manufacturer blue is pushed towards indigo to stay clear of seat 0's
+       cyan-blue -- iron and seat 1 are both orange by nature and that one is
+       left alone, because iron's orange is also the iron market's. */
+    --i-coal:#33312c; --i-iron:#c1521d; --i-brewery:#a67c0b;
+    --i-cotton:#b3202a; --i-manuf:#2a4b8d; --i-pottery:#7a4a24;
+    /* The map is height-bound: it is taller than it is wide, so every pixel
+       the tray takes is a pixel off the map in BOTH directions. One variable,
+       used by the tray and by the board column that is sized from what the
+       tray leaves. */
+    --sech:128px;        /* how tall the tray's own sections are */
+    --trayh:var(--sech);  /* how much height the tray takes FROM the map */
+    /* Okabe-Ito, the standard colourblind-safe set, with the sky blue swapped
+       for its darker sibling: #56B4E9 was picked against a near-black ground
+       and all but disappears on cream. Still separated in lightness as well as
+       hue, so they survive greyscale. */
+    --p0:#0072B2; --p1:#C24A00; --p2:#00795C; --p3:#B4508A;
   }
   * { box-sizing:border-box }
   body { margin:0; background:var(--bg); color:var(--text);
          font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-         display:grid; grid-template-columns:minmax(0,1fr) 380px;
-         grid-template-rows:minmax(0,1fr) auto; height:100vh }
-  #board { grid-column:1; grid-row:1; padding:8px; overflow:hidden; display:flex;
+         display:grid;
+         /* The board is TALLER than it is wide and the window is wider than it
+            is tall, so the map is always height-bound and every pixel of the
+            column beyond its own aspect ratio was empty paper. The middle
+            column is sized to exactly what the map needs -- viewport height,
+            less the tray, times the board's own ratio -- and the two rails
+            divide what is left. minmax(0, ...) so a narrow window shrinks the
+            map instead of overflowing the page. */
+         grid-template-columns:
+           minmax(214px, 286px)
+           minmax(0, min(calc((100vh - var(--trayh) - 9px) * 1.0123 + 8px), 62vw))
+           minmax(300px, 468px);
+         grid-template-rows:minmax(0,1fr) auto; height:100vh;
+         justify-content:center }
+  #board { grid-column:2; grid-row:1; padding:4px; overflow:hidden; display:flex;
            position:relative }
   #preview { position:absolute; left:12px; right:12px; bottom:8px; padding:6px 10px;
-             background:rgba(18,20,26,.94); border:1px solid var(--line);
+             background:rgba(250,246,236,.96); border:1px solid var(--line);
              border-radius:8px; font-size:12px; pointer-events:none; display:none }
   #preview.on { display:block }
-  #zoom { position:absolute; left:14px; top:14px; display:flex; flex-direction:column;
+  #results { position:absolute; inset:12px; z-index:4; overflow:auto;
+             background:rgba(248,244,234,.97); border:1px solid var(--line2);
+             border-radius:10px; padding:18px 22px;
+             box-shadow:0 12px 34px rgba(80,66,40,.28) }
+  #results h1 { margin:0 0 2px; font-size:19px; letter-spacing:.02em }
+  #results .sub { color:var(--dim); font-size:12px; margin-bottom:12px }
+  #results table { border-collapse:collapse; width:100%; font-size:12.5px;
+                   font-variant-numeric:tabular-nums lining-nums }
+  #results th, #results td { padding:4px 8px; text-align:right;
+                             border-bottom:1px solid var(--line) }
+  #results th:first-child, #results td:first-child { text-align:left;
+                             color:var(--dim); font-weight:400; white-space:nowrap }
+  #results thead th { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+                      border-bottom:2px solid var(--line2); vertical-align:bottom }
+  #results thead th .dot { margin-right:5px }
+  #results tr.total td { font-size:16px; font-weight:700; padding-top:8px;
+                         padding-bottom:8px; color:var(--text) }
+  #results tr.era td { font-weight:700; color:var(--text); padding-top:7px }
+  #results tr.era td:first-child { text-transform:uppercase; font-size:10.5px;
+                                   letter-spacing:.08em; color:var(--dim) }
+  #results tr.part td { color:var(--dim2); font-size:12px; border-bottom:none }
+  #results tr.part td:first-child { padding-left:22px }
+  #results tr.sect td { border-bottom:none; padding-top:12px; font-size:10.5px;
+                        letter-spacing:.08em; text-transform:uppercase;
+                        color:var(--dim); font-weight:700 }
+  #results td.me { background:rgba(169,102,15,.08) }
+  #results th.me { border-bottom-color:var(--accent) }
+  #results td.win, #results th.win { color:var(--accent) }
+  #results .built { display:inline-flex; gap:7px; justify-content:flex-end;
+                    flex-wrap:wrap }
+  #results .built span { display:inline-flex; align-items:center; gap:2px }
+  #results .built svg { vertical-align:-3px }
+  #results .rk { font-size:10px; color:var(--dim); font-weight:400;
+                 display:block; letter-spacing:0; text-transform:none }
+  #results .amix { font-size:11px; color:var(--dim2); white-space:nowrap }
+  #results .amix b { color:var(--text); font-weight:600 }
+  #results button.close { position:absolute; top:12px; right:14px;
+                          font-size:11.5px; padding:4px 9px }
+  #zoom { position:absolute; left:42px; top:42px; display:flex; flex-direction:column;
           gap:4px }
   #zoom button { width:28px; height:26px; padding:0; font-size:13px; line-height:1;
-                 background:rgba(24,27,35,.92) }
+                 background:rgba(250,246,236,.94) }
   #preview b { color:var(--accent) }
   #svg { width:100%; height:100%; display:block }
   /* The tray is the whole decision: your cards, what each one lets you do, and
      the choice that follows. Keeping it in one strip under the board means a
      turn is read left to right instead of hunted for in a sidebar. */
-  #tray { grid-column:1; grid-row:2; display:grid;
-          box-shadow:0 -8px 20px rgba(0,0,0,.28);
+  #tray { grid-column:1 / span 2; grid-row:2; display:grid;
+          box-shadow:0 -8px 20px rgba(80,66,40,.16);
           /* Browsing: the hand has the room. Once an action is chosen the
              options need it instead, so the columns trade width between them --
              the band never changes height and the board never moves. */
-          grid-template-columns:minmax(0,2.3fr) 196px minmax(0,1fr);
+          grid-template-columns:minmax(0,2.6fr) 190px minmax(0,1fr);
           transition:grid-template-columns .16s ease;
           gap:1px; background:var(--line); border-top:1px solid var(--line) }
-  #tray[data-mode="options"] { grid-template-columns:minmax(0,1.15fr) 196px minmax(0,2fr) }
-  #tray > section { background:var(--panel2); padding:9px 11px 11px;
-                    height:178px; overflow:auto }
-  #tray h3 { margin:0 0 8px; font-size:10px; letter-spacing:1.1px;
+  #tray[data-mode="options"] { grid-template-columns:minmax(0,1.15fr) 190px minmax(0,2fr) }
+  #tray[data-mode="options"] .cards { flex-wrap:nowrap; overflow-x:auto;
+                                      padding-bottom:4px }
+  /* The map is taller than it is wide and the window is not, so the map is
+     always height-bound: thinner rails free width it has no way to spend. The
+     tray is the only thing competing for the height. Two ways to settle that.
+     `bigmap` lifts the tray out of the grid and floats it over the board, so
+     the map gets the whole window and the hand is still there, at the cost of
+     covering the bottom of the board. `trayhid` then slides it away to a strip
+     you can grab, for when the bottom is what you want to look at. */
+  body { position:relative }
+  body.bigmap { --trayh:0px }
+  /* An absolutely positioned grid child is positioned against its GRID AREA,
+     not the page. The tray's area is columns 1 and 2, the left rail plus the
+     map, so right:0 is already the map's right edge and only the left offset
+     has to be supplied -- and it is the rail's width, which CSS cannot read off
+     a grid track, so JS sets --railL. Measuring against the page instead put
+     the first four cards under the rail. */
+  body.bigmap #tray { position:absolute; bottom:0; right:0; z-index:5;
+                      left:var(--railL, 0px);
+                      background:rgba(205,192,163,.55);
+                      backdrop-filter:blur(7px);
+                      box-shadow:0 -10px 26px rgba(80,66,40,.26);
+                      transition:transform .18s ease }
+  /* The rails paint over the floating tray, so it reads as belonging to the
+     board rather than lying across the whole window. */
+  body.bigmap #left, body.bigmap #right { position:relative; z-index:6 }
+  body.bigmap.trayhid #tray { transform:translateY(calc(100% - 9px)) }
+  body.bigmap.trayhid #tray:hover { transform:translateY(calc(100% - 22px)) }
+  #tray > section { background:var(--panel2); padding:7px 10px 8px;
+                    height:var(--sech); overflow:auto }
+  .tbtn { font-size:9.5px; padding:2px 5px; margin-right:3px;
+          text-transform:none; letter-spacing:0; white-space:nowrap }
+  #tray h3 { margin:0 0 6px; font-size:10px; letter-spacing:1.1px;
              text-transform:uppercase; color:var(--dim); font-weight:700;
-             display:flex; justify-content:space-between; align-items:center }
+             display:flex; justify-content:space-between; align-items:center;
+             flex-wrap:nowrap; white-space:nowrap; gap:6px }
   .acts { display:grid; grid-template-columns:1fr 1fr; gap:5px }
-  .acts button { text-align:left; padding:6px 8px; font-size:12px }
+  .acts button { text-align:left; padding:3px 7px; font-size:11.5px }
   .acts button:disabled { opacity:.3; cursor:not-allowed; border-color:var(--line) }
-  .acts button.sel { background:var(--accent); color:#20242f }
+  .acts button.sel { background:var(--accent); color:var(--onaccent) }
   .acts button small { color:inherit; opacity:.65; font-size:10px }
   .acts button { display:flex; align-items:baseline; gap:5px;
                  white-space:nowrap; overflow:hidden }
   .acts button small.why { font-size:9.5px; opacity:.8; color:var(--dim);
                            overflow:hidden; text-overflow:ellipsis }
-  aside { grid-column:2; grid-row:1 / span 2;
-          background:var(--panel); border-left:1px solid var(--line);
-          box-shadow:-8px 0 20px rgba(0,0,0,.28);
-          overflow-y:auto; padding:14px }
+  aside { background:var(--panel); overflow-y:auto; padding:14px }
+  /* Left: what you consult -- the markets you will buy from, the piles you will
+     build out of, what the marks mean. Right: what you track -- the score, the
+     turn, what just happened. */
+  #left  { grid-column:1; grid-row:1; border-right:1px solid var(--line);
+           box-shadow:8px 0 20px rgba(80,66,40,.10) }
+  #right { grid-column:3; grid-row:1 / span 2; border-left:1px solid var(--line);
+           box-shadow:-8px 0 20px rgba(80,66,40,.16) }
   h2 { font-size:10px; text-transform:uppercase; letter-spacing:.11em;
        color:var(--dim); margin:16px 0 8px; font-weight:700;
        border-top:1px solid var(--line); padding-top:10px }
   h2:first-child { margin-top:0; border-top:none; padding-top:0 }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap }
-  .chip { background:#2c3240; border:1px solid var(--line); border-radius:6px;
+  .chip { background:var(--raise); border:1px solid var(--line); border-radius:6px;
           padding:3px 8px; font-size:12px }
+  .brand { display:flex; align-items:center; justify-content:space-between;
+           gap:8px }
+  .brand strong { font-size:16px; letter-spacing:.02em }
+  .status { display:flex; align-items:baseline; justify-content:space-between;
+            gap:6px 8px; margin:5px 0 0; flex-wrap:wrap }
+  #era { font-size:12px; font-weight:700; letter-spacing:.06em;
+         text-transform:uppercase; white-space:nowrap }
+  #turn { font-size:11.5px; font-weight:700; white-space:nowrap;
+          padding:3px 10px; border-radius:999px; color:var(--dim);
+          background:var(--raise); border:1px solid var(--line) }
+  /* Whose turn it is decides whether anything on the page is yours to change,
+     so it is the one thing in the header allowed to use the accent. */
+  #turn.mine { background:var(--accent); color:var(--onaccent);
+               border-color:var(--accent) }
+  .stats { display:flex; gap:15px; flex-wrap:wrap; margin:9px 0 0;
+           padding:8px 0; border-top:1px solid var(--line) }
+  .stat { display:flex; flex-direction:column; line-height:1.2 }
+  .stat .k { font-size:9px; letter-spacing:.09em; text-transform:uppercase;
+             color:var(--dim); font-weight:700 }
+  .stat .v { font-size:13.5px; font-weight:700 }
+  .stat .v small { font-size:10.5px; font-weight:400; color:var(--dim) }
+  .onboard { font-size:11.5px; color:var(--dim); padding-bottom:9px;
+             border-bottom:1px solid var(--line) }
+  .onboard a { text-decoration:none; color:inherit }
+  .tools { display:flex; gap:5px; flex-wrap:wrap; align-items:center;
+           margin:9px 0 2px }
+  .tools button { font-size:11.5px; padding:5px 8px }
   .seat { display:grid; grid-template-columns:1fr repeat(5, minmax(30px, auto));
           gap:2px 8px; padding:7px 9px; align-items:baseline;
           border-radius:6px; border:1px solid var(--line); margin-bottom:5px }
   .seat.me { border-color:var(--accent) }
-  .seat.turn { background:#2c3240 }
+  /* The columns were labelled once, in a caption above the table, which meant
+     reading the fourth number required counting to four. Headers sit over the
+     columns instead, on the same grid and with the same transparent border, or
+     they drift a pixel out of line with the rows below. */
+  .seathead { border-color:transparent; margin-bottom:2px; padding-bottom:2px;
+              border-bottom:1px solid var(--line); border-radius:0;
+              font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
+              color:var(--dim); font-weight:700 }
+  .seathead > span + span { text-align:right }
+  .seat.turn { background:var(--raise) }
   .dot { width:9px; height:9px; border-radius:50%; display:inline-block;
          margin-right:6px; vertical-align:middle }
-  button { font:inherit; background:#2c3240; color:var(--text);
-           border:1px solid #434c5f; border-radius:6px; padding:6px 10px;
+  button { font:inherit; background:var(--raise); color:var(--text);
+           border:1px solid var(--line2); border-radius:6px; padding:6px 10px;
            cursor:pointer; transition:border-color .12s, background .12s }
   button:hover { border-color:var(--accent) }
-  button.sel { background:var(--accent); color:#20242f; border-color:var(--accent) }
+  button.sel { background:var(--accent); color:var(--onaccent); border-color:var(--accent) }
   .move { display:block; width:100%; text-align:left; margin-bottom:4px;
           font-size:12.5px; white-space:normal }
   .empty { color:var(--dim); font-style:italic }
   text { font:600 10px ui-sans-serif,system-ui,sans-serif; fill:var(--text);
          pointer-events:none }
-  .tname { font-size:10.5px; fill:#ccd3e1; letter-spacing:.2px;
-           paint-order:stroke fill; stroke:var(--bg); stroke-width:3px;
+  .tname { font-size:10.5px; fill:var(--text); letter-spacing:.2px;
+           paint-order:stroke fill; stroke:var(--boardA); stroke-width:3px;
            stroke-linejoin:round }
   text, .num, .mat, .seat { font-variant-numeric:tabular-nums lining-nums }
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px }
@@ -110,35 +261,74 @@
             margin:4px 0 8px; align-items:center }
   .tgt:hover rect { fill-opacity:0.22 }
   #log div { font-size:12px; color:var(--dim); padding:2px 0;
-             border-bottom:1px solid #20242e }
+             border-bottom:1px solid var(--line) }
   /* The mat is the thing a Brass player plans around -- you always build the
      LOWEST level you still hold -- and the first version of this UI did not
      show it at all. */
-  .mat { display:grid; grid-template-columns:auto 1fr auto; gap:2px 8px;
-         align-items:center; font-size:12px }
+  .mat { display:grid; grid-template-columns:auto auto 1fr; gap:0;
+         align-items:center; font-size:12.5px }
+  .mat .ind { padding-right:10px }
+  .mat .pile { padding-right:12px }
+  /* One rule per industry, drawn across all three columns. Without it the eye
+     has nothing to track along and reads figures off the wrong row. Marked by
+     class rather than by nth-child, because an opened stack inserts a fourth
+     child and every row after it would fall out of step. */
+  .mat .mr { border-top:1px solid var(--line); padding-top:6px }
+  .mat > span { padding-bottom:6px }
   .mat .ind { color:var(--dim) }
+  .mat .mi { display:inline-flex; align-items:center; justify-content:center;
+             width:23px; height:23px; border-radius:6px; margin-right:7px;
+             vertical-align:-6px }
   .mat .lv { font-weight:600 }
   .meta { color:var(--dim); font-size:11px }
+  .mat .meta { color:var(--dim2); font-size:11.5px; line-height:1.35 }
+  .mat .meta b { color:var(--text); font-weight:700 }
   .mat .meta { text-align:right }
+  /* The opened pile spans all three mat columns and indents under its row, so
+     it reads as belonging to that industry rather than as another industry. */
+  .stack { grid-column:1 / -1; display:grid; align-items:baseline;
+           grid-template-columns:auto auto 1fr; gap:1px 6px;
+           margin:1px 0 5px 14px; padding:4px 6px;
+           border-left:2px solid var(--line2); background:var(--raise) }
+  .stack .lv.nx { background:var(--accent); color:var(--onaccent) }
+  .stackbtn { padding:0 3px; font-size:9px; line-height:1.4; margin-right:2px;
+              background:none; border:none; color:var(--dim) }
   .pips { display:flex; gap:2px }
-  .pip { width:7px; height:12px; border-radius:2px; background:#3b4354 }
-  .pip.have { background:#5c667c }
+  .pip { width:7px; height:12px; border-radius:2px; background:var(--line) }
+  .pip.have { background:var(--ink3) }
   .pip.next { background:var(--accent) }
-  .warn { color:#e0a458 }
-  .ok { color:#6ec07a }
-  .gone { color:#e05c5c }
-  .bar { height:6px; background:#3b4354; border-radius:3px; overflow:hidden;
+  .warn { color:var(--accent) }
+  .ok { color:var(--ok) }
+  .gone { color:var(--bad) }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden;
          min-width:70px; flex:1 }
   .bar > i { display:block; height:100%; background:var(--accent) }
   .ladder { display:flex; gap:2px; flex:1 }
-  .slot { flex:1; height:13px; border-radius:2px; border:1px solid #4b5568 }
+  .slot { flex:1; height:13px; border-radius:2px; border:1px solid var(--line2) }
   .slot.full { background:var(--accent); border-color:var(--accent) }
+  .slot.coal.full { background:#33312c; border-color:#33312c }
+  .slot.iron.full { background:#c1521d; border-color:#c1521d }
   .sprice { flex:1; font-size:8px; color:var(--dim); text-align:left }
-  .mkt { display:flex; align-items:center; gap:8px; font-size:12px;
-         margin-bottom:4px }
+  .mkts { display:flex; gap:26px; justify-content:center; margin:8px 0 2px;
+          align-items:flex-start }
+  .mkt2 { text-align:center }
+  .empt { display:inline-block; border:1px dashed var(--line2); border-radius:4px;
+          padding:1px 9px; font-size:10.5px; color:var(--dim); margin-bottom:5px }
+  .lad { display:grid; gap:3px; align-items:center; justify-content:center }
+  .pr { font-size:10px; color:var(--dim); text-align:right; padding-right:3px }
+  .cube { width:17px; height:15px; border-radius:2px;
+          border:1px solid var(--line2); background:var(--panel) }
+  .cube.coal.full { background:#33312c; border-color:#1e1d1a }
+  .cube.iron.full { background:#c1521d; border-color:#8e3a12 }
+  /* The cheapest cube still in the column is the one the next build pays for,
+     which is the only space in either market anybody actually needs to find. */
+  .cube.next { outline:2px solid var(--accent); outline-offset:1px }
+  .mname { font-size:10.5px; font-weight:700; letter-spacing:.11em;
+           text-transform:uppercase; margin-top:7px }
+  .mcount { font-size:10px; color:var(--dim) }
   .seat small { color:var(--dim) }
   .move.hi { border-color:var(--accent) }
-  .move:hover { border-color:var(--accent); background:#242836 }
+  .move:hover { border-color:var(--accent); background:var(--raise2) }
   .cost { display:block; font-size:10.5px; color:var(--dim); margin-top:2px }
   .rnd { font-size:9.5px; letter-spacing:.8px; text-transform:uppercase;
          color:var(--dim); border-bottom:1px solid var(--line);
@@ -152,39 +342,41 @@
      with a tinted oval behind it, the name on a band at the foot. The face is
      light because a card is a physical object, and it sits on the dark tray the
      way a card sits on a table. */
-  .card { width:74px; padding:0; overflow:hidden; cursor:grab;
-          border-radius:9px; border:2px solid var(--ct, #a7b0c3);
-          background:#f4f0e6; color:#2a2620; text-align:center;
+  .card { width:69px; padding:0; overflow:hidden; cursor:grab;
+          border-radius:9px; border:2px solid var(--ct, var(--dim));
+          background:#fffdf6; color:#2a2620;
+          box-shadow:0 1px 3px rgba(80,66,40,.22); text-align:center;
           display:flex; flex-direction:column }
   .card:hover { filter:brightness(1.05) }
-  .card.sel { box-shadow:0 0 0 3px var(--accent), 0 4px 10px rgba(0,0,0,.45);
+  .card.sel { background:#fffdf6; color:#2a2620; border-color:var(--accent);
+              box-shadow:0 0 0 3px var(--accent), 0 4px 10px rgba(80,66,40,.30);
               transform:translateY(-3px) }
   .card.dead { filter:grayscale(1); opacity:.55; cursor:not-allowed }
   .card.drag { opacity:.35 }
   .card.over { box-shadow:-3px 0 0 var(--accent) }
   .card .ck { display:block; font-size:7.5px; letter-spacing:.9px; padding:3px 0 1px;
               text-transform:uppercase; color:#6f675c; font-weight:600 }
-  .card .art { position:relative; height:34px; display:flex; align-items:center;
-               justify-content:center; background:var(--cbg, #eae4d6) }
+  .card .art { position:relative; height:36px; display:flex; align-items:center;
+               justify-content:center; background:var(--cbg, #f0eade) }
   .card .art::before { content:''; position:absolute; width:44px; height:26px;
                        border-radius:50%; background:rgba(255,255,255,.55) }
   .card .art svg { position:relative }
-  .card b { display:block; font-size:11.5px; font-weight:700; padding:4px 2px 5px;
+  .card b { display:block; font-size:11px; font-weight:700; padding:4px 2px 5px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-            background:var(--cband, #e3dccb); border-top:1px solid rgba(0,0,0,.10);
+            background:var(--cband, #eae2ce); border-top:1px solid rgba(0,0,0,.10);
             line-height:1.15; letter-spacing:.1px }
   .kinds { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 }
   .kind { padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12.5px;
-          background:#2c3240; border:1px solid var(--line) }
-  .kind.sel { background:var(--accent); color:#20242f; border-color:var(--accent) }
-  select { font:inherit; background:#2c3240; color:var(--text); padding:5px 8px;
+          background:var(--raise); border:1px solid var(--line) }
+  .kind.sel { background:var(--accent); color:var(--onaccent); border-color:var(--accent) }
+  select { font:inherit; background:var(--raise); color:var(--text); padding:5px 8px;
            border:1px solid var(--line); border-radius:6px; width:100% }
   .hint { color:var(--dim); font-size:11.5px; margin:4px 0 8px }
   .lvl { display:inline-block; min-width:17px; padding:0 4px; border-radius:4px;
-         background:#39405a; font-size:10.5px; font-weight:700; margin-right:5px }
+         background:var(--raise2); font-size:10.5px; font-weight:700; margin-right:5px }
 </style>
 <div id="board">
-  <svg id="svg" viewBox="28 6 754 822">
+  <svg id="svg" viewBox="-8 -6 826 816">
     <defs>
       <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
         <feGaussianBlur stdDeviation="2.5"/></filter>
@@ -205,17 +397,21 @@
         <stop offset="0" stop-color="var(--p3)" stop-opacity="1"/>
         <stop offset="1" stop-color="var(--p3)" stop-opacity="0.72"/></linearGradient>
       <linearGradient id="gslot" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#2f3647"/>
-        <stop offset="1" stop-color="#232936"/></linearGradient>
+        <stop offset="0" stop-color="#fbf7ec"/>
+        <stop offset="1" stop-color="#efe7d5"/></linearGradient>
       <radialGradient id="gboard" cx="0.5" cy="0.42" r="0.75">
-        <stop offset="0" stop-color="#242b39"/>
-        <stop offset="1" stop-color="#1a1e28"/></radialGradient>
+        <stop offset="0" stop-color="var(--boardA)"/>
+        <stop offset="1" stop-color="var(--boardB)"/></radialGradient>
     </defs>
     <g id="lay-live"></g>
     <g id="lay-fx"></g>
     <g id="lay-seat"></g>
   </svg>
   <div id="preview"></div>
+  <!-- The breakdown of a finished game. Over the board rather than in a rail,
+       because at that moment the board is a record and the numbers are the
+       thing to read; a button swaps them. -->
+  <div id="results" hidden></div>
   <div id="zoom">
     <button onclick="zoomBy(0.8)" title="zoom in">+</button>
     <button onclick="zoomBy(1.25)" title="zoom out">&minus;</button>
@@ -225,34 +421,46 @@
 <div id="tray">
   <section><h3>Your hand <span id="movecount"></span></h3>
     <div class="cards" id="hand"></div></section>
-  <section><h3>Action <span id="cash"></span></h3>
+  <section><h3>Action <span><span id="turnbtns"></span>
+      <span id="cash"></span></span></h3>
     <div class="acts" id="actions"></div></section>
   <section><h3>Details</h3><div id="details"></div></section>
 </div>
-<aside>
-  <div class="row" style="margin-bottom:6px">
-    <strong style="font-size:16px">BrassBot</strong>
-    <span class="chip" id="era"></span>
-    <span class="chip" id="market"></span>
-    <span class="chip" id="deck"></span>
-    <span class="chip" id="res"></span>
-    <span class="chip" id="room"></span>
+<!-- Left is the game's own state and the controls over it: who and where, the
+     counts, the buttons, the markets you buy from, what the marks mean. Right
+     is the players: where everyone stands, what each of them can still build,
+     and what they just did. -->
+<aside id="left">
+  <!-- Nine chips wrapping over five ragged rows is not a header, it is a pile.
+       Three bands instead: who and where, then the counts that are numbers,
+       then the buttons. Each band has one shape and you learn where to look. -->
+  <div class="brand">
+    <strong>BrassBot</strong><span class="chip" id="room"></span>
   </div>
-  <div class="row" style="margin-bottom:8px">
-    <span class="chip" id="turn"></span>
-    <button id="exportbtn" onclick="doExport()" title="write this game to logs/ in the
-      same format as the pasted Boomforge logs, so the analysis scripts can read it"
-      >⭳ Export log</button>
-    <span id="exported" class="meta"></span>
+  <div class="status"><span id="era"></span><span id="turn"></span></div>
+  <div class="stats" id="stats"></div>
+  <div class="onboard" id="res"></div>
+  <div class="tools">
+    <button id="exportbtn" onclick="doExport()"></button>
     <button id="restartbtn" onclick="arm('restart')"></button>
     <button id="endbtn" onclick="arm('end')"></button>
+    <button id="stopbtn" onclick="arm('stop')"></button>
+    <button id="foldbtn" onclick="foldTray()"
+      title="hide the hand and give the whole window to the map (f)"></button>
+    <span id="exported" class="meta"></span>
   </div>
-  <details><summary class="legendsum">Legend</summary>
-    <div id="legend" class="meta"></div></details>
-  <details open><summary class="legendsum">Markets</summary>
-    <div id="markets"></div></details>
-  <h2>Players <span class="meta" style="font-weight:400;font-size:10px">
-    proj · banked · £ · inc · links/cards</span></h2><div id="seats"></div>
+  <h2>Markets</h2>
+  <div id="markets"></div>
+  <h2>Legend</h2>
+  <div id="legend" class="meta"></div>
+</aside>
+<aside id="right">
+  <h2 style="margin-top:0;border-top:none;padding-top:0">Overview</h2>
+  <div class="seat seathead">
+    <span>Order</span><span>Proj</span><span>VP</span><span>£</span>
+    <span>Inc</span><span>Link/card</span>
+  </div>
+  <div id="seats"></div>
   <h2>Mat &mdash; next tile of each industry</h2>
   <div class="kinds" id="mattabs"></div><div class="mat" id="mat"></div>
   <h2>Recent <button id="logmode" onclick="toggleLog()"
@@ -296,17 +504,44 @@ const ICON = {
   pottery: 'M9 3 h6 v2 l-1 2 q4 3 4 7 q0 5 -6 7 q-6 -2 -6 -7 q0 -4 4 -7 l-1 -2 z',
 };
 
-function icon(ind, x, y, size, fill, opacity) {
-  const s = size / 24;
-  return `<g transform="translate(${x},${y}) scale(${s})"
-           fill="${fill}" fill-opacity="${opacity == null ? 1 : opacity}"
-           stroke="${fill}" stroke-opacity="${(opacity == null ? 1 : opacity) * 0.9}"
-           stroke-width="1.1" stroke-linejoin="round" pointer-events="none">
-           <path d="${ICON[ind]}"/></g>`;
+const ICOL = {coal_mine:'var(--i-coal)', iron_works:'var(--i-iron)',
+              brewery:'var(--i-brewery)', cotton_mill:'var(--i-cotton)',
+              manufacturer:'var(--i-manuf)', pottery:'var(--i-pottery)'};
+// A card face in its industry's colours: border, art panel, name band. Town and
+// wild cards have no industry and keep the hashed hue that separates them from
+// each other.
+const CARDTINT = {
+  coal_mine:    ['#4a473f', '#e9e6dc', '#dbd7c9'],
+  iron_works:   ['#b34d1b', '#fae5d5', '#f2d5bf'],
+  brewery:      ['#9a730a', '#f8ecc7', '#eedfad'],
+  cotton_mill:  ['#a91f28', '#fbdcdd', '#f4c7c9'],
+  manufacturer: ['#2a4b8d', '#dde4f5', '#c7d3ed'],
+  pottery:      ['#74461f', '#f0e1d3', '#e4d1bc'],
+};
+// stroke-width 1.6 rather than 1.1: these are read at 12 to 17 pixels, where a
+// hairline outline disappears into the fill and the silhouette goes soft. The
+// optional halo draws the same path underneath as a fat light stroke, which is
+// what lets an icon sit on a coloured tile or a patterned ground and still read.
+function icon(ind, x, y, size, fill, opacity, halo) {
+  const s = size / 24, o = opacity == null ? 1 : opacity;
+  const path = `<path d="${ICON[ind]}"/>`;
+  return `<g transform="translate(${x},${y}) scale(${s})" pointer-events="none">${
+    halo ? `<g fill="none" stroke="${halo}" stroke-width="5"
+             stroke-linejoin="round" stroke-linecap="round"
+             opacity="0.8">${path}</g>` : ''}
+    <g fill="${fill}" fill-opacity="${o}" stroke="${fill}"
+       stroke-opacity="${o}" stroke-width="1.6"
+       stroke-linejoin="round">${path}</g></g>`;
 }
 let S = null, card = null, kind = null, matSeat = 0, focus = null;
 let logProse = false, resFilter = null, dev1 = null, dev2 = null;
 let sc1 = null, sc2 = null;
+// Which industry a Build is narrowed to. A wild location card can build every
+// industry you hold at every town in reach, which is forty buttons and a map
+// lit end to end; picking the industry first turns that into one question.
+let bind = null;
+// Which industries have their pile opened on the mat, by industry id.
+let matOpen = {};
 // Shared by draw() and renderKind(), which are separate top-level functions.
 // TOWNNAME was caught living inside draw() by the Sell renderer, and cardLabel
 // by the Scout renderer -- anything both use belongs out here.
@@ -352,17 +587,101 @@ function note(msg) {
   if (box) box.innerHTML = `<p class="gone">${msg}</p>` + box.innerHTML;
 }
 
+// The VP track is printed around the edge of the real board, and putting it
+// anywhere else turns a score into a number you look up instead of a position
+// you can see. 0 sits at the bottom-left corner; the track runs UP the left
+// edge to 21, along the top to 50, DOWN the right to 71, and back along the
+// bottom to 99, which is the loop the physical board uses.
+const BOARD = {x0: 28, y0: 30, x1: 782, y1: 774};
+const BAND = 17;    // the track's centre line, this far outside the board edge
+const MARGIN = 36;  // the viewBox edge, this far outside the board edge
+const BW = BOARD.x1 - BOARD.x0, BH = BOARD.y1 - BOARD.y0;
+const TRACK = (() => {
+  const {x0, y0, x1, y1} = BOARD, out = [];
+  for (let i = 0; i < 22; i++)
+    out.push({x: x0 - BAND, y: y1 - (i + .5) * BH / 22, e: 'l'});
+  for (let i = 0; i < 29; i++)
+    out.push({x: x0 + (i + .5) * BW / 29, y: y0 - BAND, e: 't'});
+  for (let i = 0; i < 21; i++)
+    out.push({x: x1 + BAND, y: y0 + (i + .5) * BH / 21, e: 'r'});
+  for (let i = 0; i < 28; i++)
+    out.push({x: x1 - (i + .5) * BW / 28, y: y1 + BAND, e: 'b'});
+  return out;
+})();
+const INWARD = {l: [1, 0], t: [0, 1], r: [-1, 0], b: [0, -1]};
+
+function trackFrame(s) {
+  let g = `<rect x="${BOARD.x0 - MARGIN + 4}" y="${BOARD.y0 - MARGIN + 4}"
+            width="${BW + 2 * MARGIN - 8}" height="${BH + 2 * MARGIN - 8}" rx="7"
+            fill="#dbcfb2" stroke="var(--line2)"/>
+           <rect x="${BOARD.x0 - 2}" y="${BOARD.y0 - 2}"
+            width="${BW + 4}" height="${BH + 4}" rx="4"
+            fill="var(--boardA)" stroke="var(--line2)"/>`;
+  // A divider between every pair of adjacent spaces, so the numbers read as a
+  // track with 100 cells rather than as a ring of loose figures.
+  for (let v = 0; v < 99; v++) {
+    const a = TRACK[v], b = TRACK[v + 1];
+    if (a.e !== b.e) continue;
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    g += (a.e === 'l' || a.e === 'r')
+      ? `<path d="M${mx - 14} ${my} h28" stroke="var(--line)" stroke-width=".7"/>`
+      : `<path d="M${mx} ${my - 14} v28" stroke="var(--line)" stroke-width=".7"/>`;
+  }
+  for (let v = 0; v < 100; v++) {
+    const t = TRACK[v], major = v % 10 === 0;
+    g += `<text x="${t.x}" y="${t.y + 3.4}" text-anchor="middle"
+           style="font-size:${major ? 10 : 8.5}px;
+                  font-weight:${major ? 700 : 500};
+                  fill:${major ? 'var(--text)' : 'var(--dim)'}">${v}</text>`;
+  }
+  // Two marks per seat. The solid disc is VP actually banked, which is what a
+  // physical marker shows; the dashed ring is where the seat would finish if
+  // the game ended now. Banked VP is near zero for everyone until the Canal
+  // Era scores, so for the first half of the game the ring is the only one
+  // that moves, and it is the one worth reading.
+  const seen = {};
+  const mark = (v, seat, solid) => {
+    const i = ((Math.round(v) % 100) + 100) % 100, t = TRACK[i];
+    const n = (seen[i] = (seen[i] || 0) + 1) - 1;
+    const [ix, iy] = INWARD[t.e];
+    const x = t.x + ix * n * 9, y = t.y + iy * n * 9;
+    return solid
+      ? `<circle cx="${x}" cy="${y}" r="6.5" fill="${COL[seat]}"
+          stroke="var(--badge)" stroke-width="1.5"
+          ><title>${seat === s.seat ? 'you' : 'Bot ' + seat}: ${v} VP banked</title></circle>`
+      : `<circle cx="${x}" cy="${y}" r="6.5" fill="var(--badge)" fill-opacity="0.9"
+          stroke="${COL[seat]}" stroke-width="2" stroke-dasharray="3 2"
+          ><title>${seat === s.seat ? 'you' : 'Bot ' + seat}: ${v} VP projected, `
+        + `if the game ended now</title></circle>`;
+  };
+  // Rings first: where a disc and a ring land on the same space, the banked
+  // figure is the one that has actually happened, so it sits on top.
+  for (const p of s.players) g += mark(p.projected, p.idx, false);
+  for (const p of s.players) g += mark(p.vp, p.idx, true);
+  return g;
+}
+
 function draw(s) {
   S = s;
   const C = s.coords, svg = document.getElementById('svg');
-  let out = '<rect x="28" y="6" width="754" height="822" fill="url(#gboard)"/>';
+  let out = trackFrame(s)
+          + `<rect x="${BOARD.x0}" y="${BOARD.y0}" width="${BW}" height="${BH}"
+              fill="url(#gboard)"/>`;
 
   // Where the chosen card and action can actually land. Brass is played on the
   // map, so once you have said "Build" the question is WHERE -- and answering
   // that from a list of 57 sentences is a different game from pointing at the
   // town. These drive the highlights below and the clicks that follow.
-  const selMoves = (card === null || kind === null) ? []
+  let selMoves = (card === null || kind === null) ? []
       : s.moves.filter(m => sigAt(m.card) === sigAt(card) && m.kind === kind);
+  // With several industries on offer and one chosen, the board shows only
+  // that one's towns. If the choice has become impossible (the card changed
+  // under it), it is dropped rather than left pointing at nothing.
+  if (kind === 'Build' && bind !== null) {
+    if (selMoves.some(m => m.industry === bind))
+      selMoves = selMoves.filter(m => m.industry === bind);
+    else bind = null;
+  }
   const tgtTown = {}, tgtLine = {};
   // SVG paints in document order, so anything drawn after a target would sit on
   // top of it and swallow the click. Targets are collected here and appended
@@ -391,20 +710,35 @@ function draw(s) {
   for (const l of (s.all_links || []))
     if (!(l.id in built)) {
       const usable = s.era === 'canal' ? l.canal : l.rail;
-      out += spokes(l.ends, usable ? '#4b5568' : '#22262f', usable ? 2 : 1.2,
+      out += spokes(l.ends, usable ? 'var(--line2)' : 'var(--line)', usable ? 2 : 1.2,
                     s.era === 'canal');
     }
   for (const l of s.links) out += spokes(l.ends, COL[l.owner], 4, false);
+  // Picking a double rail by browsing 240 pairs is not a decision anyone can
+  // make. Once a first line is chosen, the map keeps only that line and the
+  // ones it can pair with, and the second click plays the pair. Clicking the
+  // chosen line again lets go of it.
+  const first = (kind === 'Network' && focus && tgtLine[focus]) ? focus : null;
+  if (first) {
+    const partners = {};
+    for (const m of tgtLine[first])
+      for (const l of (m.lines || [])) if (l !== first) partners[l] = 1;
+    for (const l in tgtLine) if (l !== first && !partners[l]) delete tgtLine[l];
+  }
   // A line you could build right now, with a fat invisible hit area over it.
   for (const id in tgtLine) {
     const l = (s.all_links || []).find(x => x.id === id);
     if (!l) continue;
+    const chosen = id === first;
     tgt += `<g class="tgt" data-act="line" data-id="${id}"
              tabindex="0" role="button"
-             aria-label="build the link at ${id.replace(/[-_]/g, ' ')}">
-              ${spokes(l.ends, 'var(--accent)', 3.5, false)}
+             aria-label="${chosen ? 'let go of' : 'build the link at'} ${id.replace(/[-_]/g, ' ')}">
+              ${chosen ? spokes(l.ends, 'var(--badge)', 9, false) : ''}
+              ${spokes(l.ends, 'var(--accent)', chosen ? 5.5 : 3.5, false)}
               ${spokes(l.ends, 'transparent', 16, false)}
-              <title>build this link</title></g>`;
+              <title>${chosen ? 'your first link — click again to let go'
+                              : first ? 'pair with ' + first.replace(/[-_]/g, ' ')
+                                      : 'build this link'}</title></g>`;
   }
 
   // What each line is worth at this instant. Link VP is the icons showing at
@@ -420,8 +754,8 @@ function draw(s) {
     const loud = kind === 'Network';
     const zero = !l.vp;
     out += `<circle cx="${cx}" cy="${cy}" r="${loud ? 8.5 : 6.5}"
-             fill="#1b1f28" fill-opacity="${zero ? 0.45 : loud ? 1 : 0.6}"
-             stroke="${l.id in built ? COL[built[l.id]] : '#4b5568'}"
+             fill="var(--badge)" fill-opacity="${zero ? 0.85 : loud ? 1 : 0.6}"
+             stroke="${l.id in built ? COL[built[l.id]] : 'var(--line2)'}"
              stroke-width="1" stroke-opacity="${zero ? 0.35 : loud ? 1 : 0.6}"/>
             <text x="${cx}" y="${cy + (loud ? 3.5 : 2.8)}" text-anchor="middle"
              style="font-size:${loud ? 9 : 7.5}px;font-weight:700;
@@ -446,14 +780,14 @@ function draw(s) {
                : `+${mo.amount} ${BONUS[mo.bonus]}`;
     out += `<g opacity="${narrowing && !tgtTown[m] ? 0.45 : 1}">
             <rect x="${x-46}" y="${y-22}" width="92" height="54" rx="9"
-            fill="#242938" stroke="${live ? '#5c667c' : '#434c5f'}"/>
+            fill="var(--badge)" stroke="${live ? 'var(--ink3)' : 'var(--line2)'}"/>
             <text x="${x}" y="${y-10}" text-anchor="middle">${m}</text>`;
     if (btxt)
       // A tinted band, so the reward reads as the merchant's own and not as
       // something written on the map near it.
       out += `<rect x="${x-45}" y="${y+14}" width="90" height="17" rx="0"
                fill="var(--accent)" fill-opacity="0.13"/>
-              <path d="M${x-45} ${y+14} h90" stroke="#5c667c" stroke-width="1"/>
+              <path d="M${x-45} ${y+14} h90" stroke="var(--ink3)" stroke-width="1"/>
               <text x="${x}" y="${y+26}" text-anchor="middle"
                style="font-size:11px;font-weight:700;fill:var(--accent);
                       letter-spacing:.3px">${btxt}</text>`;
@@ -467,15 +801,16 @@ function draw(s) {
                    class="tname">—</text>`;
         else if (sl.kind === 'any')
           out += `<text x="${gx+11}" y="${y+8}" text-anchor="middle"
-                   style="font-size:9px;font-weight:700;fill:#dbe1ec">ANY</text>`;
+                   style="font-size:9px;font-weight:700;fill:var(--text)">ANY</text>`;
         else
-          out += icon(sl.kind, gx + 3, y - 6, 15, '#dbe1ec', 0.95);
+          out += icon(sl.kind, gx + 2, y - 7, 17,
+                      ICOL[sl.kind] || 'var(--text)', 1, 'var(--badge)');
         // The barrel is the thing that decides whether a sale is possible.
         out += sl.beer
-          ? `<circle cx="${gx+22}" cy="${y-1}" r="5" fill="#e0a458"
-              stroke="#1b1f28" stroke-width="0.8"><title>beer available</title></circle>`
+          ? `<circle cx="${gx+22}" cy="${y-1}" r="5" fill="var(--accent)"
+              stroke="#6b5a33" stroke-width="0.8"><title>beer available</title></circle>`
           : `<circle cx="${gx+22}" cy="${y-1}" r="5" fill="none"
-              stroke="#5c667c" stroke-dasharray="2 2"><title>beer gone</title></circle>`;
+              stroke="var(--ink3)" stroke-dasharray="2 2"><title>beer gone</title></circle>`;
       });
     } else {
       out += `<text x="${x}" y="${y+10}" text-anchor="middle" class="tname">unused</text>`;
@@ -556,18 +891,19 @@ function draw(s) {
         // reads as a physical tile instead of a filled rectangle.
         if (flipped)
           out += `<path d="M${sx+1.5} ${y-11.5} h${bw-3}" stroke="#fff"
-                   stroke-opacity="0.22" stroke-width="1" fill="none"/>
+                   stroke-opacity="0.40" stroke-width="1" fill="none"/>
                   <path d="M${sx+1.5} ${y+12.5} h${bw-3}" stroke="#000"
-                   stroke-opacity="0.42" stroke-width="1" fill="none"/>`;
-        out += icon(tile.industry, sx + bw/2 - 8, y - 10, 17,
-                    flipped ? '#1b1f28' : c, flipped ? 0.85 : 1);
+                   stroke-opacity="0.26" stroke-width="1" fill="none"/>`;
+        out += icon(tile.industry, sx + bw/2 - 9, y - 10.5, 19,
+                    flipped ? 'var(--onaccent)' : ICOL[tile.industry] || c,
+                    1, flipped ? null : 'var(--boardA)');
         out += `<text x="${sx+bw-4}" y="${y+12}" text-anchor="end"
-                style="font-size:9px;font-weight:700;fill:${flipped ? '#1b1f28' : c}"
+                style="font-size:9px;font-weight:700;fill:${flipped ? 'var(--onaccent)' : c}"
                 >${tile.level}</text>`;
         // Only a flipped tile is worth anything, so only a flipped one says so.
         if (flipped && tile.vp)
           out += `<text x="${sx+3}" y="${y+12}"
-                   style="font-size:8.5px;font-weight:700;fill:#1b1f28;opacity:.8"
+                   style="font-size:8.5px;font-weight:700;fill:var(--onaccent);opacity:.85"
                    >${tile.vp}v</text>`;
         out += `<title>${NAME[tile.industry]} L${tile.level}, seat ${tile.owner}`
              + `${flipped ? ' — flipped' : ' — NOT flipped, scores nothing yet'}`
@@ -576,23 +912,23 @@ function draw(s) {
         // Level 1 in the Canal Era is swept at the boundary whether it flipped
         // or not. The mat warned about this and the board did not.
         if (tile.level === 1 && s.era === 'canal')
-          out += `<path d="M${sx+bw-7} ${y-13} l7 7" stroke="#e05c5c"
+          out += `<path d="M${sx+bw-7} ${y-13} l7 7" stroke="var(--bad)"
                    stroke-width="2" stroke-linecap="round" opacity="0.9"/>`;
         if (tile.resources)
-          out += `<circle cx="${sx+bw-5}" cy="${y-10}" r="5.5" fill="#f0c674"
-                   stroke="#1b1f28" stroke-width="0.8"/>
+          out += `<circle cx="${sx+bw-5}" cy="${y-10}" r="5.5" fill="#d9a441"
+                   stroke="#6b5a33" stroke-width="0.8"/>
                   <text x="${sx+bw-5}" y="${y-7}" text-anchor="middle"
-                   style="font-size:8px;font-weight:700;fill:#20242f"
+                   style="font-size:8px;font-weight:700;fill:var(--onaccent)"
                    >${tile.resources}</text>`;
       } else {
         out += `<rect x="${sx}" y="${y-13}" width="${bw}" height="27" rx="5"
-                fill="url(#gslot)" stroke="#3b4354"/>
+                fill="url(#gslot)" stroke="var(--line2)"/>
                 <path d="M${sx+1.5} ${y-11.5} h${bw-3}" stroke="#fff"
-                 stroke-opacity="0.06" stroke-width="1" fill="none"/>`;
-        const k = slot.length, isize = k > 2 ? 11 : 13;
+                 stroke-opacity="0.55" stroke-width="1" fill="none"/>`;
+        const k = slot.length, isize = k > 2 ? 12 : 15;
         slot.forEach((ind, j) => {
           const ix = sx + bw/2 - (k * isize) / 2 + j * isize;
-          out += icon(ind, ix, y - isize/2, isize, '#8d97ab', 0.75);
+          out += icon(ind, ix, y - isize/2, isize, ICOL[ind] || 'var(--ink3)', 1);
         });
         out += `<title>${slot.map(i2 => NAME[i2]).join(' or ')}</title>`;
       }
@@ -629,9 +965,7 @@ function draw(s) {
   if (stale) stale.remove();
 
   document.getElementById('era').textContent =
-    `${s.era} · round ${s.round}/${s.rounds_this_era}`;
-  document.getElementById('market').textContent =
-    `coal ${s.coal_market} · iron ${s.iron_market}`;
+    `${s.era} era · round ${s.round}/${s.rounds_this_era}`;
 
   // Banked VP is near zero for everyone through the Canal Era, so the raw
   // number tells you nothing about where you stand. The projected figure is
@@ -662,41 +996,94 @@ function draw(s) {
 
   // Markets: the PRICE is the number you reason with, not the cube count, and
   // a mine or works built into a short market sells its cubes on placement.
+  // The market as it physically sits: a column per resource, dearest at the
+  // top, cheapest at the bottom, two cubes to a price. Cubes are bought from
+  // the cheap end, so the empty spaces are always the bottom of the column and
+  // the lowest cube still in it is the one you will pay for next. The dashed
+  // box above each column is what a cube costs once the column is bare.
   const mkt = (name, held, cap, price) => {
-    const pct = Math.round(100 * held / cap);
-    const note = held === 0 ? '<span class="gone">empty — builds sell out</span>'
-               : held <= 3 ? '<span class="warn">short</span>' : '';
-    // Cubes sit at the EXPENSIVE end and the empty spaces are a prefix at the
-    // cheap end, so the ladder read left to right is the order you will pay:
-    // the leftmost cube is the next one you buy.
     const slots = (name === 'coal' ? s.coal_slots : s.iron_slots) || [];
     const empty = (name === 'coal' ? s.coal_empty_price : s.iron_empty_price);
-    const cells = slots.map(sl =>
-      `<span class="slot ${sl.cube ? 'full' : ''}" title="£${sl.price}${
-        sl.cube ? '' : ' — empty'}"></span>`).join('');
-    const scale = slots.map((sl, i) =>
-      `<span class="sprice">${i % 2 ? '' : '£' + sl.price}</span>`).join('');
-    return `<div class="mkt"><span style="width:34px">${name}</span>
-      <span class="ladder">${cells}</span>
-      <span>${held}/${cap} · £${price}</span> ${note}</div>
-      <div class="mkt"><span style="width:34px"></span>
-        <span class="ladder">${scale}</span>
-        <span class="meta">empty £${empty}</span></div>`;
+    // Group the flat list of spaces by price. Two to a price today, but read
+    // off the data rather than assumed, because that is a rule of the board and
+    // not of this panel.
+    const rows = [];
+    for (const sl of slots) {
+      const row = rows.find(r => r.price === sl.price);
+      (row || (rows[rows.push({price: sl.price, cells: []}) - 1])).cells.push(sl);
+    }
+    rows.sort((a, b) => b.price - a.price);
+    const next = slots.find(sl => sl.cube);   // the cube you would buy now
+    const lad = rows.map(r =>
+      `<span class="pr">£${r.price}</span>` + r.cells.map(sl =>
+        `<span class="cube ${name} ${sl.cube ? 'full' : ''}${
+           next && sl === next ? ' next' : ''}"
+          title="£${sl.price}${sl.cube ? (sl === next ? ' — the next one you buy'
+                                                      : '') : ' — empty'}"
+          ></span>`).join('')).join('');
+    const note = held === 0 ? '<div class="gone">empty — builds sell out</div>'
+               : held <= 3 ? '<div class="warn">short</div>' : '';
+    return `<div class="mkt2">
+      <div class="empt" title="what one costs once the market is bare"
+        >£${empty}</div>
+      <div class="lad" style="grid-template-columns:auto repeat(${
+        Math.max(...rows.map(r => r.cells.length))}, auto)">${lad}</div>
+      <div class="mname">${name}</div>
+      <div class="mcount">${held}/${cap} · now £${price}</div>${note}</div>`;
   };
   // Deck exhaustion is what ends each era, and the hand shrinks to one card
   // per remaining action once it runs dry -- invisible until it bites.
   const rb = document.getElementById('restartbtn');
   if (rb) {
-    rb.textContent = armed === 'restart' ? 'click again to restart' : '↻ Restart';
+    rb.textContent = armed === 'restart' ? 'again to restart' : '↻ Restart';
     rb.className = armed === 'restart' ? 'sel' : '';
     rb.title = 'deal a fresh board with the same players and opponent';
   }
   const eb = document.getElementById('endbtn');
   if (eb) {
-    eb.textContent = armed === 'end' ? 'click again to end' : '⏹ End game';
+    eb.textContent = armed === 'end' ? 'again to end' : '⏹ End';
     eb.className = armed === 'end' ? 'sel' : '';
     eb.title = 'stop here and show the standings; this cannot be undone';
     eb.disabled = !!(s.ended || s.finished);
+  }
+  // A finished game saves itself, so the button stops asking for a press and
+  // starts reporting. It stays for the other case: a game still in progress
+  // that you want on disk before you walk away from it.
+  const xb = document.getElementById('exportbtn');
+  if (xb) {
+    xb.textContent = s.autosaved ? '✓ Saved' : '⭳ Export';
+    xb.disabled = !!s.autosaved;
+    xb.title = s.autosaved
+      ? 'this game was written to logs/ the moment it ended'
+      : 'write the game so far to logs/, in the same format as the pasted '
+        + 'Boomforge logs, so the analysis scripts can read it';
+  }
+  const ex = document.getElementById('exported');
+  if (ex && s.exported)
+    ex.textContent = (s.autosaved ? '' : '→ ') + s.exported.split('/').pop();
+  const fb = document.getElementById('foldbtn');
+  if (fb && !fb.textContent) { fb.textContent = FOLD[0].label;
+                               fb.title = FOLD[0].hint; }
+  railWidths();
+  const sb = document.getElementById('stopbtn');
+  if (sb) {
+    sb.textContent = armed === 'stop' ? 'again to stop it' : '⏻ Stop';
+    sb.className = armed === 'stop' ? 'sel' : '';
+    // One process serves every room, so this is not "leave the table". Say so
+    // on the button rather than letting someone find out by ending three other
+    // people's games.
+    sb.title = (s.rooms || []).length > 1
+      ? `shut the whole server down, ending all ${s.rooms.length} tables. `
+        + 'Export anything you want to keep first.'
+      : 'shut the server down. This game is gone unless you export it first.';
+  }
+  if (s.stopping) {
+    document.body.innerHTML =
+      '<div style="padding:40px;font:16px/1.6 ui-sans-serif,system-ui,sans-serif">'
+      + '<h1 style="font-size:20px;margin:0 0 8px">Server stopped.</h1>'
+      + '<p class="meta">Nothing is listening on this port any more. '
+      + 'Start it again with <code>.venv/bin/python tools/serve.py</code>.</p></div>';
+    return;
   }
   const turnEl = document.getElementById('turn');
   turnEl.textContent = s.ended ? 'ended early'
@@ -704,8 +1091,8 @@ function draw(s) {
       : s.current === s.seat
         ? `your turn · ${s.actions_left} action${s.actions_left === 1 ? '' : 's'} left`
         : `Bot ${s.current} to move`;
-  turnEl.style.color = (s.current === s.seat && !s.finished)
-      ? 'var(--accent)' : 'var(--dim)';
+  turnEl.className = (s.current === s.seat && !s.finished && !s.ended)
+      ? 'mine' : '';
   const roomEl = document.getElementById('room');
   if (roomEl)
     roomEl.innerHTML = `table <b>${s.room || 'main'}</b>` + (
@@ -716,32 +1103,40 @@ function draw(s) {
              text-decoration:none;font-weight:${resFilter === k ? 700 : 400}"
       >${k} ${resTotal[k]}</a>`;
   document.getElementById('res').innerHTML =
-    'on the board: ' + ['coal','iron','beer'].map(rchip).join(' · ');
-  document.getElementById('deck').textContent =
-    `deck ${s.deck} · discard ${s.discard} · wild ${s.wild_city}c/${s.wild_ind}i`;
-  const lg = (svgBits, text) =>
-    `<span><svg width="16" height="16" viewBox="0 0 16 16">${svgBits}</svg></span>
+    'on the board &nbsp;' + ['coal','iron','beer'].map(rchip).join(' &nbsp;· ');
+  // Deck exhaustion ends the era and the market price is what a build really
+  // costs, so these are figures, not prose. One label above each.
+  const stat = (k, v, sub2) => `<span class="stat"><span class="k">${k}</span>
+      <span class="v">${v}${sub2 ? ` <small>${sub2}</small>` : ''}</span></span>`;
+  document.getElementById('stats').innerHTML =
+      stat('deck', s.deck)
+    + stat('discard', s.discard)
+    + stat('wild', `${s.wild_city}<small>c</small> / ${s.wild_ind}<small>i</small>`);
+  const lg = (svgBits, text, box) =>
+    `<span><svg width="${box || 16}" height="${box || 16}"
+       viewBox="0 0 ${box || 16} ${box || 16}">${svgBits}</svg></span>
      <span>${text}</span>`;
   document.getElementById('legend').innerHTML =
     Object.keys(NAME).map(k =>
-      lg(icon(k, 1, 1, 14, '#a7b0c3', .9), NAME[k])).join('')
+      lg(icon(k, 1, 1, 17, ICOL[k] || 'var(--dim)', 1), NAME[k], 17)).join('')
     + lg(`<rect x="1" y="3" width="14" height="10" rx="3" fill="var(--p0)"/>`,
          'flipped — has scored')
     + lg(`<rect x="1" y="3" width="14" height="10" rx="3" fill="none"
            stroke="var(--p0)" stroke-width="2" stroke-dasharray="3 2"/>`,
          'built, NOT flipped — scores nothing yet')
-    + lg(`<circle cx="8" cy="8" r="5" fill="#e0a458"/>`, 'beer still on the tile')
-    + lg(`<circle cx="8" cy="8" r="6.5" fill="#1b1f28" stroke="#5c667c"/>
+    + lg(`<circle cx="8" cy="8" r="5" fill="var(--accent)"/>`, 'beer still on the tile')
+    + lg(`<circle cx="8" cy="8" r="6.5" fill="var(--badge)" stroke="var(--ink3)"/>
           <text x="8" y="11" text-anchor="middle"
-           style="font-size:8px;font-weight:700;fill:#e0a458">2</text>`,
+           style="font-size:8px;font-weight:700;fill:var(--accent)">2</text>`,
          'what this link scores now')
-    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="#4b5568" stroke-width="2"
+    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="var(--line2)" stroke-width="2"
            stroke-dasharray="4 3"/>`, 'canal route')
-    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="#4b5568" stroke-width="2"/>`,
+    + lg(`<line x1="1" y1="8" x2="15" y2="8" stroke="var(--line2)" stroke-width="2"/>`,
          'rail route');
-  document.getElementById('markets').innerHTML =
-    mkt('coal', s.coal_market, s.coal_cap, s.coal_price) +
-    mkt('iron', s.iron_market, s.iron_cap, s.iron_price);
+  document.getElementById('markets').innerHTML = '<div class="mkts">'
+    + mkt('coal', s.coal_market, s.coal_cap, s.coal_price)
+    + mkt('iron', s.iron_market, s.iron_cap, s.iron_price)
+    + '</div>';
 
   // The mat: what a Build would actually place for each industry.
   if (matSeat >= (s.mats || []).length) matSeat = s.seat;
@@ -750,9 +1145,10 @@ function draw(s) {
       <span class="dot" style="background:${COL[i]}"></span>
       ${i === s.seat ? 'You' : 'Bot ' + i}</button>`).join('');
   const shown = (s.mats && s.mats[matSeat]) || s.mat;
-  document.getElementById('mat').innerHTML = Object.entries(shown).map(([ind, m]) => {
-    if (m.next === null) return `<span class="ind">${MATNAME[ind]}</span>
-        <span class="gone">exhausted</span><span></span>`;
+  document.getElementById('mat').innerHTML = Object.entries(shown).map(([ind, m], row) => {
+    const mr = row ? ' mr' : '';
+    if (m.next === null) return `<span class="ind${mr}">${matIcon(ind)}${MATNAME[ind]}</span>
+        <span class="gone${mr}">exhausted</span><span class="pile${mr}"></span>`;
     const pips = m.by_level.map((n, i) => {
       const lvl = i + 1;
       const cls = n === 0 ? '' : (lvl === m.next ? 'pip next' : 'pip have');
@@ -773,13 +1169,31 @@ function draw(s) {
       ? '<span class="ok">can build now</span>'
       : `<span class="${/^short/.test(m.reason || '') ? 'warn' : 'gone'}">${
           m.reason || 'blocked'}</span>`;
-    return `<span class="ind">${MATNAME[ind]}</span>
-      <span><span class="lv">L${m.next}</span> <span class="pips">${pips}</span>
+    // The pile under the top tile. A Develop's whole point is what comes
+    // next, and the mat showed only the tile you would place now, so the
+    // question it exists to answer was the one thing it did not carry.
+    const open = !!matOpen[ind];
+    const stack = !open ? '' : `<div class="stack">` + (m.stack || [])
+      .filter(t => t.left > 0)
+      .map(t => `<span class="lv ${t.level === m.next ? 'nx' : ''}">L${t.level}</span>
+         <span class="meta">&times;${t.left}</span>
+         <span class="meta">£${t.cost}${t.coal ? '+' + t.coal + 'c' : ''}${
+            t.iron ? '+' + t.iron + 'i' : ''} · ${t.vp}vp · +${t.income}inc${
+            t.beer ? ' · ' + t.beer + ' beer' : ''}${
+            t.link_vp ? ' · ' + t.link_vp + '\u22B7' : ''}${
+            t.canal_only ? ' · canal only' : t.rail_only ? ' · rail only' : ''}</span>`)
+      .join('') + `</div>`;
+    return `<span class="ind${mr}">${matIcon(ind)}${MATNAME[ind]}</span>
+      <span class="pile${mr}"><button class="stackbtn" onclick="toggleStack('${ind}')"
+          title="every tile still in this pile, not just the one on top"
+          >${open ? '\u25BE' : '\u25B8'}</button>
+        <span class="lv">L${m.next}</span> <span class="pips">${pips}</span>
         <span class="meta">${m.remaining} left</span>${flags}</span>
-      <span class="meta">£${m.cost}${m.coal ? '+' + m.coal + 'c' : ''}${m.iron ? '+' + m.iron + 'i' : ''}
-        · ${m.vp}vp · +${m.income}inc${beer}${
+      <span class="meta${mr}"><b>£${m.cost}${m.coal ? '+' + m.coal + 'c' : ''}${
+          m.iron ? '+' + m.iron + 'i' : ''}</b>
+        · <b>${m.vp}vp</b> · +${m.income}inc${beer}${
           m.produces ? ' · puts ' + m.produces : ''}
-        ${m.link_vp ? ' · ' + m.link_vp + '⊷' : ''}<br>${afford}</span>`;
+        ${m.link_vp ? ' · ' + m.link_vp + '⊷' : ''}<br>${afford}</span>${stack}`;
   }).join('');
 
   // --- hand -> action type -> choice ------------------------------------
@@ -835,8 +1249,8 @@ function draw(s) {
               : c.town ? 'city'
               : (c.industries && c.industries.length) ? c.industries[0] : 'wild';
     const glyph = ICON[ind]
-      ? `<svg width="30" height="30" viewBox="0 0 30 30">${
-          icon(ind, 1, 1, 28, '#4a4034', .92)}</svg>`
+      ? `<svg width="32" height="32" viewBox="0 0 32 32">${
+          icon(ind, 1, 1, 30, ICOL[ind] || '#4a4034', 1)}</svg>`
       : '';
     // The verbs move into the tooltip: the reference's card carries only its
     // kind, its art and its name. The verbs were our addition, not something
@@ -844,10 +1258,12 @@ function draw(s) {
     const verbs = n ? (v => v.length ? v.join(' · ') : 'loan or pass only')(
       [...new Set((byCard[sigAt(i)] || []).map(m => VERB[m.kind]))]
         .filter(v => v && !UNIVERSAL.has(v))) : 'no moves';
+    const tint = CARDTINT[ind];
     const hue = cardHue(c);
     return `<button class="card ${i === card ? 'sel' : ''} ${n ? '' : 'dead'}"
-      style="--ct:hsl(${hue} 45% 46%); --cbg:hsl(${hue} 38% 91%);
-             --cband:hsl(${hue} 34% 85%)"
+      style="${tint ? `--ct:${tint[0]}; --cbg:${tint[1]}; --cband:${tint[2]}`
+                    : `--ct:hsl(${hue} 45% 46%); --cbg:hsl(${hue} 38% 91%);
+                       --cband:hsl(${hue} 34% 85%)`}"
       title="${verbs} — drag to reorder"
       draggable="true"
       ondragstart="dragCard(event, ${pos})"
@@ -870,7 +1286,7 @@ function draw(s) {
   // reach it. Their availability is the information -- hiding the ones you
   // cannot take would remove the reason you cannot take them.
   const ACTS = [['Build','⌂'], ['Network','↑'], ['Sell','⌗'], ['Develop','↗'],
-                ['Scout','⌕'], ['Loan','£'], ['Pass','▷']];
+                ['Scout','⌕'], ['Loan','£']];
   const tray = document.getElementById('tray');
   if (tray) tray.dataset.mode = (card !== null && kind !== null) ? 'options' : 'browse';
   const abox = document.getElementById('actions'),
@@ -914,7 +1330,7 @@ function draw(s) {
     return ['—', 'not legal this turn'];
   };
   const WHY = {};
-  ACTS.forEach(([k]) => { WHY[k] = whyNot(k); });
+  ACTS.concat([['Pass']]).forEach(([k]) => { WHY[k] = whyNot(k); });
   abox.innerHTML = ACTS.map(([k, g]) => {
     const n = avail[k] || 0;
     const [why, whyFull] = n ? ['', ''] : WHY[k];
@@ -923,14 +1339,30 @@ function draw(s) {
       title="${n ? n + ' option' + (n === 1 ? '' : 's') + ' with this card' : whyFull}"
       >${g} ${k}${n > 1 ? ` <small>${n}</small>` : ''}${
         n || !why ? '' : `<small class="why">${why}</small>`}</button>`;
-  }).join('') +
-  // Undo rewinds past the bots' replies to the position you chose from, so it
-  // is never greyed by which card is selected -- only by whether there is a
-  // move of yours to take back.
-  `<button ${s.can_undo ? 'onclick="undo()"' : 'disabled'}
-    title="take back your last action, and the bot replies to it"
-    >↺ Undo</button>`;
+  }).join('');
+  // Pass needs no card and Undo rewinds past the bots' replies to the position
+  // you chose from, so neither is greyed by which card is selected. Both sit on
+  // the header line rather than in the grid of things a card lets you do.
+  // Passing in Brass still discards a card, so it is gated on the selected
+  // card exactly as it was when it lived in the grid: enabling it with no card
+  // chosen would give a button that looks live and does nothing.
+  const passN = avail.Pass || 0;
+  document.getElementById('turnbtns').innerHTML =
+    `<button class="tbtn ${kind === 'Pass' ? 'sel' : ''}"
+      ${passN ? `onclick="pickKind('Pass')"` : 'disabled'}
+      title="${passN ? 'give up this action, discarding the chosen card'
+                     : (card === null ? 'pick a card first' : WHY.Pass[1])}"
+      >Pass</button>
+     <button class="tbtn" ${s.can_undo ? 'onclick="undo()"' : 'disabled'}
+      title="take back your last action, and the bot replies to it"
+      >Undo</button>`;
 
+  const rbox = document.getElementById('results');
+  if (rbox) {
+    const show = !!s.summary && !resultsHidden;
+    rbox.hidden = !show;
+    if (show) rbox.innerHTML = renderResults(s.summary, s);
+  }
   if (s.ended && !s.finished) {
     abox.innerHTML = '';
     const who = i => i === s.seat ? 'You' : 'Bot ' + i;
@@ -944,7 +1376,9 @@ function draw(s) {
   } else if (s.finished) {
     const who = i => i === s.seat ? 'You' : 'Bot ' + i;
     box.innerHTML = `<p><strong>Game over.</strong> Winner: ${
-      s.winners.map(who).join(', ')}</p>`
+      s.winners.map(who).join(', ')}
+      <button onclick="toggleResults()" style="margin-left:8px;font-size:11px;padding:3px 8px"
+        >${resultsHidden ? 'Show the breakdown' : 'Show the board'}</button></p>`
       + s.players.slice().sort((a, b) => b.vp - a.vp).map(p =>
         `<div><span class="dot" style="background:${COL[p.idx]}"></span>
          ${who(p.idx)} <strong>${p.vp}</strong></div>`).join('');
@@ -965,7 +1399,9 @@ function draw(s) {
       else focus = null;
     }
     box.innerHTML =
-      (onMap ? `<p class="hint">${focus
+      (onMap && !(kind === 'Network' && focus)
+       && !(kind === 'Build' && bind === null && !focus
+            && new Set(opts.map(m => m.industry)).size > 1) ? `<p class="hint">${focus
           ? 'Showing ' + focus.replace(/_/g, ' ') + ' — or click elsewhere on the map.'
           : 'Click a highlighted spot on the map, or choose below.'}</p>` : '')
       + renderKind(kind, opts, s);
@@ -1071,8 +1507,26 @@ function renderKind(kind, opts, s) {
     // the lowest level you still hold, so the level is not a choice and should
     // not read like one.
     const g = {};
+    if (bind !== null && opts.some(m => m.industry === bind))
+      opts = opts.filter(m => m.industry === bind);
     opts.forEach(m => (g[m.industry] = g[m.industry] || []).push(m));
-    return Object.entries(g).map(([ind, list]) => `
+    const inds = Object.keys(g);
+    // More than one industry on offer: ask which, and only then where. Each
+    // chip carries how many towns it opens, so the choice is informed. The
+    // map narrows with it.
+    if (inds.length > 1 && bind === null)
+      return `<p class="hint">This card can build ${inds.length} industries. Which?</p>
+        <div class="kinds">${inds.map(ind => `
+          <button class="kind" onclick="pickInd('${ind}')">
+            <svg width="15" height="15" viewBox="0 0 17 17" style="vertical-align:-3px"
+              >${icon(ind, 1, 1, 15, ICOL[ind] || 'var(--dim)', 1)}</svg>
+            <span class="lvl">L${g[ind][0].level}</span>${NAME[ind]}
+            <small class="meta">${g[ind].length} town${g[ind].length === 1 ? '' : 's'}</small>
+          </button>`).join('')}</div>`;
+    const back = bind !== null
+      ? `<p class="hint"><button class="tbtn" onclick="pickInd(null)">← other industries</button>
+         Click a highlighted town, or choose below.</p>` : '';
+    return back + Object.entries(g).map(([ind, list]) => `
       <p class="hint" style="margin-top:10px">
         <span class="lvl">L${list[0].level}</span>${NAME[ind]}</p>` +
       list.map(m => {
@@ -1086,12 +1540,21 @@ function renderKind(kind, opts, s) {
 
   if (kind === 'Network') {
     const dbl = opts.filter(m => m.double), single = opts.filter(m => !m.double);
-    return (dbl.length ? `<p class="hint">Double rail — two links for one action</p>`
-                       + dbl.map(m => btn(m, (m.pretty || m.text)
-                           .replace(/^linked /, '').replace(/ · card.*$/, ''), s)).join('') : '')
+    const label = m => (m.pretty || m.text).replace(/^linked /, '').replace(/ · card.*$/, '');
+    // With a first line chosen, the one thing to say is what the second click
+    // does. The single stays as a button, the pairs stay as a list for anyone
+    // who would rather read the prices than hunt the map.
+    if (focus && single.length && dbl.length)
+      return `<p class="hint"><b>${focus.replace(/[-_]/g, ' ')}</b> is your first link.
+          Click a second highlighted link to build both, or:</p>`
+        + single.map(m => btn(m, 'just ' + label(m), s)).join('')
+        + `<p class="hint" style="margin-top:8px">${dbl.length} pairs with it</p>`
+        + dbl.map(m => btn(m, label(m), s)).join('');
+    return (dbl.length ? `<p class="hint">Double rail — two links for one action.
+          Click a link on the map, then its partner.</p>`
+                       + dbl.map(m => btn(m, label(m), s)).join('') : '')
          + (single.length ? `<p class="hint" style="margin-top:8px">Single link</p>`
-                       + single.map(m => btn(m, (m.pretty || m.text)
-                           .replace(/^linked /, '').replace(/ · card.*$/, ''), s)).join('') : '');
+                       + single.map(m => btn(m, label(m), s)).join('') : '');
   }
 
   if (kind === 'Scout') {
@@ -1195,7 +1658,7 @@ function btn(m, text, s) {
 }
 
 function pickCard(i) {
-  card = (card === i ? null : i); kind = null; focus = null;
+  card = (card === i ? null : i); kind = null; focus = null; bind = null;
   dev1 = dev2 = null; sc1 = sc2 = null;
   draw(S);
 }
@@ -1243,14 +1706,9 @@ function pickCard(i) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     drag.moved = Math.max(drag.moved, Math.abs(dx) + Math.abs(dy));
     if (drag.moved < 4) return;
-    // Clamped to a board's width of slack either side, so a pan can never
-    // strand the map off screen.
-    const slack = 400;
-    view.x = Math.max(BASE_VIEW.x - slack,
-             Math.min(BASE_VIEW.x + BASE_VIEW.w + slack, drag.vx - dx * scale));
-    view.y = Math.max(BASE_VIEW.y - slack,
-             Math.min(BASE_VIEW.y + BASE_VIEW.h + slack, drag.vy - dy * scale));
-    applyView();
+    view.x = drag.vx - dx * scale;
+    view.y = drag.vy - dy * scale;
+    applyView();   // clamps it back inside the board
   });
   const endDrag = () => { setTimeout(() => { drag = null; }, 0); };
   svg.addEventListener('pointerup', endDrag);
@@ -1285,12 +1743,22 @@ function pickTown(t) {
   else { focus = t; draw(S); }
 }
 function pickLine(id) {
-  const ms = (S.moves || []).filter(m => sigAt(m.card) === sigAt(card)
-      && m.kind === kind && (m.lines || []).includes(id));
+  const all = (S.moves || []).filter(m => sigAt(m.card) === sigAt(card)
+      && m.kind === kind);
+  const ms = all.filter(m => (m.lines || []).includes(id));
+  if (kind === 'Network' && focus && ms.length) {
+    // A first line is already chosen. The same line again lets go of it; a
+    // different one plays the pair, which is the whole point of choosing.
+    if (id === focus) { focus = null; draw(S); return; }
+    const pair = all.find(m => (m.lines || []).length === 2
+                            && m.lines.includes(focus) && m.lines.includes(id));
+    if (pair) { play(pair.index); return; }
+  }
   if (ms.length === 1) play(ms[0].index);
   else { focus = id; draw(S); }
 }
 function pickMat(i) { matSeat = i; draw(S); }
+function pickInd(ind) { bind = ind; focus = null; draw(S); }
 // --- hand arrangement ----------------------------------------------------
 // Kept as display positions into the server's hand, reconciled each draw by
 // card identity rather than index, because playing a card renumbers everything
@@ -1378,18 +1846,147 @@ function hiSeat(seat) {
 // the exported file and the real Boomforge logs say. Both are useful, so both.
 function toggleLog() { logProse = !logProse; draw(S); }
 
+// Whether the results panel is shown or the final board is. Starts shown.
+let resultsHidden = false;
+function toggleResults() { resultsHidden = !resultsHidden; draw(S); }
+
+// The end-of-game breakdown, players as columns in finishing order. Every
+// figure comes from the server's summary, and the summary's era rows come
+// from the engine's own scoring record, so nothing here is recomputed from
+// the board and nothing can disagree with the log.
+function renderResults(sum, s) {
+  const seats = sum.seats.slice().sort((a, b) => a.rank - b.rank);
+  const top = Math.max(...seats.map(x => x.vp));
+  const cls = x => (x.idx === s.seat ? ' me' : '') + (x.vp === top && sum.finished ? ' win' : '');
+  const row = (label, f, klass) =>
+    `<tr class="${klass || ''}"><td>${label}</td>${
+      seats.map(x => `<td class="${cls(x).trim()}">${f(x)}</td>`).join('')}</tr>`;
+  const era = (x, e) => (x.eras.find(r => r.era === e) || null);
+  const eraVp = (x, e) => { const r = era(x, e); return r ? r.industry_vp + r.link_vp : 0; };
+  const built = x => `<span class="built">${Object.entries(x.built)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `<span title="${NAME[k] || k}"><svg width="15" height="15"
+        viewBox="0 0 17 17">${icon(k, 1, 1, 15, ICOL[k] || 'var(--dim)', 1)}</svg
+        >${v}</span>`).join('')}</span>`;
+  const A = {Build: 'B', Network: 'L', Develop: 'D', Sell: 'S', Loan: '£',
+             Scout: 'Sc', Pass: 'P'};
+  const acts = (x, e) => { const a = x.actions[e] || {}; return `<span class="amix">${
+      Object.keys(A).filter(k => a[k]).map(k => `${A[k]}<b>${a[k]}</b>`).join(' ')
+      || '<span class="meta">—</span>'}</span>`; };
+
+  let h = `<button class="close" onclick="toggleResults()">Show the board</button>
+    <h1>${sum.finished ? 'Game over' : 'Ended early'}${
+      sum.winners.length ? ' · ' + sum.winners.join(' and ') + (sum.winners.length > 1 ? ' tie' : ' wins') : ''}</h1>
+    <div class="sub">${sum.finished
+      ? 'Both eras scored. Money is not victory points; income and then money break ties.'
+      : 'Stopped before the Rail Era scored, so the rail figures below are banked VP only.'}</div>
+    <table><thead><tr><th></th>${seats.map(x =>
+      `<th class="${cls(x).trim()}"><span class="rk">#${x.rank}</span>
+        <span class="dot" style="background:${COL[x.idx]}"></span>${x.name}</th>`).join('')}
+    </tr></thead><tbody>`;
+  h += row('Final VP', x => x.vp, 'total');
+  for (const e of ['canal', 'rail']) {
+    if (!seats.some(x => era(x, e))) continue;
+    h += row(`${e} era`, x => eraVp(x, e), 'era');
+    h += row('industries', x => era(x, e).industry_vp, 'part');
+    h += row('links', x => era(x, e).link_vp, 'part');
+    h += row('flipped · stranded', x => `${era(x, e).flipped} · <span class="${
+      era(x, e).stranded ? 'warn' : ''}">${era(x, e).stranded}</span>`, 'part');
+    h += row('links scored', x => era(x, e).links, 'part');
+  }
+  if (seats.some(x => x.bonus_vp))
+    h += row('merchant bonuses', x => x.bonus_vp || '<span class="meta">0</span>', 'era');
+  h += row('What was built', () => '', 'sect');
+  h += row('industry tiles', built);
+  h += row('links: canal · rail', x => `${x.links_built.canal} · ${x.links_built.rail}`);
+  h += row('developed away', x => Object.values(x.developed).reduce((a, b) => a + b, 0)
+                                  || '<span class="meta">0</span>');
+  h += row('tiles sold', x => x.sold || '<span class="meta">0</span>');
+  h += row('How the actions went', () => '', 'sect');
+  h += row('canal era', x => acts(x, 'canal'));
+  h += row('rail era', x => acts(x, 'rail'));
+  h += row('loans', x => x.loans ? `<span class="warn">${x.loans}</span>` : '<span class="meta">0</span>');
+  h += row('spent in total', x => '£' + x.spent);
+  h += row('Where it ended', () => '', 'sect');
+  h += row('income level', x => x.income);
+  h += row('money in hand', x => '£' + x.money);
+  h += `</tbody></table>
+    <div class="meta" style="margin-top:10px">B build · L network · D develop · S sell
+      · £ loan · Sc scout · P pass. Stranded: built and never flipped, scored nothing.</div>`;
+  return h;
+}
+// Three states, because the honest answer to "big map without losing the hand"
+// is that the window's height is fixed: the tray either takes the height or
+// covers it. Overlaying is the middle one, and it is the one worth defaulting
+// to -- the map is at full size and the hand is still under your cursor.
+const FOLD = [
+  {cls: [],                    label: '⤢ Big map',
+   hint: 'give the map the whole window, with the hand floating over it (f)'},
+  {cls: ['bigmap'],            label: '⤢ Map only',
+   hint: 'slide the hand out of the way, so the bottom of the board is clear (f)'},
+  {cls: ['bigmap', 'trayhid'], label: '⤡ Normal',
+   hint: 'put the hand back under the board (f)'},
+];
+let foldAt = 0;
+// The left rail's width, which the floating tray is positioned against and
+// which CSS cannot read off a grid track.
+function railWidths() {
+  const l = document.getElementById('left');
+  if (l) document.body.style.setProperty(
+    '--railL', l.getBoundingClientRect().width + 'px');
+}
+addEventListener('resize', railWidths);
+
+function foldTray(to) {
+  foldAt = to == null ? (foldAt + 1) % FOLD.length : to;
+  document.body.classList.remove('bigmap', 'trayhid');
+  FOLD[foldAt].cls.forEach(c => document.body.classList.add(c));
+  railWidths();
+  const b = document.getElementById('foldbtn');
+  // The button says what the NEXT press does, so it reads as an offer.
+  if (b) { const next = FOLD[(foldAt + 1) % FOLD.length];
+           b.textContent = FOLD[foldAt].label; b.title = FOLD[foldAt].hint; }
+}
+// Cheap enough to be worth a key, and you want it while looking at the board
+// rather than while reaching for a button.
+addEventListener('keydown', e => {
+  if (e.key === 'f' && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))
+    foldTray();
+});
+function toggleStack(ind) { matOpen[ind] = !matOpen[ind]; draw(S); }
+// A tinted chip behind it, in the industry's own colour. At this size the
+// silhouette alone is a smudge; the chip gives it an edge to be a shape against.
+const matIcon = ind => ICON[ind]
+  ? `<span class="mi" style="background:color-mix(in srgb, ${
+      ICOL[ind]} 15%, transparent)"><svg width="17" height="17"
+      viewBox="0 0 19 19">${icon(ind, 1, 1, 17, ICOL[ind], 1)}</svg></span>` : '';
+
 // The viewBox lives on the <svg> itself, which draw() never rewrites -- only
 // the layers inside it -- so zoom and pan survive every redraw for free.
-const BASE_VIEW = {x: 28, y: 6, w: 754, h: 822};
+const BASE_VIEW = {x: BOARD.x0 - MARGIN, y: BOARD.y0 - MARGIN,
+                   w: BW + 2 * MARGIN, h: BH + 2 * MARGIN};
 let view = {...BASE_VIEW};
+// Zoomed all the way out IS the whole board, so there is nothing outside it to
+// go to. The view is capped at the board's own box and kept inside it, which
+// also means a pan cannot strand the map off screen: at full zoom-out the view
+// is exactly the board and has nowhere left to slide.
+function clampView() {
+  view.w = Math.min(view.w, BASE_VIEW.w);
+  view.h = Math.min(view.h, BASE_VIEW.h);
+  view.x = Math.max(BASE_VIEW.x,
+           Math.min(BASE_VIEW.x + BASE_VIEW.w - view.w, view.x));
+  view.y = Math.max(BASE_VIEW.y,
+           Math.min(BASE_VIEW.y + BASE_VIEW.h - view.h, view.y));
+}
 function applyView() {
+  clampView();
   const el = document.getElementById('svg');
   if (el) el.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
 }
 function zoomAt(factor, fx, fy) {
   // Keep the point under the cursor fixed, which is what makes wheel zoom feel
   // like moving the paper rather than moving the camera.
-  const w = Math.min(BASE_VIEW.w * 1.6, Math.max(BASE_VIEW.w * 0.25, view.w * factor));
+  const w = Math.min(BASE_VIEW.w, Math.max(BASE_VIEW.w * 0.25, view.w * factor));
   const k = w / view.w;
   view = {w, h: view.h * k,
           x: fx - (fx - view.x) * k,
@@ -1429,7 +2026,7 @@ function showGhost(act, id) {
         g += `<rect x="${sx}" y="${y-13}" width="${bw}" height="27" rx="5"
                fill="${col}" fill-opacity="0.40" stroke="${col}" stroke-width="1.5"/>`;
         if (m.industry)
-          g += icon(m.industry, sx + bw/2 - 8, y - 10, 17, '#1b1f28', 0.75);
+          g += icon(m.industry, sx + bw/2 - 8, y - 10, 17, 'var(--onaccent)', 0.85);
       }
     }
   } else {
@@ -1457,7 +2054,8 @@ let armed = null, armTimer = null;
 function arm(what) {
   if (armed === what) {
     armed = null; clearTimeout(armTimer);
-    if (what === 'restart') post('/api/new', {});
+    if (what === 'restart') { resultsHidden = false; post('/api/new', {}); }
+    else if (what === 'stop') post('/api/shutdown', {});
     else post('/api/end', {});
     return;
   }
@@ -1477,7 +2075,7 @@ function doExport() {
       note.textContent = s.exported ? '→ ' + s.exported.split('/').pop() : 'failed'; });
 }
 function pickKind(k) {
-  kind = (kind === k ? null : k); focus = null;
+  kind = (kind === k ? null : k); focus = null; bind = null;
   dev1 = dev2 = null; sc1 = sc2 = null;
   draw(S);
 }

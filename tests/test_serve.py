@@ -25,6 +25,17 @@ import serve  # noqa: E402
 from brassbot.engine import legal_actions  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _logs_elsewhere(tmp_path, monkeypatch):
+    """Keep exports out of logs/.
+
+    A finished game writes itself out now, and these tests play games to
+    completion, so without this every suite run dropped junk games into the
+    corpus the playstyle scripts read.
+    """
+    monkeypatch.setattr(serve, "LOGS", tmp_path / "logs")
+
+
 @pytest.fixture
 def game():
     """One room, built the way the server builds them."""

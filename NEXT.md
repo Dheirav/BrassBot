@@ -2831,3 +2831,342 @@ Wins 6 of 9. Builds across all nine seats: coal 26, brewery 22, iron 14,
 pottery 6, manufacturer 2, **cotton 0**. Brewery tiles developed away 2.56 a
 seat and **brewery L1 built ZERO times in nine games** -- which is the
 observation the gain above came from.
+
+## 2026-09-10 — the UI moves to paper, and the score track becomes the frame
+
+### Why the theme changed
+
+The UI was dark, and the reason to leave it was not taste. On a dark ground
+nothing separates from the background unless it carries some colour of its own,
+so every surface needed a tint, and then the colours that actually mean
+something (whose tile, which market, what is illegal) had to shout over all of
+it. On paper, plain grey separates, which leaves colour free to carry meaning
+and nothing else. Coal is black and iron is orange in the markets now, which is
+the single distinction you most need at a glance and which the old accent-amber
+ladders erased by painting both the same.
+
+Everything that was a hardcoded hex is a token in `:root`, so the palette is one
+block. Two inversions had to be made by hand rather than by substitution,
+because they are about contrast and not about colour:
+
+- **Empty industry slots became lighter than the board**, not darker. Flipping
+  the ground without flipping these made an empty slot read as a placed tile,
+  so the opening board looked half built.
+- **Icons and level numbers on a flipped tile became light**, because a flipped
+  tile is filled with its owner's colour and the old dark ink was chosen against
+  pale Okabe-Ito swatches. The player colours also moved: `#56B4E9` sky blue was
+  picked against near-black and all but disappears on cream, so seat 0 is now
+  Okabe-Ito's darker `#0072B2`.
+
+### The VP track is the frame of the board
+
+0 sits at the bottom-left corner; the track runs up the left edge to 21, along
+the top to 50, down the right to 71, and back along the bottom to 99, which is
+the loop the physical board uses. The viewBox grew from `28 6 754 822` to
+`-8 -30 826 894` to make room, and `BASE_VIEW` with it.
+
+Two marks per seat: a solid disc for VP banked, a dashed ring for the projected
+finish. Through the entire Canal Era banked VP is near zero for everyone, so for
+half the game the ring is the only one that moves and it is the one worth
+reading. Scores over 99 lap the track, as they do on the real board.
+
+### Also
+
+- **Overview column headers sit over the columns.** They were a caption strip
+  above the table, which meant reading the fourth number required counting to
+  four.
+- **The mat opens.** Each industry has a disclosure arrow showing every tile
+  still in the pile, not just the one on top: level, how many left, cost, VP,
+  income, beer, link VP, and era restriction. A Develop's whole point is what
+  comes next, and the mat did not carry it. `mat_ladder` gained a `stack` key
+  for this; the counts were already there, the per-level specs were not.
+- **`⏻ Stop server`.** Two clicks, like Restart and End game. `shutdown()`
+  blocks until `serve_forever()` returns and `serve_forever` is the loop
+  serving that very request, so calling it inline deadlocks the process against
+  itself: it goes on a daemon thread so the response leaves first. One process
+  serves every room, so the button's tooltip counts the tables it will end.
+
+### Three columns, because the map was paying for empty paper
+
+The board is taller than it is wide and the window is wider than it is tall, so
+the map is always height-bound and every pixel of its column beyond its own
+aspect ratio was blank paper. At 1600x1000 that was 471px of it, a third of the
+board column.
+
+The page is now left rail, map, right rail, with the tray spanning the first two.
+The middle column is sized to exactly what the map needs, `min(calc((100vh -
+var(--trayh) - 17px) * .9239 + 16px), 62vw)`, where `.9239` is the viewBox ratio
+and the 17 and 16 are the tray border and the board's own padding. The rails
+divide what is left, and `minmax(0, ...)` means a narrow window shrinks the map
+rather than overflowing the page. Measured after: svg 773 wide by 837 tall
+against a need of 773. Zero letterbox in either direction.
+
+The split is by what the panel is for. Left is what you consult: markets, the
+piles you build out of, what the marks mean. Right is what you track: the score,
+whose turn it is, what just happened.
+
+Height is the other half of it, because the map is height-bound: **every pixel
+the tray takes costs the map a pixel in both directions.** Pass and Undo moved
+out of the action grid onto the section's header line, which took the grid from
+four rows to three and the tray from 178px to 146px. Pass is still gated on the
+selected card, because passing in Brass discards one; enabling it with no card
+chosen gives a button that looks live and does nothing. The tray height is now
+one variable, `--trayh`, used by both the tray and the board column that is
+sized from what the tray leaves, because the two had already drifted apart once.
+
+Two things this exposed. The tray header is 190px wide and **must stay one
+line**: when it wrapped it pushed the action grid down and clipped its last row,
+which is worse than the fourth row the change removed. And the hand now scrolls
+sideways in options mode rather than wrapping, because a wrapped row hides below
+a fold the shorter tray cannot show.
+
+### Zoom-out stops at the whole board
+
+Zoomed all the way out IS the board, so there is nothing outside it to pan to.
+`zoomAt` caps the view at `BASE_VIEW.w` instead of `1.6x` it, and a new
+`clampView()` in `applyView()` keeps the view inside the board's box. That
+replaced the 400px pan slack: at full zoom-out the view is exactly the board
+and has nowhere left to slide, so a pan cannot strand the map off screen.
+
+### Industry colour, and where it does not go
+
+The six industries are drawn in the colours the physical tiles use: coal black,
+iron orange, brewery yellow, cotton red, manufacturer blue, pottery brown, as
+`--i-*` tokens. Darkened where the printed colour will not hold on cream. The
+manufacturer blue is pushed towards indigo to stay clear of seat 0's cyan-blue;
+iron and seat 1 are both orange by nature and that one is left alone, because
+iron's orange is also the iron market's and the link is worth more than the
+collision costs.
+
+Colour goes everywhere an icon stands for an INDUSTRY: empty slots, which is the
+surface you plan a build on, merchant slots, the legend, card faces, and the mat.
+It does not go on a **flipped** tile, which is filled with its owner's colour and
+where a second hue on top is simply unreadable; those keep the light icon. An
+**unflipped** tile is hollow, so its icon is free to carry the industry while the
+dashed border and the level number still carry the owner. Two owner-coloured
+marks on one tile was redundant anyway.
+
+Card faces gained a `CARDTINT` table for the same reason. Town and wild cards
+have no industry and keep the hashed hue that separates them from each other.
+
+### The mat was set as a caption and is not one
+
+Six rows of five figures at 11px in caption grey, with no rule between them, is
+where you choose a build from. It is now 12.5px, in a darker ink than the
+captions get (`--dim2`), with the price and the VP in full text colour because
+those are the two figures that decide it, and a hairline between industries so
+the eye has something to track along. The rules are marked by class rather than
+by `nth-child`, because an opened stack inserts a fourth child into the grid and
+every row after it would fall out of step.
+
+The right rail went from 450px to 345px and the space went to the left rail,
+which is where the mat lives. It could not go to the map: the map is sized by
+its own aspect ratio against the available height, so extra width does nothing
+for it.
+
+### The rails swapped contents, and one CSS trap bit twice
+
+Left is now the game's own state and the controls over it: the header bands, the
+markets, the legend. Right is the players: the overview, the mat, the log. The
+mat moved with the width, because the mat and the log are the two things that
+get better with room; a header, two narrow market columns and a legend do not.
+
+Both rails are now capped (322 and 530) rather than proportional. Past a point a
+wider rail is a worse one, because stretching a row only moves the figures away
+from what they describe. Anything over the cap becomes outer margin, which the
+map cannot use either since it is height-bound.
+
+**A card is a `<button>`.** So the generic `button.sel { background:var(--accent);
+color:var(--onaccent) }` painted the selected card solid amber with amber ink on
+it, and nothing on the card was readable. `.card.sel` wins on specificity, but
+only for properties it actually sets, and it set only the shadow and the lift.
+It now sets background and colour itself.
+
+The other trap I hit **twice in one session**: styling mat rows with
+`nth-child(3n+k)`. An opened stack inserts a fourth child into the grid and every
+row after it falls out of step. Caught the first time on the row rules, then wrote
+it again for the column padding an hour later. Both are keyed off classes now
+(`ind`, `pile`, `meta`, `mr`). If you find yourself counting children in this
+grid, stop: the grid has a variable number of them by design.
+
+Also: the row rule is drawn per cell, so a column gap breaks it into segments
+that read as an underline under the pills rather than one line across the row.
+The gap lives inside the cells as padding instead.
+
+### Thinner rails cannot make the map bigger, and what can
+
+Worth writing down because it comes up every time somebody looks at the layout.
+The map is taller than it is wide and the window is not, so the map is **always
+height-bound**: its width follows from the height available times its own aspect
+ratio. Freeing width by narrowing the rails gives it nothing, because it has no
+way to spend width. The surplus becomes outer margin instead.
+
+The only competitor for the height is the tray. So the height came from there:
+the action buttons went to 3px padding at 11.5px, the section padding to
+7/10/8, the header margin to 6, and `--trayh` from 146 to **128**, measured
+rather than guessed (the action column needed 132 at 124 and clipped). The
+board's own padding went 8 to 4, and the column formula with it.
+
+The real lever is `f`, or the **⤢ Big map** button: `body.nofold` sets
+`--trayh:0` and hides the tray, and because the board column is sized from that
+one variable, the map takes the whole window. Measured at 1908x960: **760x823
+normally, 879x952 folded**, which is 16 percent more in each dimension and a
+third more area.
+
+### Icons that read at 12 pixels
+
+The industry icons were drawn with a 1.1px stroke at 11px and 55 percent
+opacity, which is a watermark rather than a mark. Stroke is 1.6 now, empty-slot
+icons are 12/15px at full opacity, tiles are 19, merchant slots 17, legend 17,
+card glyphs 30. `icon()` gained an optional halo, which draws the same path
+underneath as a fat light stroke so a mark can sit on a coloured tile or a
+patterned ground and still read; tiles and merchant slots use it. Mat icons sit
+on a chip tinted with their own industry colour, because at that size a bare
+silhouette has no edge to be a shape against.
+
+### The map got 10 percent bigger by moving four towns
+
+The map is height-bound, so the thing that limits how large it draws is its
+vertical extent in board units: the taller the box, the smaller the scale that
+fits it into the window. The towns spanned y 30 to 780, and two stretches of
+that were empty.
+
+**Leek was not one of them.** Warrington sits 10 units above it, so lowering
+Leek alone changes nothing. What actually bound it:
+
+- the top cluster (warrington 30, leek 40, stoke 70) sat 90 units above the next
+  band, uttoxeter at 160 and stone at 170
+- **gloucester at 780** sat 90 below worcester and farm_southern at 690, alone
+  down there
+
+Moving the cluster down 25 and gloucester up 55 takes the extent from 750 to
+**670**. Checked for collisions first: only four pairs are within 110 across and
+70 down, and of those only stoke/warrington is genuinely tight, and those two
+move together so the gap is unchanged.
+
+Measured after: scale went from 0.921 to **1.009** pixels per board unit, so
+everything draws 9.6 percent larger, and the svg went from 760x823 to 833x823.
+Folded, 963x952 at scale 1.167.
+
+The box is one definition now. `BOARD`, `BAND` and `MARGIN` at the top, and the
+viewBox, both frame rects, the board rect, the four track edges and the aspect
+ratio in the grid formula all derive from them. They were six separate literals,
+which is fine until the map moves and then it is six chances to get it wrong.
+The static `viewBox` attribute is the one thing still written by hand, because
+it has to be right before any script runs; it is asserted against `BASE_VIEW` in
+the browser rather than trusted.
+
+### Four map defects, and a test so they cannot come back
+
+Found by eye, in a screenshot, after they shipped:
+
+- **Shrewsbury and Nottingham hung 14 units out over the score track.** A
+  merchant is a fixed 92x54 box, so its centre has to sit within x 74..736 and
+  y 52..742 to stay on the paper. Both were outside. Moved to x=80 and x=730.
+- **The southern farm brewery was at x=620**, on the far side of the board from
+  the only thing it links to. Its single link is the three-way with
+  Kidderminster and Worcester, so that link drew as three spokes reaching
+  halfway across the map. Moved to (150, 640), beside them.
+- **Warrington's box clipped the corner of Stoke-on-Trent's leftmost tile**, by
+  14 by 5. Moved to x=232.
+
+The first pass of the check missed the merchant ones entirely, because it
+iterated `data.towns` and **merchants are a separate collection**. Worth knowing
+before writing anything that walks the map.
+
+The northern farm brewery had the same defect and was caught by asking the same
+question of it: **both farm breweries have exactly one link each**, and both sat
+across the board from it. farm_northern links only to Cannock (350, 340) and was
+drawn at (200, 180); it moved to (250, 340), beside it. Warrington also links
+only to Stoke-on-Trent, so sitting close is correct, but four units of gap is
+not close, it is touching: moved to x=196, which leaves 40.
+
+`tests/test_layout.py` now asserts all of it: every town and merchant has a
+coordinate, nothing crosses the board edge into the track, no two footprints
+overlap, and **every** farm brewery sits within 200 units of what it links to (written
+for the southern one, generalised the moment the northern one turned out to have
+the same problem, which is the argument for writing the general form first). It caught
+the Warrington clip on its first run, which is the point. The shape sizes are
+duplicated from `index.html`; if they change there they change here, and the
+test failing loudly is the intended cost.
+
+### Still not matched from Boomforge
+
+The resource highlight toggles (coal/iron/beer counters that light up where they
+sit) exist as text chips but not as map highlighting; the income track is not
+drawn (income is in the overview as a level and a distance to the next space);
+and town nameplates are plain text rather than coloured plates.
+
+
+## 2026-09-12 — the game reviewed, a human rule measured, the bot 26% faster
+
+### Analysis tools, and what they found in nine of Dheirav's games
+
+`tools/review.py` now honours the engine knobs the server plays under (they are
+recorded in the replay; older files fall back to the server's values). It had
+diverged on move two of every real game because the server widens the move
+list so a person can choose any discard, and the tool was rebuilding it with
+engine defaults.
+
+`tools/attribution.py`: every VP traced to the action that placed the tile or
+link that scored it, plus merchant bonuses to the Sell that earned them. The
+sum over a seat's actions is asserted equal to its final VP; the first run was
+one seat's Nottingham bonuses short, which is how the Sell term got added. Bot
+self-play, 40 games: 55% of VP from tiles, 44% from links. A canal iron works
+realises 10.1, a canal brewery 7.2, a canal coal mine 2.0. A rail round 1 link
+action realises 10.4 and decays every round after. The correlation half is an
+association, reported as such.
+
+`tools/seatswap.py`: the bot from the human's seat, same deal, same opponents.
+On the 170-point game it scored 139, all five runs identical: the deal was
+good, and 31 of the points were the player.
+
+`tools/openings.py`: what the bot plays in rounds 1 to 3 by turn-order position.
+Round 1 is Develop, 100% from positions 1 and 2, never a loan. Round 2 is iron
+and a link. Round 3 is loan and manufacturer.
+
+The finding across nine complete human games: **canal-era VP does not predict
+the result.** Wins at 13, 13, 28, 30; losses at 8, 12, 18, 19, 24. What does is
+the VP of level 2+ tiles carried across the boundary, which score again at the
+rail scoring: wins carried 38 and 40, losses 11 to 29. A brewery held unflipped
+for round 1 reads as zero on the canal scoreboard and 5 to 7 at the rail one.
+The rule to play by is roughly seven L2+ tiles across the boundary, weighted to
+iron and breweries.
+
+Every Boomforge log is missing rounds 1 to 3: 104 actions where a full game has
+124. The openings comparison rests on the UI games only.
+
+### The brewery rule, measured
+
+See the DEFAULTS comment on `canal_brew_cap` in heuristic.py for the six runs.
+Short form: the hold loses 6 VP a game at every gate level, because this bot
+flips its Canal-Era manufacturers by selling and a sale needs beer. The human's
+version works because it builds no sellables in the Canal Era. Not shipped.
+
+### Speed
+
+Profiled one game: 60 decisions, 71,432 evaluations, 98,908 clones. Two fixes,
+both bit-identical on three full games against known move sequences:
+
+- The rival cache was checked on the first ply only; `_best_of_pair`, 91% of
+  evaluations, never passed `shared` and recomputed three opponents per
+  position. 3.86 `player_value` calls per position to 2.64. About 16%.
+- `clone()` rebuilt a Random from a 625-integer tuple on every candidate for a
+  reshuffle that happens once a game. The state holds the tuple, clones share
+  it (`state.Rng`). 38 µs to 21 µs a clone. About 12%.
+
+Narrowing the rival signature to what an opponent can see was proved sound on
+15,140 positions and did not land: hit rate 45% to 53%, and no faster, because
+the remaining misses are real (a quarter of second actions end the round; most
+builds are visible). Apply-with-undo was not attempted: cloning is now 9% of
+the game and the net would be perhaps 5, against every mutation path in the
+engine. The lever left is PyPy: the engine and bot are stdlib-only, so it needs
+only an interpreter and a second venv.
+
+### Measurement hygiene
+
+`tools/brew-results.sh` reads a family of verify-weight logs at once. When a
+loss is beyond 4 sigma on two blocks the third is confirmation; a
+pre-registered stop there is safe for losses only, since nothing ships on two
+blocks. `min50` was dropped as identical to cap-alone, and the thresholds were
+bisected (25, 45, then 35) rather than swept.
