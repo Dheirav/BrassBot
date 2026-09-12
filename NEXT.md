@@ -3170,3 +3170,59 @@ loss is beyond 4 sigma on two blocks the third is confirmation; a
 pre-registered stop there is safe for losses only, since nothing ships on two
 blocks. `min50` was dropped as identical to cap-alone, and the thresholds were
 bisected (25, 45, then 35) rather than swept.
+
+
+### The human's plan, thirteen measurements, about 7,000 games
+
+Every run is the shipped bot against the variant on paired seeds, 4p, 180
+games by three blocks. `tools/brew-results.sh` reads them all.
+
+| variant | per block | pooled |
+| --- | --- | --- |
+| hold two canal breweries for round 1 | -3.2 / -9.2 / -6.6 | -6.4 |
+| the hold, gated on canal VP 25 / 35 / 45 | null / null / null | the gate only turns it off |
+| cap at two breweries | +1.4 / -2.6 / 0.0 | null |
+| no sellables in the Canal Era | -4.8 / -5.4 / -4.5 | -4.9 |
+| hold + no sellables | -5.8 / -7.7 / -7.5 | -6.9 |
+| + build what the market is short of | -3.9 / -5.8 / -4.5 | -4.7 |
+| + force the link-then-coal pair | -3.6 / -5.8 / -4.7 | -4.7 |
+| market incentive alone | +1.4 / -1.4 / +0.8 | null |
+| market incentive + link-then-coal search alone | +1.6 / -1.1 / +0.8 | null |
+| hold + route round-1 doubles through own breweries | -3.5 / -9.1 / -7.2 | -6.3 |
+| cap + hold + route through own breweries | -5.2 / -8.7 / -8.0 | -7.1 |
+
+What was learned, in order of how much it is worth:
+
+1. **The halves are coupled, and the pair still loses.** `brew_rail` cannot
+   fire without the hold (the bot has drunk its breweries by the boundary),
+   and with the hold it reproduces the human's routing, 59% of early doubles
+   through an own brewery against the human's 53% and the bot's 24%. Measured,
+   it recovers none of the six points the hold costs. So the plan's edge is
+   not "hold barrels, route rails through them".
+2. **Canal-era VP is the wrong ruler.** It does not predict the human's
+   results (wins at 13, 13, 28, 30; losses at 8, 12, 18, 19, 24). The VP of
+   L2+ tiles carried across the boundary does (wins 38 and 40, losses 11 to
+   29). A brewery held for round 1 reads as zero on the canal scoreboard.
+3. **The bot's best canal tile is the manufacturer**, 8.5 VP realised, and
+   every rule that takes it away costs about 5. Denied sellables it builds
+   coal, not iron, and coal re-scores for 2.
+4. **Two ideas were neutral on their own and neutral in every combination**:
+   the brewery cap, and a market-scarcity incentive with or without forcing
+   the link-then-coal pair into the search. Neutral pieces do not become
+   positive by being paired.
+5. **The seat-swap still says the human beats this bot by 31 from the same
+   cards.** So the edge is real and none of the rules above is it. The
+   attribution points at routing: the human's rail links score 60 to the
+   bot's 43 for the same count, and most of that link VP came from the BOTS'
+   flipped tiles at the link ends, not the human's own. That is a judgement
+   about which towns to run rails through, not a build rule, and it is the
+   next thing to put in front of the harness.
+
+All five weights stay in, off, with the numbers written on them.
+
+### PyPy
+
+`.venv-pypy/` from PyPy 3.11 v7.3.23 under `~/.local/opt/pypy3`. Bit-identical
+games, 2.1x per warm game, 3x on the test suite (2m20s against 7m11s). The
+harness ran at 36 games a minute against CPython's 18 on the same eight cores.
+The learned bot and the value-model tools stay on `.venv` for numpy.

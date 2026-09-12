@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import math
 
-from ..actions import Build, Loan, Pass, Sell
+from ..actions import Build, Loan, Network, Pass, Sell
 from ..cards import CardKind
 from ..engine import apply_action, legal_actions, link_icons_at, spec_for
 from ..gamedata import Era, Industry, income_level
@@ -562,6 +562,57 @@ class HeuristicBot(Bot):
         # every level, and 45 is bit-identical to cap-alone: the gate only ever
         # turns the rule off. No canal bank makes holding barrels pay here.
         "canal_hold_min": 0,
+        # The other half of the human's plan: nothing that needs selling in the
+        # Canal Era. Measured alone -4.81/-5.35/-4.53: the canal manufacturer
+        # is this bot's best canal tile (8.5 VP realised) and denied it the bot
+        # fills the era with coal, 22 to 12 iron across eight seats, which
+        # re-scores for 2. With the hold: -5.76/-7.65/-7.45, worse than
+        # either half. The hold's loss was mostly, not entirely, the
+        # manufacturers it starved.
+        "canal_no_sell": 0,
+        # Build what the market is short of. A mine or works built into a bare
+        # market sells more cubes on placement, which the evaluation already
+        # sees as money and a flip; what it does not see is that a scarce
+        # resource is one every later build on the board will draw from a
+        # connected tile first, so the tile flips on other people's actions.
+        # This is that, as a per-action bias scaled by how empty the market
+        # is: 0 when full, the full weight when bare. Coal counts only when
+        # the town can reach a merchant, since an unconnected mine sells
+        # nothing on placement. An incentive, not a rule: everything stays
+        # buildable. Measured at 3: +1.41/-1.43/+0.81, pooled +0.42 +- 0.70,
+        # null. The evaluation already sees the money and the flip a build
+        # into a bare market produces; what it cannot see is worth nothing
+        # measurable on top. Inside the canal plan: -3.89/-5.76/-4.49.
+        "market_need": 0,
+        # "Connect it, then build coal there and sell into a short market" is
+        # a pair whose first half is worth little on its own, so it never
+        # ranks in the top `pair_search` first actions and the pair is never
+        # searched, however good it is. With this on, a link that would newly
+        # connect a merchant to a town where a coal mine is legal is always
+        # expanded when the coal market is short, on top of the usual width.
+        # The pair is then scored exactly, with market_need on its second
+        # half. Coal only: an iron works sells on placement wherever it is.
+        # A search rule, not a bias, so nothing is counted twice. Measured
+        # with market_need=3: alone +1.56/-1.11/+0.81 (null, same as the
+        # incentive without it); inside the canal plan -3.59/-5.81/-4.65.
+        "market_setup": 0,
+        # The half of the human's plan that lives in the Rail Era: a double
+        # rail whose beer is drunk from OUR brewery at one of its own ends, so
+        # the tile flips under this very link and its icons score for it. The
+        # human routes 53% of early doubles that way, the bot 19%. The
+        # evaluation sees the flip and the icons after the fact; this is a
+        # push toward choosing that link over one through somebody else's
+        # tiles, strongest in round 1 and fading over the era, because a
+        # link built early scores against everything built after it.
+        # Alone it cannot fire: the bot drank its breweries in the Canal Era
+        # and has nothing to route through (24% -> 32% at any weight from 8
+        # up). With the hold it reproduces the human, 59% of early doubles
+        # through an own brewery. Measured at 8 with the hold:
+        # -3.52/-9.12/-7.21, block for block the same as the hold alone
+        # (-3.24/-9.24/-6.61); with the cap as well -5.21/-8.67/-7.95. Using
+        # the barrels the human's way recovers none of what holding them
+        # costs. The plan's edge is not in this term.
+        "brew_rail": 0,
         # The hand was invisible to this evaluation entirely, which made a wild
         # card worth zero. Scout then read as: three cards gone (0), two wilds
         # gained (0), one action spent -- a pure loss. The bot scouted 0.2 times
@@ -883,7 +934,12 @@ class HeuristicBot(Bot):
         """
         best_pair, best_first = None, None
         finalists = []
-        for _v, first in sorted(scored, key=lambda sa: -sa[0])[:width]:
+        expand = [first for _v, first in sorted(scored, key=lambda sa: -sa[0])[:width]]
+        if self.w["market_setup"]:
+            for first in self._setup_links(state, scored):
+                if first not in expand:
+                    expand.append(first)
+        for first in expand:
             probe = state.clone()
             apply_action(probe, first)
             # Both halves of the pair carry their own bias. Leaving the first
@@ -927,6 +983,30 @@ class HeuristicBot(Bot):
         if keep and finalists:
             best_first = self._settle(finalists, me, keep) or best_first
         return best_first if best_first is not None else scored[0][1]
+
+    def _setup_links(self, state, scored):
+        """Links worth searching as the first half of a link-then-coal pair.
+
+        A link qualifies if some end of it has a legal coal-mine build right
+        now, that town cannot yet reach a merchant, and the coal market is
+        short of at least a cube. Whether the pair is actually good is left to
+        the search; this only makes sure it is looked at.
+        """
+        if state.coal >= state.data.coal.capacity:
+            return []
+        coal_towns = {a.town for _v, a in scored
+                      if isinstance(a, Build) and a.industry is Industry.COAL_MINE}
+        if not coal_towns:
+            return []
+        reach = connected_locations(state, list(state.merchants))
+        out = []
+        for _v, a in scored:
+            if not isinstance(a, Network):
+                continue
+            ends = {e for line in a.lines for e in state.data.link_by_id[line].ends}
+            if any(t in coal_towns and t not in reach for t in ends):
+                out.append(a)
+        return out
 
     def _settle(self, finalists, me, keep):
         """Re-score the best pairs once the opponents have answered them.
@@ -977,6 +1057,29 @@ class HeuristicBot(Bot):
             value += self.w["loan_bias"]
         if self.w["off_plan_bias"] and self._off_plan(action):
             value -= self.w["off_plan_bias"]
+        if (self.w["brew_rail"] and isinstance(action, Network)
+                and state.era is Era.RAIL):
+            ends = {e for line in action.lines
+                    for e in state.data.link_by_id[line].ends}
+            me = state.current.idx
+            for draw in action.beer:
+                if draw.kind != "tile" or draw.town not in ends:
+                    continue
+                tile = state.tiles[draw.town][draw.slot]
+                if tile is not None and tile.owner == me \
+                        and tile.industry is Industry.BREWERY:
+                    left = state.rounds_this_era - state.round + 1
+                    value += self.w["brew_rail"] * left / state.rounds_this_era
+        if self.w["market_need"] and isinstance(action, Build):
+            data = state.data
+            if action.industry is Industry.IRON_WORKS:
+                value += self.w["market_need"] * (
+                    1 - state.iron / data.iron.capacity)
+            elif (action.industry is Industry.COAL_MINE
+                  and action.town in connected_locations(
+                      state, list(state.merchants))):
+                value += self.w["market_need"] * (
+                    1 - state.coal / data.coal.capacity)
         return value
 
     def _doomed(self, state, action):
@@ -1025,9 +1128,14 @@ class HeuristicBot(Bot):
     def _brewery_rule(self, state, actions):
         """The canal-brewery cap and hold, when switched on. See DEFAULTS."""
         cap, hold = int(self.w["canal_brew_cap"]), self.w["canal_brew_hold"]
-        if (not cap and not hold) or state.era is not Era.CANAL:
+        nosell = self.w["canal_no_sell"]
+        if (not cap and not hold and not nosell) or state.era is not Era.CANAL:
             return actions
         me = state.current.idx
+        if nosell:
+            actions = [a for a in actions
+                       if not (isinstance(a, Build) and a.industry.is_sellable)] \
+                      or actions
         mine = [(town, slot, t) for town, slot, t in state.all_tiles()
                 if t.owner == me and t.industry is Industry.BREWERY]
         out = actions

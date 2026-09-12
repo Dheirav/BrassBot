@@ -67,6 +67,33 @@ player at 4p and experts convert them at ~5 VP each. The realistic target is
 150–165; 200+ belongs to the 2-player game, which has 39 actions.
 `docs/research-landscape.md` has the evidence.
 
+## Running the bot faster
+
+The engine and the heuristic bot are standard-library Python, so they run
+under PyPy unchanged, and a warm game takes about half the CPU it takes under
+CPython (5.9s against 12.3s, four players, same moves and scores to the point).
+The first game in a process pays a few seconds of JIT warm-up, which the
+measurement harness amortises across the dozens each worker plays.
+
+The interpreter lives outside the repo and the venv inside it:
+
+```bash
+# once: PyPy 3.11 from pypy.org, unpacked under ~/.local/opt, no root needed
+curl -sSL -o /tmp/pypy.tar.bz2 https://downloads.python.org/pypy/pypy3.11-v7.3.23-linux64.tar.bz2
+mkdir -p ~/.local/opt && tar xjf /tmp/pypy.tar.bz2 -C ~/.local/opt
+ln -sfn ~/.local/opt/pypy3.11-v7.3.23-linux64 ~/.local/opt/pypy3
+~/.local/opt/pypy3/bin/pypy3 -m venv .venv-pypy && .venv-pypy/bin/python -m pip install pytest
+
+# then, for anything that is games of the heuristic bot:
+PYTHONPATH=. .venv-pypy/bin/python tools/verify-weight.py --set ... --workers 8
+PYTHONPATH=. .venv-pypy/bin/python tools/attribution.py 40 runs/attribution.json
+```
+
+`.venv/` stays the interpreter for everything else: the learned bot and the
+value-model tools need numpy, which is slow under PyPy, and the server does
+not need the speed. `pyproject.toml` says 3.12 because that is what `.venv` is;
+nothing is installed as a package, so PyPy 3.11 on `PYTHONPATH` is fine.
+
 ## Playing it
 
 There is a board you can play on, in a browser, against any of the bots.
