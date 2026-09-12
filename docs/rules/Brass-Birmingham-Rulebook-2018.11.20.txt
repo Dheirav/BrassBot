@@ -1,0 +1,871 @@
+                                                                                                                            Rulebook v2018.11. This rule book is a living document.
+AN INDUSTRIAL REVOLUTION                                COMPONENTS                                                   Download the latest version from roxley.com/brass-birmingham-rulebook
+
+Brass: Birmingham tells the story of
+competing entrepreneurs in the West
+Midlands during England’s Industrial
+Revolution, between the years 1770-1870.
+During the game, you will expand your
+empire by establishing canals and rails, and
+building and developing various industries,
+including Cotton Mills, Coal Mines, Iron
+Works, Manufacturers, Potteries, and                                                                            8 × Wild cards                               64 × Location and                             4 × Player Aids
+Breweries.                                                                                               (4 × Wild location, 4 × Wild industry)                Industry cards
+
+
+
+VIDEO & DIGITAL TUTORIALS                                             1 × Board
+Are you more of a visual learner? We’ve
+got you covered. Open your web browser
+and head over to roxley.com/brass-tutorial
+for tutorials on how to play!
+                                                                                                               4 × VP Markers                                     18 × Iron cubes                         15 × Beer barrels
+
+CREDITS
+Game Design: Martin Wallace
+Game Development: Gavan Brown & Matt Tolman
+Illustration & Graphic Design: David Forest &                    4 × Player Mats
+Lina Cossette, Damien Mammoliti, Gavan Brown, Gui
+Landgraf
+Expert Player Advisor: Edward Chen, Jim Drinkle
+Rulebook Writing & Editing: Simon Rourke, Gavan                                                                                                                                                           77 × Money tokens
+Brown, Matt Tolman, Michael Van Biesbrouck, Orin                                                           4 × Income Markers                                     30 × Coal cubes                      (Or Deluxe Edition: 78 Iron Clays)
+Bishop, Ricky Patel, Daniel Danzer
+Rulebook Feedback & Criticism: Adam Allett, Dan
+Le, Dave Thomas, David Goldfarb, David Wernert,
+Gimo Barrera, Graeme Edgeler, Jeff Lee, Jered Biard,
+John Merlino, Jørgen Grøndal, Mark Nichols, Mikolaj            4 × Character tiles
+Sobocinski, Sam Lambert, Jenna Marion
+Historical Advisor: Judith Bennett
+Rulebook Lead Translators: Alexandre Limoges                                                                                                                                          7 Coal Mines
+                                                                                            11 Manufacturers 11 Cotton Mills          7 Breweries   5 Potteries        4 Iron Works
+(French), Ketty Galleguillos (Spanish), Daniel Danzer
+(German), Andrea Mondani & Guido Marzucchi
+(Italian)
+Rulebook Translation Feedback & Criticism:
+Raphaël Biolluz, Marielle Dessel, Andréa Trépanier,
+Marco Ghitti, Marco Paccagnella, Raffaele Mesiti,
+Nicolas De les Essarts, Christophe Fergeau, Xabier        56 × Link tiles (14 per colour)
+Pérez, and Daniel Gómez                                                                                                     180 × Industry tiles (45 per colour)                                               9 × Merchant Tiles
+
+                                                                                                                          Copyright 2018 Roxley Games.
+                                                                                                                                                                                      Note: There are 3 blank tiles on one of the
+                                                                                                                          All Rights Reserved Worldwide.
+                                                                                              1
+                                                                                                                                                                                      punchboards. Those are not used anywhere.
+I N D U S T R I A L                                          R E V O L U T I O N
+
+        Sir Richard Arkwright                                               Eliza Tinsley
+        (23 December 1732 – 3 August 1792)                                  (17 January 1813 – 17 January 1882)
+        Taught to read and write by his cousin,                             Following the death of her husband
+        Arkwright began as an apprentice barber,                            Thomas and his father, along with the
+        but after an early widowing his business                            death of her eldest of six children, Tinsley
+        ambitions grew, and his second marriage                             continued both her late husband and her
+        provided the funds to pursue wigmaking.                             late father-in-law’s businesses in the Black
+        When wigs fell out of fashion, he turned                            Country as one under her own name. The
+        to textiles and made improvements on                                Eliza Tinsley company produced nails for
+        the spinning jenny with the clockmaker                              horseshoes, and chains and anchors for
+        John Kay. Taking his business to the                                ships, the latter of which would become
+        small village of Cromford, Arkwright                                the focus as motor vehicles replaced
+        encouraged weavers with large families to                           horses. Chainmaking was a particularly
+        move there and work in his mill, including                          male-dominated industry, but Tinsley
+        children as young as seven. Arkwright                               excelled, employing around 4000 workers,
+        pioneered the use of the steam engine with                          and she established an offshoot company
+        textile machinery, a precursor to Edmund                            in Australia. Many of Tinsley’s employees
+        Cartwright’s development of the power                               were women and young girls, and she
+        loom. In his later years, after an extended                         fought against government efforts to restrict
+        court battle, Arkwright lost many of his                            women, and girls under 14, from working
+        patents and his domination of the textile                           in the nail and chainmaking industries,
+        industry, but shortly after this he was                             arguing that “the conditions of both
+        knighted. Ambitious, religiously devout, and                        trades are favourable to moral and physical
+        at times difficult to work with, Arkwright’s                        health.” Known as “The Widow,” Tinsley
+        ingenuity and organizational skills would                           was respected for her industry expertise.
+        make him known as the “father of the                                She sold the company at 58, but it would
+        modern industrial factory system.”                                  continue operating under her name into the
+                                                                            21st century.
+
+
+
+
+        Isambard Kingdom Brunel                                             George Stephenson
+        (9 April 1806 – 15 September 1859)                                  (9 June 1781 – 12 August 1848)
+        At the age of 15, Brunel’s father Marc was                          After the death of his wife and daughter,
+        sent to a debtors’ prison, but his debts                            the 25-year-old Stephenson, having no
+        were paid by the British government                                 formal education, left for Scotland to find
+        when he made it known that the Tsar had                             work but returned to West Moor when his
+        offered him a position as an engineer in                            father was blinded in a mining accident.
+        Russia. Brunel studied in France under the                          When he offered to improve the mine’s
+        clockmaker Abraham Louis Breguet. Upon                              deficient pumping engine, Stephenson
+        returning to England he became an assistant                         was made enginewright and became
+        on Marc’s project to create a tunnel under                          an expert in steam-engine technology.
+        the Thames, but a nearly-fatal flooding                             His Northumberland accent made him
+        incident put the 22-year-old out of                                 unpopular with the scientific community,
+        commission for several months. This                                 and when he presented his design for a
+        didn’t stop Brunel from becoming one                                safer mining lamp that would not cause
+        of the most prolific engineers in history,                          explosions, the Royal Society accused him
+        creating tunnels, bridges, railways, a                              of stealing the concept from
+        portable hospital, and a vacuum-powered                             parallel-inventor Humphry Davy. But
+        ‘atmospheric railway’, though unfortunately                         Stephenson’s big claim to fame was his
+        for the latter the leather flaps sealing the                        contribution to rail transport, and the
+        vacuum pipes were eaten by rats. His ‘Great                         invigoration of the rail industry. At age 40
+        Western’ was the first steamship to conduct                         he began work on the first public railway,
+        transatlantic service, and his ‘Great Eastern’                      and his locomotive known as ‘Stephenson’s
+        was the largest ship ever built up to that                          Rocket’ won a competition by achieving the
+        time, but Brunel died of a stroke at 53 just                        record speed of 36 miles per hour, which
+        before her maiden voyage. Brunel is known                           led some to fear that such speeds would
+        today as an engineering giant.                                      cause women’s uteruses to literally fly out of
+                                                                            their bodies. Thankfully this did not occur.
+
+
+
+                                                         2
+H I S T O R I C A L                                      F I G U R E S
+
+     James Watt                                                      Robert Owen
+     (30 January 1736 – 25 August 1819)                              (14 May 1771 – 17 November 1858)
+     Tinkering with models and ship’s                                Falling in love with Caroline Dale, daughter
+     instruments at his father’s workbench from                      to the owner of the New Lanark mill
+     an early age, Watt left for Glasgow at 17 to                    co-founded by Richard Arkwright, Owen
+     learn to make measuring instruments such                        convinced his business partners to purchase
+     as scales and compasses, and befriended                         the mill. He ran it with great success, but
+     the chemist Joseph Black. In his 30s, while                     displeased his partners with egalitarian
+     repairing a model of the Newcomen steam                         activities such as paying wages to his
+     engine used widely for pumping water out                        workers over a four month period in which
+     of mines, Watt noticed that the design                          the mills were closed during the War of
+     wasted energy on cooling and reheating                          1812. An avid scholar, Owen became critical
+     the cylinder, and he improved upon it by                        of prevailing religious thought on human
+     adding a separate condenser which would                         self-determinism, and he developed his
+     revolutionize the steam engine. However he                      own philosophy that one’s circumstances
+     was unable to make progress on this venture                     are largely the result of external forces, and
+     for several years as he was busy at his day                     that therefore education and philanthropy
+     job surveying Scottish canals. This changed                     should be paramount in society. He
+     when English manufacturer Matthew                               undertook a variety of social reform
+     Boulton took an interest in his patent,                         projects such as lobbying for workers and
+     and Watt moved to Birmingham to form                            children’s rights and for an 8-hour work
+     a partnership that would last 25 years and                      day, and temporarily left Britain to found
+     spread his improved steam engine across                         a socialist commune in America called
+     the world of industry. Though a somewhat                        New Harmony. The experiment was an
+     feeble businessman on his own (Watt once                        economic failure that bankrupted Owen,
+     said he “would rather face a loaded cannon                      but it did produce one of the first public
+     than settle an account or make a bargain”),                     libraries and a free school open to both boys
+     he was greatly respected by his peers, and                      and girls, and his philosophies are deeply
+     the basic unit of power, the “watt,” bears                      woven into socialist movements within the
+     his name.                                                       United States.
+
+
+
+
+     Sir Henry Bessemer                                              Eleanor Coade
+     (19 January 1813 – 15 March 1898)                               (3 June 1733 – 16 November 1821)
+     Like Isambard Kingdom Brunel’s father,                          Bringing her up a devout Baptist, Coade’s
+     Bessemer’s father Anthony was forced to                         parents were both successful merchants.
+     flee France during the French Revolution.                       Her grandmother Sarah Enchmarch had
+     Anthony had become a member of                                  run the family textile business in Tiverton
+     the Académie des sciences at 26 for his
+     improvements on the optical microscope,                         with 200 employees, using spies to acquire
+     and made his fortune in Britain with a                          new manufacturing techniques, and was
+     process for making gold chains. Bessemer’s                      known for travelling around town in a
+     first innovation mirrored his father’s                          sedan chair. After Coade’s family moved
+     affinity for gold. After carefully analyzing                    to London, she ran her own linen draper
+     bronze powder from Nuremberg, used in                           business at age 30. Six years later she
+     the manufacture of gold paint, he reverse                       purchased an artificial stone business from
+     engineered the process and created a series                     the struggling Daniel Pincot, but fired him
+     of six steam-powered machines that could                        within two years for “representing himself
+     manufacture the powder. He later developed                      as the chief proprietor.” Her ceramic
+     a cheap system of creating steel by blowing                     stoneware called “Coade’s Lithodipyra”
+     air through molten pig iron to burn off                         went on to be used in over 700 sculptures
+     impurities. The goal was initially to reduce
+     the cost of military ordnance, but this                         across the globe, many of them overseen
+     technique of affordable steel revolutionized                    by the sculptor John Bacon, though she
+     structural engineering and made bridges                         worked with a number of high-profile
+     and railroad tracks, previously reliant                         designers and architects as it allowed her to
+     on wrought and cast iron, much safer.                           produce multiple copies of their designs.
+     Bessemer pioneered over 100 inventions                          The South Bank Lion may be Coade’s
+     in the fields of metalworking and glass,                        most iconic piece, but her product was
+     including a steamship cabin on gimbals                          also used for the Gothic screen of St
+     intended to stay level to prevent seasickness                   George’s Chapel, and in the restoration of
+     which was sadly lost at sea, and he gained                      Buckingham Palace.
+     considerable commercial success leveraging
+     his innovations.
+
+
+                                                     3
+BOARD SETUP                                   6     Place 1 beer barrel on each beer
+                                                    barrel space beside a (non-blank)
+                                                    Merchant tile I .
+                                                                                                              G
+     Place the board on either the day or     7     Place 1 black cube on each space of
+ 1                                                  the Coal Market J , leaving 1 of
+     night side.
+                                                    the £1 spaces open.
+2    For a player count of less than 4,
+     remove all cards and Merchant tiles      8     Place 1 orange cube on each space
+     that show a player count greater than          of the Iron Market K , leaving both
+     your number of players, and return             of the £1 spaces open.
+     them to the box.                               Place the remaining cubes and beer
+                                              9
+     The 2-player ( ), 3-player (      ),           barrels beside the board; this is the                         I
+     and 4-player (       ) counts are              General Supply L .
+                                                    Note: The General Supply is                           E
+     shown in the bottom right corner on
+     the front of the cards A and along             limitless. If you need more of a
+     the top of the merchant tiles B .              resource, represent it with something
+                                                    else.
+
+                                              10    Place the money beside the board;
+                                                    this is the Bank M .
+                                   B
+
+                                                                                                          C
+                                                                 L
+
+
+
+
+                        A
+
+                                                                                                          D
+
+3    Separate the Wild Location C and
+     Wild Industry D cards and place
+     them face up on 2 of the Card Draw
+     Areas.
+     Shuffle the remaining cards and                                                              Y
+4
+     place them face down on the
+     remaining Card Draw Area E ; this
+     is the Draw Deck.                                                              M
+5    Shuffle the remaining Merchant tiles,
+     and place 1 (face up) on each of the
+     Merchant spaces marked with the
+     number of players in your game F ,
+     located near the edges of the board.
+                                             LOCATION BANNERS                             N
+
+
+                                             In addition to helping players
+                                             find locations on the board, the
+                        F                    colours of the location banners
+                                             also indicate which Location cards
+                                             are in the Draw Deck. This varies            O
+                                             with the player count:
+                                             • 2 players: blue N and teal O                               Z
+                                               coloured Location cards are not
+                                               in the Draw Deck.
+                                             • 3 players: teal O coloured
+     Result: In a 2 player game, no            Location cards are not in the
+     Merchant tiles are placed in              Draw Deck.                                             X
+     Warrington G & Nottingham H .
+     In a 3-player game, no Merchant tiles   • 4 players: all Location cards are
+     are placed in Nottingham H .              in the Draw Deck.
+
+                                                                                              4
+            PLAYER AREA SETUP                             6     Place your Victory Point (VP)
+                                                                Marker on the “0” space of the
+                                                                Progress Track X .
+             1   Take a Player Mat.
+                                                          7     Place your Income Marker on the
+             2   Take £17 from the Bank P .                     “10” space of the Progress Track
+                                                                 Y .
+             3   Choose a coloured Character tile.
+                                                                Draw 8 cards from the Draw Deck;
+                                                          8
+                                                                this is your Hand. Do not reveal
+    H        4   Place the matching coloured Link               your Hand to other players.
+                 tiles in your player area Q .
+                                                          9     Draw 1 additional card from the
+             5   Stack the matching coloured                    Draw Deck and place it face down
+                 Industry tiles (which consist of               in your player area; this is your
+                 Cotton Mills R , Coal Mines S ,                Discard Pile.
+                 Iron Works T , Manufacturers U ,
+                 Potteries V , and Breweries W ) on      After all players have set up their player
+                 their appropriate slots on your         area, shuffle all players’ Character tiles
+                 Player Mat. The side of the tiles       together and place them in a random order
+                 with the black top half should be       on the Turn Order Track Z .
+                 face down.
+
+
+
+
+J   K
+
+
+
+
+                             U
+
+
+
+
+                                                                    V                      T
+                                                     R
+
+
+
+
+                             W                                               S
+
+
+
+
+                                                                P
+
+
+
+
+                                                                                       Q
+
+        5
+                                           P L A Y I N G                                       T H E                       G A M E
+
+THE GOAL                                      ACTIONS LIST                                      END OF ROUND
+The game is played over 2 eras:               For each action, you may choose to perform         After all players have taken their turn,
+the Canal Era (1770-1830) and                 one of the following (you may perform the          perform the following steps before
+the Rail Era (1830-1870). The                 same action twice):                                moving on to the next round:
+winner is the player who has the
+most Victory Points (VPs) following the end
+                                                1     Build - Place one of                         1       Determine turn
+                                                      your Industry tiles onto                             order for the next
+of the Rail Era. VPs are scored at the end
+of each era for your Link tiles and flipped
+                                                      the board, paying the
+                                                                                                           round Rearrange the              20
+                                                                                                                                            £
+                                                      appropriate cost and                                                                             C
+Industry tiles.                                                                                            Character tiles on the Turn                                     B
+                                                      consuming any required
+                                                                                                           Order Track.
+                                                      coal / iron.
+                                                      Note: Only Build requires a specific        • The player who spent the least          £   6
+ROUNDS                                         2
+                                                      card.
+                                                      Network - Expand
+                                                                                                    money this round will go first
+                                                                                                    next round B , and so on, while                    B
+                                                                                                                                                                          C
+                                                                                                    the player who spent the most                                                               D
+Each era is played in                                 your canal or rail
+                                                                                                    will go last C .
+rounds, which continue                                network by adding Link
+until both the Draw Deck                              tiles to the board.                         • If multiple players have spent an
+                                                                                                    equal amount, their relative turn
+                                                                                                                                            20
+                                                                                                                                            £
+and players’ Hands are
+exhausted. There are                           3      Develop - Gain                                order remains the same C .                         C                    C
+                                                      access to higher-level
+exactly 8/9/10 rounds                                                                             • Afterwards, take all money from
+                                                      industries by removing
+per era in a 4/3/2-players                                                                          the Character tiles, and place it
+                                                      Industry tiles from your
+game. During each round,                                                                            back into the Bank D . This
+                                                      Player Mat.
+players take turns in the                                                                           resets the money spent, ready for
+order of their Character                       4      Sell - Flip your built                        the next round.
+tiles on the Turn Order                               Cotton Mill,
+Track.                                                Manufacturer, and/or
+                                                      Pottery tiles, by selling
+                                                      to a Merchant, and
+                                                      consuming beer if necessary.
+                                                                                                       2    Take Income                             • If you have a shortfall
+                                                      Loan - Take a £30 loan                                Take money from the Bank equal to
+                                               5                                                            your income level.
+                                                                                                                                                      when paying negative
+PLAYER TURNS                                          from the Bank, and move
+                                                      your Income Marker 3                                  Exception: Income is not collected
+                                                                                                                                                      income, you must acquire
+                                                                                                                                                      money by removing one
+On your turn, perform a total of 2 actions.           income levels (not spaces)                            at the end of the final round of the      or more of your Industry
+                                                      backwards.                                            game.                                     tiles (not Link tiles) from
+Exception: During the first round of the
+                                                                                                     • Your income level is the number                the board; each being worth
+Canal Era, each player performs only 1         6      Scout - Discard 2 cards from your                                                               half of its cost, rounded
+action.                                               Hand (plus the card required to                  displayed on the coin beside your
+                                                                                                       Income Marker’s current location on the        down. The removed tile is
+ • For each action you perform,                       perform the action) and replace                                                                 removed from the game. You keep any
+                                                      them with 1 Wild Industry and 1                  Progress Track E .
+   you must discard a card from                                                                                                                       excess money.
+   your Hand and place it face                        Wild Location card.
+                                                      Exception: You may not perform                                                                • If you have no way to pay
+   up on top of your Discard                                                                                                                          a shortfall, lose 1 VP (if
+   Pile.                                              this action if you already have a Wild
+                                                      card in your Hand.                                                                              possible) for each £1 you are
+   Exception: Wild cards are placed back                                                                                                              short.
+   onto their Card Draw Areas.                                                                                      E
+                                              Passing - You may choose to pass                                                                       Note: You may remove any of your
+ • After all of your actions                  instead of performing an action, but must                                                              Industry tiles, but must stop as soon as
+   have been completed, refill                                                                       • If your income level is negative F , you      you have acquired enough money to
+                                              still discard a card for each action you pass.
+   your Hand back up to 8                                                                              must pay that amount of money to the          cover the shortfall. You may not sell
+   cards with cards from the                  Spending Money Any                   A                   Bank.                                         Industry tiles for any reason other than
+   Draw Deck.                                 time you spend money to                                                                                paying for a shortfall.
+                                              perform an action, you must
+ • Place all money spent during your turn     place it on top of your
+   on top of your Character tile on the       Character tile A on the
+   Turn Order Track.                          Turn Order Track. Placing
+ • Once the Draw Deck has been                spent money here, rather than
+   exhausted, your Hand will decrease each                                                                                     F
+                                              in the Bank, will allow you to
+   round until you have no cards left.        determine the players’ turn
+                                              order for the next round.
+                                                                                               6 B
+    E N D   O F         E R A                M A I N T E N A N C E
+
+                                                 END OF CANAL & RAIL ERA                           END OF CANAL ERA
+                                                 Each era ends following the round in which        Perform the following additional steps at the
+H                                                all players use the final cards in their Hands.   end of the Canal Era:
+                                     J           When this occurs, perform the following
+                                                 steps:                                             3     Remove Obsolete
+                                                                                                          Industries
+                                                  1       Score Canal/Rail Links                          Remove all level 1
+                                                          For each of your Link tiles G ,                 Industry tiles from
+                                                          score 1 VP for each       displayed in          the board J (not
+                                                          adjacent locations, by advancing your           from Player Mats),
+                                                          VP Marker along the Progress Track              and return them to
+    N                                                      H . Remove Link tiles from the
+                                                                                                          the box. All level 2 or
+                                                          board as they are scored.                       greater Industry tiles remain on the
+                                                          Score Flipped Industry                          board K .
+                                                  2
+                                                          Tiles                                     4     Reset Merchant Beer
+                                                          After all players have                          Place 1 beer barrel L on each empty
+                                                          removed their Link                              beer barrel space beside a (non-blank)
+                         J       J                        tiles, score the VPs                            Merchant tile M .
+                                                          shown in the bottom
+                                                          left corner of your
+                                                                                                                                                 L
+                                                          flipped Industry tiles (those with a
+                                                          black top half) on the board, by
+                                                          advancing your VP Marker along the
+                                                          Progress Track H . Unflipped
+                                                          Industry tiles I do not score.                                                     M
+                                                          Note: If you score more than 100                Shuffle Draw Deck
+                I
+                                                          VPs, record the additional points         5
+                                                                                                          Shuffle all players’ Discard Piles
+                                                          by starting another loop of the                 together and place the cards face
+                                                          Progress Track.                                 down on the appropriate Card Draw
+                                                                                                          Area N .
+                                                                                                          Remember: The bottom card of
+                                                                                                          each Discard Pile will be face down,
+                                         G                    K                                           and need turning over before
+                                                                                                          shuffling. (Don’t start the Rail Era
+                                                                                                          with a card face down in your discard)
+                             G                                                                      6     Draw New Hands
+                                                                                                          Each player draws 8 cards from the
+                                                                                                          newly shuffled Draw Deck.
+                                                      G                            J
+
+                                                                                                   WINNING THE GAME
+                                                                                                   After performing Rail Era scoring:
+                                                                                                    • The player with the most VPs is declared
+                                                                                                      the winner.
+                                                                                                    • Ties are broken, first by the highest
+                                                                                       G              income, and then by the most money
+                                                                                                      remaining.
+                                                                                                    • If still tied, those players draw.
+
+            J
+
+
+
+                    J
+                                             7
+                                      G A M E P L A Y                                                  C O N C E P T S
+
+FLIPPING INDUSTRY TILES                                                                                                                                                             G
+At the end of each era,                                                                                                             E
+                                                                                        J
+flipped Industry tiles score                                                                                                                                                                  I
+VPs. When flipped, they have                                                                                                                            H
+a black top half and a VP icon
+in the bottom left corner.
+Different Industry tiles are
+flipped in different ways:
+ • Cotton Mills,
+   Manufacturers, and
+   Potteries: Flip when you                                                                                                                                                                              A
+   perform a Sell action.
+ • Coal Mines, Iron Works,                                                          F
+   and Breweries: Flip
+   when the last resource                                                                                                  K
+   is removed from the                                                                                                                                                       B
+   tile. This often happens
+   during an opponent’s turn.
+                                                CONSUMING COAL                                 D
+                                                                                                                                            C
+                                                Coal is required to build rail                                                                              CONSUMING BEER
+INCREASING YOUR INCOME                          Links and certain Industry tiles.
+                                                                                                                                                            You may be required to consume beer when
+Whenever one of your Industry                   To consume coal, a rail Link or Industry tile                                                               selling cotton, manufactured goods, or
+tiles is flipped your income is                 must be connected to a source of coal (after                                                                pottery; or when performing the Network
+increased. To increase your income,
+immediately advance your Income
+                                                it is placed).
+                                                                                                       CONSUMING IRON                                       action during the Rail Era. The amount
+                                                                                                                                                            required, if any, will be shown in the top
+                                                Coal must be consumed from:                            Iron is required to perform the Develop              right corner of the Industry tile.
+Marker along the Progress Track
+  A by the number of spaces (not income                The closest (fewest Link tiles distant)         action, and to build certain Industry tiles.
+                                                  1                                                                                                         Beer may be consumed from
+levels) shown.                                         connected unflipped Coal Mine F                 To consume iron, an Industry tile does not
+Exception: You cannot increase your income             (owned by any player). If multiple                                                                   any of the following sources:
+                                                                                                       need a connection to a source of iron.
+level above level 30.                                  Coal Mines are equally close, choose                                                                        Your unflipped Breweries J .
+                                                       one. If a Coal Mine runs out of                 Iron must be consumed from:                           1
+                                                                                                                                                                   These do not need to be connected
+                                                       coal, and you need more, choose the                                                                         to the location where the beer is
+                                                                                                         1     Any unflipped Iron Works H
+                                                       next closest Coal Mine. Consuming
+YOUR NETWORK                                           coal in this way is free.
+                                                                                                               (owned by any player); it does not
+                                                                                                               have to be the closest. If you need
+                                                                                                                                                             2
+                                                                                                                                                                   required.
+                                                                                                                                                                   An opponent’s unflipped Brewery
+A location on the board is considered to be      2       If you are not connected to an                        more than 1 iron, you can consume                    K . These must be connected to
+a part of your network if at least one of the           unflipped Coal Mine, you can                           each iron from a different Iron                     the location where the beer is
+following is true:                                      purchase coal from the Coal Market                     Works. Consuming iron in this way                   required.
+                                                          G , starting at the cheapest price.                  is free.
+ • The location contains one or more of                 This requires a connection to a                                                                      3     The space beside a Merchant tile that
+   your Industry tiles B ;                                                                              2      If there are no unflipped Iron                      you are selling to (see “Action -
+                                                                 icon (shown on the
+ • The location is adjacent to one or more                                                                     Works, you can purchase iron from                   Sell”).
+                                                        Warrington, Shrewsbury,
+   of your Link tiles C .                                                                                      the Iron Market I , starting at the
+                                                        Nottingham, Gloucester, and                                                                         When multiple beer barrels are required,
+                                                                                                               cheapest price. If the Iron Market is
+                                                        Oxford Merchants around the edge                                                                    each beer may be consumed from a different
+                                                                                                               empty, you can still purchase iron for
+                                                        of the board). If the Coal Market is                   £6 /                                         source.
+                                                                                                                         .
+                                                        empty, you can still purchase coal for
+CONNECTED LOCATIONS                                     £8 /        .                                  Consumed iron cubes are placed back into
+                                                                                                       the General Supply.
+                                                                                                                                                            Consumed beer barrels are placed back into
+                                                                                                                                                            the General Supply.
+Two locations are considered “connected”        Consumed coal cubes are placed back into
+                                                the General Supply.                                    Historical Note: These industries generally          Historical Note: Unpolluted drinking
+to each other if you can trace a route of                                                                                                                   water was in short supply in expanding
+Link tiles (owned by any player) from one                                                              required iron in low volumes, so it could also
+                                                Historical Note: Coal was required in                                                                       settlements, so beer was often the purest and
+location D to the other E .                                                                            be transported via horse and wagon.
+                                                large quantities, so a robust transportation                                                                safest drink available.
+                                                network was critical.
+
+                                                                                                   8
+                                                                            A C T I O N S
+
+                                                   Note: In 2/3-player games you may still                Moving Coal and Iron to the                        Building If You Have No Tiles
+BUILD ACTION                                       build in any location.                                 Market                                             on the Board
+Performing the Build action allows you to           2     Take the lowest level tile L of the             If you build either a:                             If you have no Industry or
+place Industry tiles onto a location on the               chosen industry from your Player                                                                   Link tiles on the board, you
+                                                          Mat and place it (the side with the              • Coal Mine that is connected                     may also (as an action) discard:
+board.                                                                                                       to any Merchant space
+                                                          black top half face down) on an
+To perform the Build action:                                                                                        (even those without                       • An Industry card to build
+                                                          undeveloped space in your chosen
+                                                                                                             Merchant tiles);                                   the matching Industry
+           Discard an appropriate card. Unlike            build location,
+    1                                                     obeying the                         N                            or                                   tile in any location with
+           other actions, which allow you to use                                                                                                                an undeveloped space
+           any card from your Hand, the Build             following rules:                                 • Iron Works, regardless                             displaying that industry’s icon;
+           action requires an appropriate card      • If possible, place it on a                             of whether or not it is
+                                                                                                                                                              • Any card to build a Link tile
+           be discarded face up onto your             space displaying only                                  connected to a Merchant
+                                                                                                                                                                on any undeveloped line on
+           Discard Pile:                              that industry’s icon M .                               space:
+                                                                                                      M                                                         the board.
+           Exception: Wild cards are placed         • Otherwise, place it on a                                1     You must immediately move as
+           back onto their Card Draw Area.            space displaying that                                         many cubes as possible from the
+                                                      industry’s icon with another industry’s                       Industry tile to available spaces in
+    • Location card                                                                                                 its associated Market (filling the       Farm Breweries
+      May be used to build                            icon N .
+                                                                                                                    most expensive spaces first).            There are 2 unnamed
+      any Industry tile at the                      • If no undeveloped spaces display your
+      location named on the                                                                                         For each cube moved, collect the         locations, each with 1 space
+                                                      industry’s icon, you may not place it in                2                                              displaying a Brewery icon;
+      card, even if the location                      that location.                                                corresponding amount of money
+      is not a part of your                                                                                         displayed on the coin to the left        these are Farm Breweries.
+                                                      Exception: (see “Overbuilding”)
+      network.                                                                                                      side of its Market space P .              • You may only build in
+                                                    3     The cost of the Industry tile you are                                                                 these locations using a
+    • Wild Location                                                                                           3     If the last cube is moved from
+                                                          building is displayed, to the left of its                                                             Brewery Industry card or a
+        card                                              slot, on your Player Mat O . Pay
+                                                                                                                    your Industry tile to its Market, flip
+        May be played as any                                                                                        the Industry tile Q and advance             Wild Industry card.
+                                                          money onto your Character tile on                         your Income Marker along the              • A Link tile is required to
+        Location card. This does
+                                                          the Turn Order Track, and consume                         Progress Track by the number of             connect Cannock to the Farm Brewery
+        not include the 2 Farm
+                                                          any required iron and coal O .                            spaces shown in the bottom right            to its left.
+        Breweries (see “Farm
+                                                          Remember: If coal is required, the                        corner of the tile.
+        Breweries”).
+                                                          location you are building in must be
+    • Industry card                                       connected to a source of coal (see
+      May be used to build the                            “Consuming Coal” and “Connected
+      Industry tile matching                              Locations”).
+      an icon shown in the top
+                                                    4     If you built a:
+      corner of the card, in a
+      location that is a part of                          Coal Mine or
+      your network.                                       Iron Works                                                                                          • A Link tile placed between
+                                                          Place coal       or iron                                                                              Kidderminster and Worcester also
+    • Wild Industry                                            (from the General                              P                                                 connects both locations to the Farm
+        card                                              Supply) onto the                                                                                      Brewery to their left. A second Link
+        May be played as any                              Industry tile, equal to                                                                               tile is not required; nor may it be placed
+        Industry card.                                    the quantity shown in                                                                                 there.
+                                                          the bottom right corner
+                                                          of the tile.
+                                                          Brewery
+                                                          Place 1 beer barrel on the Industry
+                                                          tile if it is built during
+O                                                         the Canal Era, or 2
+                                                          beer barrels if it is built
+           L                                              during the Rail Era.                                                     Q
+
+
+                                                                                                          Note: Coal and iron cubes may only be sold
+                                                                                                          to their Markets during the action when their
+                                                                                                          Industry tile is built. They are never sold to
+                                                                                                          their Markets in later turns.
+                                                                                                      9
+                                                                        A C T I O N S
+
+BUILD ACTION (CONTINUED)                       Overbuilding
+                                               Sometimes you are allowed to replace an
+                                                                                                     SELL ACTION                                     Merchant Beer Bonuses
+                                                                                                                                                     Merchant beer may only be consumed
+Canal Era Building                             already placed Industry tile with a higher-           Performing the Sell action allows you to flip   as part of a Sell action. If you consume a
+ • You may have a maximum of 1 Industry        level tile of the same industry type (you             built Cotton Mill, Manufacturer, and Pottery    Merchant beer, you also receive the bonus
+   tile per location, but may have an          must still pay the necessary build costs).            tiles. Selling requires:                        displayed beside that Merchant tile’s location:
+   Industry tile in the same location as       This is known as Overbuilding. When                    • Connection to a Merchant tile.
+   other players.                              Overbuilding:                                                                                          • Develop (Gloucester)
+                                                                                                      • Beer (usually).                                 Remove 1 of the lowest level
+                                               If the tile you are replacing is your own                                                                tiles of any industry from your
+                                                A :                                                  To perform the Sell action:                        Player Mat (for no iron cost).
+                                                 • You may Overbuild any Industry tile.                                                                 Exception: You cannot remove a Pottery
+                                                                                                      1     Discard any card from your Hand
+                                                                                                                                                        tile showing a      icon (see “Potteries
+                                                 • If there are any iron / coal / beer on the               and place it face up onto your
+                                                                                                                                                        and the Lightbulb Icon”).
+                                                   tile being replaced, place them back into                Discard Pile.
+                                                   the General Supply.                                      Exception: Wild cards are placed          • Income (Oxford)
+                                               If the tile you are replacing is owned by                    back onto their Card Draw Area.             Advance your Income Marker
+                                               an opponent B :                                                                                          2 spaces along the Progress
+                                                                                                      2     Choose 1 of your unflipped                  Track.
+                                                • You may Overbuild only a Coal Mine or                     Cotton Mill, Manufacturer
+                                                    an Iron Works.                                           C , or Pottery tiles, that is            • Victory Points
+                                                • There must be no resource cubes on the                    connected to a Merchant tile                 (Nottingham and
+                                                    entire board, including in its Market, of               featuring that industry’s icon D .           Shrewsbury)
+                                                                                                                                                         Advance your VP Marker
+                                                    the same type as the Industry tile being
+                                                                                                      3     Consume the required                         along the Progress Track by the
+                                                    replaced.
+                                                                                                            amount of beer, shown                        number of spaces indicated.
+                                               Remove overbuilt Industry tiles from the                     in the top right corner
+                                               game, and return them to the box (they                                                                 • Money (Warrington)
+                                                                                                            of the Industry tile. If
+ • Industry tiles with a     to the left of    will not score VPs). Players do not lose                                                                 Receive £5 from the Bank.
+                                                                                                            there is a beer barrel
+   their slot on your Player Mat may not       previously gained income or VPs if their                      E on the space beside
+   be built.                                   Industry tiles are overbuilt.                                the Merchant tile you are selling to,
+                                                                                                            you may consume this beer as part
+                                                                                                            of the Sell action, and collect the
+Rail Era Building                                                                                           Merchant beer bonus (see “Merchant
+ • You may build multiple Industry tiles in                                                                 Beer Bonuses”).
+   each location.
+                                                                                                      4     Flip the Industry tile
+                                                                                                            and advance your
+                                                                                                            Income Marker
+                                                                                                            along the Progress Track by the                                           C
+                                                                             A                              number of spaces shown in the
+                                                                                                            bottom right corner of the tile.
+                                                                                                                                                     C
+                                                                                                      5     You may go back to step 2 and
+                                                             B                                              repeat the process for each of your
+                                                                                                            unflipped Industry tiles (including
+                                                                                                            those of a different industry).
+                                                                                                            Note: You cannot perform the
+                                                                                                            Sell action if you cannot consume
+                                                                                                            the required beer (see “Consuming
+                                                                                                            Beer”).                                                                               E
+
+
+
+ • Industry tiles with a      to the left of
+   their slot on your Player Mat may not
+   be built. To remove these tiles (and                                                                                                                                                           D
+   access the higher-level tiles) you must
+   perform the Develop action.
+
+                                                                                                10
+                                                                      A C T I O N S
+
+LOAN ACTION                                    DEVELOP ACTION                                      2     Remove 1 or 2 Industry tiles from
+                                                                                                         your Player Mat, and return them
+                                                                                                         to the box. Each Industry tile is
+Performing the Loan action                     Performing the
+                                                                                                         removed separately and does not
+allows you to acquire more                     Develop action allows
+                                                                                                         need to be of the same industry,
+money. Loans are never repaid,                 you to remove Industry
+                                                                                                         but must be the lowest level tile of
+but instead lower your income                  tiles from your Player
+                                                                                                         the chosen industry (as it is
+level.                                         Mat. This allows
+                                                                                                         removed) G .
+                                               you to gain access to
+To perform the Loan                                                                                      Consume 1 iron for each tile
+action:                                        higher-level Industry tiles                         3                                                             G
+                                               without having to build all of                            removed (see “Consuming Iron”).
+ 1     Discard any card from                   the lower-level tiles of that                      Potteries and the                                  G
+       your Hand, and place it                 industry.                                          Lightbulb Icon
+       face up onto your
+       Discard Pile.
+                                               To perform the Develop action:                     Pottery tiles that show a
+                                                      Discard any card from your Hand,            icon may not be developed.
+       Exception: Wild cards                     1                                                These tiles may only be
+       are placed back onto their                     and place it face up onto your
+                                                      Discard Pile.                               removed from your Player Mat through
+       Card Draw Area.
+                                                                                                  use of the Build action. They must be
+                                                      Exception: Wild cards are placed
+ 2     Take £30 from the bank,                                                                    removed before you can access the
+                                                      back onto their Card Draw Area.
+       and move your Income                                                                       higher-level Pottery tiles.
+       Marker 3 income levels
+       (not spaces) backwards
+       down the Progress Track
+                                                                                                  Network During Canal Era:
+         F . Place your Income
+       Marker on the highest               F
+                                               NETWORK ACTION                                      • You may not build rail Links.                       J
+       space within the new                    Performing the Network
+       lower income level.                                                                         • You may build canal Links on
+                                               action allows you to place                            undeveloped canal lines I .
+       Exception: You                          Link tiles, which expand
+       cannot take a loan                      your network and gain
+       if it will take your                                                                        • You may build a maximum of 1 canal
+                                               you access to new locations.
+       income level below                                                                            Link for £3.
+       -10.                                    To perform the Network                             Network During Rail Era:
+                                               action:
+                                                                                                   • You may not build canal Links.
+                                                 1    Discard any card from your Hand,
+                                                      and place it face up onto your               • You may build rail Links on
+SCOUT ACTION                                          Discard Pile.                                  undeveloped railroad lines J .
+                                                                                                                                                 I           H
+Performing the Scout action                           Exception: Wild cards are placed
+                                                      back onto their Card Draw Area.              • You may build 1 rail Link for £5.
+allows you to acquire Wild
+cards, which provide increased                                                                     • In a single Network action, you may
+                                                2     Place a Link tile on an undeveloped            build a maximum of 2 rail Links for
+flexibility in where you may                          line on the board H . The placed               £15, if you also consume 1 beer.
+build. The Wild Industry card                         Link tile must be adjacent to a
+can be played as any Industry card. The                                                              This beer must be consumed from a
+                                                      location that is a part of your                Brewery (not a Merchant beer).
+Wild Location card can be played as any               network (see “Your Network”).
+Location card. When discarded, a Wild                                                                Remember: If consuming beer from
+                                                      Exception: If you have no Industry             another player’s Brewery, it must be
+card is placed back onto its Card Draw
+                                                      or Link tiles on the board, you may            connected to the second rail Link (after            J
+Area, not onto your Discard Pile.
+                                                      place a Link tile on any undeveloped           it is placed).
+To perform the Scout action:                          line (you must still consume coal if         • You must consume 1 coal          for each
+                                                      building a rail Link).                         rail Link built (see “Consuming Coal”)
+ 1     Discard any card from your Hand,
+                                                                                                     Remember: Each rail Link is placed                          I
+       plus 2 additional cards and place
+       them face up onte your Discard                                                                separately and must be connected to a
+       Pile.                                                                                         source of coal (after it is placed).
+
+ 2     Take 1 Wild Location and 1 Wild
+       Industry card.
+       Note: You may not perform this
+       action if you already have a Wild
+       card in your Hand.
+                                                                                             11
+                                           T I P S                     A N D                         V A R I A N T S
+
+THINGS TO REMEMBER                               BEGINNER TIPS                                       UNDERSTANDING YOUR
+                                                                                                                                                                                B
+
+
+ • Discard 1 card for every single action
+   you perform, including passing.
+                                                  • Do not be afraid of taking loans. Your
+                                                    income level at the end of the game is
+                                                                                                     NETWORKS                                                 B
+                                                                                                                                                                                           B
+                                                    not worth VPs. It is not uncommon                This diagram will help you better
+ • Only Build actions need a specific card.
+                                                    for experienced players to win the game          understand the concept of “your
+ • You can perform the same action twice                                                             network” and the rules behind the                                            A
+                                                    despite having a low income level.
+   in a turn. For instance, you may place 1                                                          Network action.
+   or 2 rail Links with the Network action,       • Level 2 or greater Industry tiles are not
+                                                    removed at the end of the Canal Era,              • The red tiles denote your link and
+   then use the Network action again to
+                                                    so could score twice if built early. A              industry tiles.
+   place 1 or 2 rail Links.
+                                                    flipped level 3 Cotton Mill would score           • The blue shades denote your
+ • During the Canal Era, each player may
+                                                    a whopping 18 VPs over both eras. The               network; as your network is
+   place a maximum of 1 of their Industry
+                                                    Develop action is your friend.                      a location that includes any
+   tiles in each location.
+                                                  • Be careful when developing Breweries.               of your industry tiles and any
+ • You may Overbuild any of your                                                                        locations adjacent to one of
+                                                    Remember that beer is required to
+   Industry tiles without restriction.                                                                  your links. As you have a link
+                                                    perform the Sell action, so having no
+ • You may also Overbuild opponents’                access to beer that belongs to you can be           from Birmingham to Redditch,
+   Coal Mines/Iron Works, but only when             devastating to your long-term strategy.             Redditch is part of your network,
+   there are no coal/iron cubes left on any                                                             even though you don’t own an
+                                                  • Tiles with a      to the left of their
+   Industry tiles or in the Market.                                                                     industry tile there.
+                                                    slot on your Player Mat cannot be
+ • You must be connected to a            to         built during the Rail Era. Try to build           • The yellow shades denote valid link placement as they are all rails adjacent to your network.
+   sell cotton, manufactured goods, or              or develop at least 1 Coal Mine and 1             • If you performed the Network action to build rail Link A , it would be possible to build a
+   pottery; and to consume coal (but not            Iron Works during the Canal Era, so                 second rail Link B in the same Network action (as long as you could pay the required
+   iron) from the Market.                           that you do not have to use a Develop               cost, and consume the necessary coal and beer).
+ • You do not need to be connected to               action during the Rail Era to clear these           Note: You can expand over the board quickly by networking (placing links) and avoiding
+   consume your own Breweries’ beer, but            industries from your Player Mat.                    placing industry tiles.
+   must be connected to other players’            • Figuring out how best to expand your
+   Breweries, or to Merchant beer (only             network at the beginning of the Rail Era
+   available when selling).                         can be difficult for beginners. Expand
+ • A location must be a part of your                your network by building rail Links
+   network for you to build there (unless           to sources of coal. If you don’t have
+   you use that specific Location card or a         access to any coal, build a Coal Mine.
+   Wild Location card).
+ • Unlike the other level 1 Industry tiles,
+   the level 1 Pottery tile may be built
+   during the Rail Era.
+
+
+                                                 Players then score additional points as
+INTRODUCTORY GAME                                follows:
+Since Brass is such a deep game, some
+                                                  1     Money
+players may prefer to play a shorter                    Score 1 VP for                 =
+introductory game for their first experience.           every £4 in your
+The introductory game plays exactly like the            player area (up to a
+full game, except you only play the Canal               maximum of 15 VPs).
+Era and there are additional scoring rules
+to make players’ scores more closely reflect      2     Income level
+their success in the Canal Era.                         Score VPs equal to
+                                                        your income level. If
+                                                                                       =
+To play the introductory game, first, play the          your income level is
+entire Canal Era as normal, including the               negative, you lose VPs.
+end of Canal Era scoring.
+                                                  3     Industry tiles
+                                                        Score the points a second
+                                                        time for all your level 2 or
+                                                        greater Industry tiles.
+
+                                                                                                12
+
