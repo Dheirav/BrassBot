@@ -30,8 +30,14 @@ for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import brassbot.engine as _engine  # noqa: E402
 from brassbot.bots.heuristic import HeuristicBot  # noqa: E402
 from brassbot.engine import apply_action, legal_actions  # noqa: E402
+
+# What tools/serve.py sets before it plays. Every replay so far came from that
+# server, so a file that predates the "engine" key gets these rather than the
+# engine defaults, which produce a shorter list and a divergence on move two.
+SERVE_KNOBS = {"MAX_DISCARD_VARIANTS": 8, "SCOUT_POOL": 8, "MAX_SCOUT_VARIANTS": 56}
 from brassbot.state import new_game  # noqa: E402
 from play import describe  # noqa: E402
 
@@ -62,6 +68,10 @@ def main(argv=None):
 
     rep = json.loads(Path(args.replay).read_text())
     seat, name = rep["seat"], rep.get("name", "You")
+    # The indices were drawn against a list built with these settings; replaying
+    # with any others reads the wrong action.
+    for k, v in rep.get("engine", SERVE_KNOBS).items():
+        setattr(_engine, k, v)
     state = new_game(rep["players"], seed=rep["seed"])
     judge = HeuristicBot(seed=0)
 
