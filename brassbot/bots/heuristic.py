@@ -399,8 +399,26 @@ class HeuristicBot(Bot):
         # paying late links for growth they cannot see, which is how a late
         # link outranks a build. With this on, the flip credit is scaled by
         # the fraction of the era still to play, so it is the full rate in
-        # round 1 and near nothing in round 8. Off until measured.
+        # round 1 and near nothing in round 8. Measured 2026-09-12:
+        # +3.35/-2.39/-0.26, and with the base at 1.4 +3.52/-1.89/+0.62.
+        # Blocks disagree at p<0.05 both times; pooled +0.4 and +0.9.
         "link_flip_decay": 0,
+        # The same idea with the shape the record supports. The linear ramp
+        # measured +3.35 and +3.52 on its first blocks and then the blocks
+        # disagreed; it cuts round 6 links that still realise 5.2. Realised
+        # link VP crosses below a build's in round 6 and the loss is rounds 7
+        # and 8, so this pays the full flip credit through round 6 and cuts
+        # only in the last N rounds, by left/(N+1): with N=2, two thirds in
+        # round 7 and one third in round 8, never zero, because a tile can
+        # still flip on the actions after ours in the same round. 0 = off.
+        # Measured: N=2 +2.81/-2.44/+0.67, N=3 +2.89/-2.34/+0.74, blocks
+        # disagree both times, and the behavioural check showed the late cut
+        # barely changes a decision. Four runs of the decay idea, four times
+        # the same first-block +3 that the next block takes back: block 0
+        # likes any bot that lays slightly fewer links, block 500 does not,
+        # and the flip credit is not what either is responding to. Not a
+        # shape problem. Not an effect.
+        "link_flip_late": 0,
         # A bar every Rail-Era network action has to clear: the link is taken
         # only if it beats the best build by this much. The human lays three
         # fewer link tiles a game than the bot and scores 60 with them to the
@@ -1479,6 +1497,11 @@ class HeuristicBot(Bot):
         if self.w["link_flip_decay"] and state.rounds_this_era:
             left = state.rounds_this_era - state.round + 1
             flip_odds *= left / state.rounds_this_era
+        late = int(self.w["link_flip_late"])
+        if late and state.era is Era.RAIL:
+            left = state.rounds_this_era - state.round + 1
+            if left <= late:
+                flip_odds *= left / (late + 1)
         for link_id, owner in state.links.items():
             if owner == seat:
                 ends = data.link_by_id[link_id].ends
