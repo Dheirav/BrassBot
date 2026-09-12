@@ -3226,3 +3226,57 @@ All five weights stay in, off, with the numbers written on them.
 games, 2.1x per warm game, 3x on the test suite (2m20s against 7m11s). The
 harness ran at 36 games a minute against CPython's 18 on the same eight cores.
 The learned bot and the value-model tools stay on `.venv` for numpy.
+
+
+### Routing and the batch sale: seven more runs, nothing shipped
+
+After the Canal Era rules, the Rail Era. The diagnostic that pointed the way:
+per rail link, icons at the ends at build time are identical for the human
+and the bot (4.07 against 4.08), empty slots the same, and the one column that
+differs is unflipped tiles at the ends, 1.45 against 0.73, which is the growth
+the link captures after it is laid (+4.62 against +2.47).
+
+| variant | per block | pooled |
+| --- | --- | --- |
+| link_flip_rail 1.4 (credit unflipped ends more) | +0.8 / -3.3 / -1.6 | -1.2, null |
+| link_flip_rail 2.0 | -2.9 / -6.9 / -4.8 | -4.7, loss |
+| link_flip_decay (credit only growth still to come) | +3.4 / -2.4 / -0.3 | +0.4, blocks disagree |
+| decay with base 1.4 | +3.5 / -1.9 / +0.6 | +0.9, blocks disagree |
+| link_bar 2 (a link must beat the best build by 2) | -6.5 / -10.5 / -7.8 | -8.3, loss |
+| link_bar 4 | pulled on the behavioural check | |
+| batch_sell 0.8 (share the sale's discount across ready tiles) | -0.2 / -3.5 / -0.1 | -1.0, null |
+| batch_sell 1.2 | -8.0 / -10.3 | abandoned, two blocks past 6 sigma |
+
+What each one taught:
+
+- **The flip credit is not too low.** 0.9 is right; raising it chases
+  neighbours that do not pay. The bot values an unflipped tile at a link end
+  correctly and still finds half as many of them, so the difference is where
+  its network stands, not what it thinks a neighbour is worth.
+- **The decay is real and the shape is wrong.** +3.4 on the first block twice,
+  then the blocks disagree. A linear ramp cuts round 6 links that still
+  realise 5.2. Retest only with a shape that cuts rounds 7 and 8 alone, where
+  a link realises 3.4 and a build 4.1.
+- **A bar on links turns the freed actions into loans, not builds.** Behavioural
+  check before the harness: builds 5.2 to 5.6, sells unchanged at 1.6, loans
+  1.9 to 4.7. At the moment of those loans, a sell was legal 2 times in 35.
+  The bot has nothing sellable with beer in reach by mid-era because it never
+  built the thing that needs selling: 369 rail coal mines to 20 cotton mills
+  in 40 games. Take its links away and there is a loan underneath.
+- **The bot sells one tile at a time.** 1.03 tiles a sale. The human sells
+  three or four in one action. Crediting the tiles for a batch made the bot
+  build more sellables and sell them exactly as before. The term, if there is
+  one, is on the sale: a one-tile sale priced as expensive while more are a
+  round from ready and the beer is ours. Not built.
+- **Praveen's game** (seat 0, 79 VP): a manufacturer plan with one brewery,
+  swept at the boundary. Two L5 manufacturers, GBP36, never sold, because
+  they need two beer and a merchant gives one. Zero double rails for the
+  same reason. The lesson for a person: a manufacturer plan is a brewery plan
+  first.
+
+Process notes. A run hung at 400 of 540 with its processes alive at zero CPU;
+the rule of abandoning after two blocks past 4 sigma applied and it was killed
+by pid. Killing it, a `pgrep -f` on the run's argument string matched the
+session's own shell, which was carrying that string. Kill by exact pid only;
+this is the eighth time in the project's record that a pattern kill has hit
+the wrong process.

@@ -307,6 +307,24 @@ class HeuristicBot(Bot):
         # never starts the build -> connect -> beer -> sell chain, because every
         # step before the last one looks like a pure loss. See docs/diagnosis.md.
         "sell_ready": 0.3187,
+        # One Sell flips every ready tile the beer covers. The credit above
+        # prices each ready tile as if it needed its own action, so four mills
+        # waiting for one sale are valued at four discounts, and the bot builds
+        # a coal mine instead of the fourth. The human builds the fourth and
+        # flips all four for 32 VP in one action; the bot's rail cotton
+        # realises 4.75 a tile to the human's 9. This adds, per ready tile,
+        # its promise times this weight times (k-1)/k, k being the ready
+        # tiles the beer in reach can actually cover: nothing for one tile,
+        # three quarters at four. The action is shared, so the discount for
+        # it should be too. Measured 2026-09-12: at 0.8 -0.20/-3.47/-0.10,
+        # pooled -1.03, null; at 1.2 -8.01/-10.26 on two blocks, abandoned
+        # as a clear loss. It builds the extra sellables and then still sells
+        # them one at a time (1.03 tiles a sale by default, 1.26 at 0.8), so
+        # the credit paid for a batch that never happens. The term that would
+        # reproduce the human's one-sale-for-four is on the SALE, not the
+        # tiles: a one-tile sale priced as expensive while more are a round
+        # from ready and the beer is ours. Not built.
+        "batch_sell": 0,
         # Credit for merchant connectivity itself, so building *toward* a sale
         # registers as progress rather than as spending money for nothing.
         #
@@ -373,6 +391,25 @@ class HeuristicBot(Bot):
         # that was itself worth +11 VP when it was introduced.
         "link_flip_canal": 0.35,
         "link_flip_rail": 0.9,
+        # The flip credit above is paid at the same rate in round 8 as in
+        # round 1, but a tile unflipped in round 8 has one round left to flip
+        # and a link laid then sees no growth at all. The realised record says
+        # so: a rail link action realises 10.4 in round 1, 2.9 in round 8, and
+        # falls below a build from round 6 on, while the evaluation goes on
+        # paying late links for growth they cannot see, which is how a late
+        # link outranks a build. With this on, the flip credit is scaled by
+        # the fraction of the era still to play, so it is the full rate in
+        # round 1 and near nothing in round 8. Off until measured.
+        "link_flip_decay": 0,
+        # A bar every Rail-Era network action has to clear: the link is taken
+        # only if it beats the best build by this much. The human lays three
+        # fewer link tiles a game than the bot and scores 60 with them to the
+        # bot's 43; the bot's median seat spends six rail actions on links and
+        # its last one or two realise less than a build would have. Per
+        # action, not per line, so a double clears it as easily as a single,
+        # which favours doubles the way the human's play does. Off until
+        # measured.
+        "link_bar": 0,
         # The icons a link ALREADY scores on, split by era. This is the term the
         # comment above calls the largest in player_value, and it ran at a
         # hardcoded 1.0 -- link_flip_* only ever covered the unflipped
@@ -1057,6 +1094,9 @@ class HeuristicBot(Bot):
             value += self.w["loan_bias"]
         if self.w["off_plan_bias"] and self._off_plan(action):
             value -= self.w["off_plan_bias"]
+        if (self.w["link_bar"] and isinstance(action, Network)
+                and state.era is Era.RAIL):
+            value -= self.w["link_bar"]
         if (self.w["brew_rail"] and isinstance(action, Network)
                 and state.era is Era.RAIL):
             ends = {e for line in action.lines
@@ -1345,6 +1385,7 @@ class HeuristicBot(Bot):
         # the VP makes every build look like a waste of money.
         rounds = self.rounds_left(state)
         income_rounds = self.income_horizon(state, rounds)
+        batch: list = []
         for town, tile in own:
             spec = data.tile(tile.industry, tile.level)
             if tile.flipped:
@@ -1398,8 +1439,26 @@ class HeuristicBot(Bot):
                          and beer_available)
                 value += promise * (self.w["sell_ready"] if ready
                                     else self.w["unflipped"])
+                if ready and self.w["batch_sell"]:
+                    batch.append((promise, spec.beer_to_sell or 0))
             else:
                 value += promise * self.w["unflipped"]
+
+        # The batch: how many of the ready tiles one sale could flip, given the
+        # beer that could reach them -- our own barrels plus one per merchant
+        # slot that still has its beer -- and a shared-action credit on each.
+        if len(batch) >= 2:
+            supply = own_beer + sum(1 for slot in state.merchant_slots()
+                                    if slot.beer > 0)
+            covered = 0
+            for _promise, need in sorted(batch, key=lambda b: b[1]):
+                if need <= supply:
+                    supply -= need
+                    covered += 1
+            if covered >= 2:
+                share = (covered - 1) / covered
+                for promise, _need in sorted(batch, key=lambda b: -b[0])[:covered]:
+                    value += promise * self.w["batch_sell"] * share
 
         # A coal source that will survive into the Rail Era, valued only as the
         # boundary approaches.
@@ -1417,6 +1476,9 @@ class HeuristicBot(Bot):
         network = set(claimed_towns)
         flip_odds = (self.w["link_flip_canal"] if state.era is Era.CANAL
                      else self.w["link_flip_rail"])
+        if self.w["link_flip_decay"] and state.rounds_this_era:
+            left = state.rounds_this_era - state.round + 1
+            flip_odds *= left / state.rounds_this_era
         for link_id, owner in state.links.items():
             if owner == seat:
                 ends = data.link_by_id[link_id].ends
