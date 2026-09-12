@@ -149,6 +149,55 @@ class Player:
         return p
 
 
+class Rng:
+    """A random generator whose state is an immutable tuple, so a clone is a
+    reference copy rather than a 625-integer copy.
+
+    The engine draws randomness in exactly one place, the reshuffle at the era
+    boundary, yet every clone used to rebuild a Random via getstate/setstate:
+    a quarter of the cost of cloning, on the evaluation's hottest path, for a
+    generator that all but one probe in thousands never touched. The state
+    tuple that getstate() returns is immutable, so sharing it between a game
+    and its clones needs no invariant: a use materialises a Random, advances
+    it, and stores the NEW tuple on this object alone. A clone taken earlier
+    still holds the old one. Same draws, same order, as a full copy.
+    """
+
+    __slots__ = ("state",)
+
+    def __init__(self, state):
+        self.state = state
+
+    @classmethod
+    def seeded(cls, seed) -> "Rng":
+        return cls(random.Random(seed).getstate())
+
+    def _live(self) -> random.Random:
+        r = random.Random.__new__(random.Random)
+        r.setstate(self.state)
+        return r
+
+    def shuffle(self, x) -> None:
+        r = self._live()
+        r.shuffle(x)
+        self.state = r.getstate()
+
+    def random(self) -> float:
+        r = self._live()
+        v = r.random()
+        self.state = r.getstate()
+        return v
+
+    def getstate(self):
+        return self.state
+
+    def setstate(self, state) -> None:
+        self.state = state
+
+    def clone(self) -> "Rng":
+        return Rng(self.state)
+
+
 @dataclass(slots=True)
 class GameState:
     data: GameData
@@ -167,7 +216,7 @@ class GameState:
     deck: list[Card]
     wild_location: int
     wild_industry: int
-    rng: random.Random
+    rng: Rng
     finished: bool = False
     # One entry per era once scored. Diagnostics read it; the rules never do.
     era_scores: list = field(default_factory=list)
@@ -205,8 +254,6 @@ class GameState:
         # entropy, and setstate throws that away on the next line. Cloning is on
         # the evaluation's hot path -- once per candidate move -- and the wasted
         # seeding was 3% of a whole game's runtime.
-        rng = random.Random.__new__(random.Random)
-        rng.setstate(self.rng.getstate())
         return GameState(
             data=self.data,  # immutable, shared
             n_players=self.n_players,
@@ -224,7 +271,7 @@ class GameState:
             deck=list(self.deck),
             wild_location=self.wild_location,
             wild_industry=self.wild_industry,
-            rng=rng,
+            rng=self.rng.clone(),
             finished=self.finished,
             era_scores=list(self.era_scores),
         )
@@ -236,6 +283,10 @@ def new_game(n_players: int = 4, seed: int | None = None) -> GameState:
 
     deck = build_deck(n_players)
     rng.shuffle(deck)
+    # From here the state owns the generator's state as an immutable tuple;
+    # see Rng. Continuing from this exact state keeps every later draw the
+    # same as before the change.
+    rng = Rng(rng.getstate())
 
     players: list[Player] = []
     for i in range(n_players):

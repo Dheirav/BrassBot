@@ -26,9 +26,9 @@ from __future__ import annotations
 
 import math
 
-from ..actions import Build, Loan, Pass
+from ..actions import Build, Loan, Pass, Sell
 from ..cards import CardKind
-from ..engine import apply_action, legal_actions, link_icons_at
+from ..engine import apply_action, legal_actions, link_icons_at, spec_for
 from ..gamedata import Era, Industry, income_level
 from ..network import connected_locations
 from .base import Bot
@@ -538,6 +538,30 @@ class HeuristicBot(Bot):
         # binds on 76.6% of Rail-Era decisions holding beer. This credits one
         # barrel beyond the cap when a double rail is actually possible.
         "beer_rail": 3.0,
+        # A human's rule, measured and rejected for this bot. Two actions in
+        # Rail round 1, one barrel a double rail, one barrel a canal brewery:
+        # two unflipped canal breweries at the boundary are what a seat can
+        # spend itself before any opponent moves, and in two logged games every
+        # brewery beyond the second was drunk by a bot in round 1 for ITS
+        # double. `canal_brew_cap` caps Canal-Era brewery builds (0 = none);
+        # `canal_brew_hold` refuses any Canal-Era action that drinks our own
+        # barrel. Measured 2026-09-12, 4p, 180 games x 3 blocks each:
+        #   cap 2 + hold   -4.60 / -8.72 / -7.76   (all past 3 sigma)
+        #   cap 2 alone    +1.38 / -2.62 / +0.01   null: it rarely wanted a third
+        #   hold alone     -3.24 / -9.24 / -6.61   the whole loss
+        # The hold loses because this bot's Canal Era is manufacturers flipped
+        # by selling, and a sale needs beer. The human it came from builds no
+        # sellables in the Canal Era, which is the half of the plan the bot
+        # lacks. Left in, off, so the pairing can be measured if that half is
+        # ever built.
+        "canal_brew_cap": 0,
+        "canal_brew_hold": 0,
+        # The hold, gated on what we would score at the canal scoring right now
+        # (flipped tiles plus the icons on our links). Measured at 25, 35, 45:
+        # +0.80/-3.13/-0.67, +1.26/-2.61/-0.13, +1.38/-2.62/+0.01. Null at
+        # every level, and 45 is bit-identical to cap-alone: the gate only ever
+        # turns the rule off. No canal bank makes holding barrels pay here.
+        "canal_hold_min": 0,
         # The hand was invisible to this evaluation entirely, which made a wild
         # card worth zero. Scout then read as: three cards gone (0), two wilds
         # gained (0), one action spent -- a pure loss. The bot scouted 0.2 times
@@ -873,10 +897,27 @@ class HeuristicBot(Bot):
                 if best_pair is None or value > best_pair + 1e-9:
                     best_pair, best_first = value, first
                 continue
+            # The opponents' half, computed once per first action and reused
+            # by every second action that leaves the shared state alone --
+            # the same reuse the first ply already does. Without it this loop,
+            # which is 91% of all evaluations, recomputed three rivals per
+            # position: 3.86 player_value calls per position_value measured,
+            # for a cache that exists to make it 1. Bit-identical play, 14 to
+            # 18 percent less CPU on two full games.
+            p_owned, _ = self.scan_board(probe)
+            p_reach = connected_locations(probe, list(probe.merchants))
+            p_context = self._sale_context(probe, p_reach)
+            p_rivals = [self.player_value(probe, i, p_context, p_owned[i])
+                        for i in range(probe.n_players) if i != me]
+            p_shared = (self.shared_signature(probe, me, p_owned),
+                        max(p_rivals) if p_rivals else 0.0)
+            p_links = set(probe.links)
             for second in legal_actions(probe):
                 after = probe.clone()
                 apply_action(after, second)
-                value = self.position_value(after, me) + bias + self._bias(probe, second)
+                reach = p_reach if set(after.links) == p_links else None
+                value = (self.position_value(after, me, reach, p_shared)
+                         + bias + self._bias(probe, second))
                 if self.w["settle"]:
                     finalists.append((value, first, after))
                 if best_pair is None or value > best_pair + 1e-9:
@@ -966,6 +1007,7 @@ class HeuristicBot(Bot):
         Only when `off_plan_bias` is 0. Above that the steer is a penalty
         applied in `choose`, so an exceptional off-plan tile can still be taken.
         """
+        actions = self._brewery_rule(state, actions)
         index = int(self.w.get("commit", -1))
         if not 0 <= index < len(MAIN_INDUSTRIES) or self.w["off_plan_bias"]:
             return actions
@@ -979,6 +1021,44 @@ class HeuristicBot(Bot):
         # has to produce a move, and passing there would be worse than building
         # the wrong thing.
         return allowed or actions
+
+    def _brewery_rule(self, state, actions):
+        """The canal-brewery cap and hold, when switched on. See DEFAULTS."""
+        cap, hold = int(self.w["canal_brew_cap"]), self.w["canal_brew_hold"]
+        if (not cap and not hold) or state.era is not Era.CANAL:
+            return actions
+        me = state.current.idx
+        mine = [(town, slot, t) for town, slot, t in state.all_tiles()
+                if t.owner == me and t.industry is Industry.BREWERY]
+        out = actions
+        if cap and len(mine) >= cap:
+            out = [a for a in out
+                   if not (isinstance(a, Build) and a.industry is Industry.BREWERY)]
+        if hold and self.w["canal_hold_min"]:
+            now = sum(spec_for(state, t).vp for _, _, t in state.all_tiles()
+                      if t.owner == me and t.flipped)
+            for link_id, owner in state.links.items():
+                if owner == me:
+                    now += sum(link_icons_at(state, e)
+                               for e in state.data.link_by_id[link_id].ends)
+            if now < self.w["canal_hold_min"]:
+                hold = 0
+        if hold and any(t.resources for _, _, t in mine):
+            # A sale's barrel comes from a plan chosen at apply time, so the
+            # only way to know whose beer it drinks is to apply it and look.
+            # Sells are the only Canal-Era action that consume beer.
+            keep = []
+            for a in out:
+                if isinstance(a, Sell):
+                    probe = state.clone()
+                    apply_action(probe, a)
+                    if any(probe.tiles[town][slot] is not None
+                           and probe.tiles[town][slot].resources < t.resources
+                           for town, slot, t in mine):
+                        continue
+                keep.append(a)
+            out = keep
+        return out or actions
 
     # --- evaluation ---------------------------------------------------------
 
