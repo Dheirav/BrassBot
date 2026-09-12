@@ -126,7 +126,19 @@ anything worth keeping first.
 | `--name "You"` | your seat's name in exported logs |
 | `--host 0.0.0.0` | let other devices on your network play; default is localhost only |
 
-### Several people at once
+### Three people and one bot at the same table
+
+```bash
+PYTHONPATH=. .venv/bin/python tools/serve.py --host 0.0.0.0 --humans 3 --names "Dheirav,Praveen,Hari"
+```
+
+Seats 0 to 2 are people, seat 3 is the bot. Each person opens the address with
+their seat, `http://<ip>:8765/?seat=1`, and the server prints the three links
+at startup. A page polls while it is somebody else's turn, so it updates when
+they move. Undo is off at a shared table, since it would take back another
+person's move. The exported log and the results page carry the names.
+
+### Several people at once, each at their own table
 
 Each URL is its own table, one human against three bots, and tables cannot see
 each other:

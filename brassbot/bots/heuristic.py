@@ -184,6 +184,27 @@ class HeuristicBot(Bot):
         # it globally would have handed back at 3p everything it gains at 4p --
         # which is exactly how mat_potential came to cost 1.44.
         "unflipped": 0.5625,   # odds we actually realise an unflipped tile's payoff
+        # The same discount, for the Rail Era only. Calibrated rather than
+        # swept: over 4,960 self-play actions the bot's Canal-Era tiles realise
+        # 67 to 85 percent of their printed VP, which 0.56 plus the
+        # double-scoring bonus prices about right, and its Rail-Era tiles
+        # realise 96 to 99 (coal 99, brewery 98, iron 96, cotton 95). One
+        # weight was tuned to the era where flipping is uncertain and applied
+        # to the era where it is not, and that is the systematic reason a
+        # link at its realised 6.6 outranks a build at 5.2 that will realise
+        # 5.0. Every other discount in this vector splits by era; this one
+        # did not. 0 = use `unflipped`.
+        #
+        # Measured 2026-09-12: 0.8 gives +0.53/-4.05/-1.33, blocks disagree;
+        # 0.95 gives -1.39/-5.47/-4.08, pooled -3.46, a loss. The higher it is
+        # raised toward the realised rate the worse it gets, which settles what
+        # the rate means: tiles realise 96 percent BECAUSE the discount only
+        # lets through the ones that will. It is a threshold on the marginal
+        # build, not an estimate of the odds, and calibrating a filter to the
+        # outcomes of what it selected is circular. Same goes for sell_ready,
+        # whose comment above describes the opposite of what the code does:
+        # the value is a tuned decision threshold and the comment is stale.
+        "unflipped_rail": 0,
         # Money is worth ZERO victory points -- it is only the second tiebreak.
         # So cash has purely instrumental value: what it buys before the game
         # ends. Held low deliberately; the liquidity term carries "can I still
@@ -302,10 +323,14 @@ class HeuristicBot(Bot):
         # at the point of choice is worth +2.9 VP; the curve peaks sharply and
         # turns negative by 2.5, so do not raise it. See docs/diagnosis.md.
         "loan_bias": 1.5,
-        # A sellable tile is worth almost nothing until it can actually be sold,
-        # and nearly its full value once it can. Without this split the bot
-        # never starts the build -> connect -> beer -> sell chain, because every
-        # step before the last one looks like a pure loss. See docs/diagnosis.md.
+        # A sellable tile that is READY to sell is credited at this, LOWER
+        # than `unflipped`: a ready tile sitting unsold is worth less than one
+        # not yet ready, because the pair search will realise it in full by
+        # selling it now, and a low resting credit is what pushes that sale.
+        # (An earlier comment here said the reverse; the code never did.)
+        # Without the split the bot never starts the build -> connect -> beer
+        # -> sell chain, because every step before the last looks like a pure
+        # loss. See docs/diagnosis.md.
         "sell_ready": 0.3187,
         # One Sell flips every ready tile the beer covers. The credit above
         # prices each ready tile as if it needed its own action, so four mills
@@ -1451,16 +1476,19 @@ class HeuristicBot(Bot):
             # worth what it is worth *if that sale is reachable*. Resource tiles
             # flip on their own as the board consumes them, so they keep the
             # ordinary discount.
+            unflipped = (self.w["unflipped_rail"]
+                         if state.era is Era.RAIL and self.w["unflipped_rail"]
+                         else self.w["unflipped"])
             if tile.industry.is_sellable:
                 ready = (town in reachable
                          and (tile.industry.value in accepted or "any" in accepted)
                          and beer_available)
                 value += promise * (self.w["sell_ready"] if ready
-                                    else self.w["unflipped"])
+                                    else unflipped)
                 if ready and self.w["batch_sell"]:
                     batch.append((promise, spec.beer_to_sell or 0))
             else:
-                value += promise * self.w["unflipped"]
+                value += promise * unflipped
 
         # The batch: how many of the ready tiles one sale could flip, given the
         # beer that could reach them -- our own barrels plus one per merchant

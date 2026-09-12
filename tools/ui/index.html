@@ -601,10 +601,17 @@ const MATNAME = {coal_mine:'coal', iron_works:'iron', brewery:'brewery',
 // separate table with its own board, so several people can play at once.
 const ROOM = (new URLSearchParams(location.search).get('room') || 'main')
   .toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'main';
+// Which seat this page speaks for, at a table with more than one person. Left
+// out, the server hands back its default seat, which is the one-person case.
+const SEAT = (() => { const v = new URLSearchParams(location.search).get('seat');
+                      return v === null || v === '' || isNaN(+v) ? null : +v; })();
+const SEATQ = SEAT === null ? '' : '&seat=' + SEAT;
+// A seat's label: "You" for this page's seat, the table's name for the rest.
+const nameOf = (s, i) => i === s.seat ? 'You' : ((s.names || {})[i] || 'Bot ' + i);
 
 const post = (url, body) => fetch(url, {method:'POST',
   headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({...(body||{}), room: ROOM,
+  body:JSON.stringify({...(body||{}), room: ROOM, seat: SEAT,
                        version: S ? S.version : -1})})
   .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
   .then(s => { draw(s); if (s.stale) note('the board moved — that move was not played'); })
@@ -676,10 +683,10 @@ function trackFrame(s) {
     return solid
       ? `<circle cx="${x}" cy="${y}" r="6.5" fill="${COL[seat]}"
           stroke="var(--badge)" stroke-width="1.5"
-          ><title>${seat === s.seat ? 'you' : 'Bot ' + seat}: ${v} VP banked</title></circle>`
+          ><title>${nameOf(s, seat)}: ${v} VP banked</title></circle>`
       : `<circle cx="${x}" cy="${y}" r="6.5" fill="var(--badge)" fill-opacity="0.9"
           stroke="${COL[seat]}" stroke-width="2" stroke-dasharray="3 2"
-          ><title>${seat === s.seat ? 'you' : 'Bot ' + seat}: ${v} VP projected, `
+          ><title>${nameOf(s, seat)}: ${v} VP projected, `
         + `if the game ended now</title></circle>`;
   };
   // Rings first: where a disc and a ring land on the same space, the banked
@@ -1010,7 +1017,7 @@ function draw(s) {
     <div class="seat ${p.idx === s.seat ? 'me' : ''} ${p.idx === s.current ? 'turn' : ''}"
       onmouseenter="hiSeat(${p.idx})" onmouseleave="hiSeat(null)">
       <span><span class="dot" style="background:${COL[p.idx]}"></span>
-      ${p.idx === s.seat ? 'You' : 'Bot ' + p.idx}
+      ${nameOf(s, p.idx)}
       ${p.idx === s.current ? ' ←' : ''}
       <small style="white-space:nowrap"
         title="turn position, and cash spent this round -- least spent goes first next round"
@@ -1125,12 +1132,13 @@ function draw(s) {
       : s.finished ? 'game over'
       : s.current === s.seat
         ? `your turn · ${s.actions_left} action${s.actions_left === 1 ? '' : 's'} left`
-        : `Bot ${s.current} to move`;
+        : `${nameOf(s, s.current)} to move`;
   turnEl.className = (s.current === s.seat && !s.finished && !s.ended)
       ? 'mine' : '';
   const roomEl = document.getElementById('room');
   if (roomEl)
     roomEl.innerHTML = `table <b>${s.room || 'main'}</b>` + (
+      (s.humans || []).length > 1 ? ` · seat ${s.seat} <b>${(s.names||{})[s.seat] || ''}</b>` : '') + (
       (s.rooms || []).length > 1
         ? ` <span class="meta">of ${s.rooms.length}</span>` : '');
   const rchip = (k) => `<a href="#" onclick="pickRes('${k}');return false"
@@ -1178,7 +1186,7 @@ function draw(s) {
   document.getElementById('mattabs').innerHTML = (s.mats || []).map((_, i) =>
     `<button class="kind ${i === matSeat ? 'sel' : ''}" onclick="pickMat(${i})">
       <span class="dot" style="background:${COL[i]}"></span>
-      ${i === s.seat ? 'You' : 'Bot ' + i}</button>`).join('');
+      ${nameOf(s, i)}</button>`).join('');
   const shown = (s.mats && s.mats[matSeat]) || s.mat;
   document.getElementById('mat').innerHTML = Object.entries(shown).map(([ind, m], row) => {
     const mr = row ? ' mr' : '';
@@ -1410,7 +1418,7 @@ function draw(s) {
   }
   if (s.ended && !s.finished) {
     abox.innerHTML = '';
-    const who = i => i === s.seat ? 'You' : 'Bot ' + i;
+    const who = i => nameOf(s, i);
     box.innerHTML = `<p><strong>Ended early.</strong> Projected standings —
       the game did not reach its own scoring, so these include unflipped tiles
       and links at their expected value.</p>`
@@ -1419,7 +1427,7 @@ function draw(s) {
          ${who(p.idx)} <strong>${p.projected}</strong>
          <span class="meta">(${p.vp} banked)</span></div>`).join('');
   } else if (s.finished) {
-    const who = i => i === s.seat ? 'You' : 'Bot ' + i;
+    const who = i => nameOf(s, i);
     box.innerHTML = `<p><strong>Game over.</strong> Winner: ${
       s.winners.map(who).join(', ')}
       <button onclick="toggleResults()" style="margin-left:8px;font-size:11px;padding:3px 8px"
@@ -1465,7 +1473,7 @@ function draw(s) {
     }
     rows += `<div><span class="dot" style="background:${COL[l.seat]}"></span>
       <span style="color:${l.seat === s.seat ? 'var(--accent)' : 'var(--dim)'}">
-      ${l.seat === s.seat ? 'You' : 'Bot ' + l.seat}</span> ${
+      ${nameOf(s, l.seat)}</span> ${
         logProse ? (l.pretty || l.text).replace(/^(You|Bot \d+) /, '') : l.text
       }</div>`;
   }
@@ -2129,6 +2137,18 @@ function play(i) {
   card = null; kind = null; focus = null;
   post('/api/move', {index: i});
 }
-fetch('/api/state?room=' + encodeURIComponent(ROOM))
+// At a shared table other people move while this page waits, and their
+// moves only reach it by asking. Poll while it is not our turn, and stop
+// once the game is over; a one-person table never needs to, since the bots
+// finish their replies inside our own request.
+setInterval(() => {
+  if (!S || S.finished || S.ended) return;
+  if ((S.humans || []).length <= 1 || S.current === S.seat) return;
+  fetch('/api/state?room=' + encodeURIComponent(ROOM) + SEATQ)
+    .then(r => r.ok ? r.json() : null)
+    .then(s => { if (s && s.version !== S.version) draw(s); })
+    .catch(() => {});
+}, 2000);
+fetch('/api/state?room=' + encodeURIComponent(ROOM) + SEATQ)
   .then(r => r.json()).then(draw);
 </script>

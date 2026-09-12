@@ -72,7 +72,8 @@ GAMES_LOCK = threading.Lock()
 # honest here rather than lazy.
 SERVER = None
 STOPPING = threading.Event()
-DEFAULTS: dict = {"players": 4, "opponent": "heuristic", "name": "You"}
+DEFAULTS: dict = {"players": 4, "opponent": "heuristic", "name": "You",
+                  "humans": 1, "names": []}
 
 
 def room_of(path: str, body: dict | None = None) -> str:
@@ -86,6 +87,16 @@ def room_of(path: str, body: dict | None = None) -> str:
     return "".join(c for c in raw.lower() if c.isalnum())[:12] or "main"
 
 
+def seat_of(path, body=None):
+    """Which seat a request speaks for, from ?seat= or the body. None = default."""
+    raw = body.get("seat") if body and body.get("seat") is not None else \
+        (parse_qs(urlparse(path).query).get("seat") or [None])[0]
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def game_for(room: str) -> dict:
     with GAMES_LOCK:
         g = GAMES.get(room)
@@ -93,7 +104,8 @@ def game_for(room: str) -> dict:
             g = {"lock": threading.Lock(), "room": room, "name": DEFAULTS["name"]}
             GAMES[room] = g
             start(g, random.randrange(1, 10 ** 6),
-                  DEFAULTS["players"], DEFAULTS["opponent"])
+                  DEFAULTS["players"], DEFAULTS["opponent"],
+                  DEFAULTS["humans"], DEFAULTS["names"])
         return g
 
 
@@ -163,7 +175,11 @@ def move_label(state, action) -> str:
 
 
 def who(g: dict, seat: int) -> str:
-    return g.get("name", "You") if seat == g.get("seat", 0) else f"Bot {seat}"
+    return g.get("names", {}).get(seat) or f"Bot {seat}"
+
+
+def humans_of(g: dict) -> set:
+    return g.get("humans") or {g.get("seat", 0)}
 
 
 def bump(g: dict) -> None:
@@ -314,7 +330,9 @@ def export_log(g: dict) -> str:
     path.with_suffix(".replay.json").write_text(json.dumps({
         "seed": g.get("seed"), "players": state.n_players,
         "opponent": g.get("opponent", "heuristic"),
-        "seat": g.get("seat", 0), "name": g.get("name", "You"),
+        "seat": g.get("seat", 0), "name": who(g, g.get("seat", 0)),
+        "humans": sorted(humans_of(g)),
+        "names": {str(i): who(g, i) for i in range(state.n_players)},
         "finished": state.finished,
         # An index means nothing without the list it indexes. The server widens
         # the engine's move list so a person can choose any card, and a replay
@@ -329,14 +347,26 @@ def export_log(g: dict) -> str:
     return str(path)
 
 
-def start(g: dict, seed: int, players: int, opponent: str) -> None:
+def start(g: dict, seed: int, players: int, opponent: str,
+          humans: int | None = None, names: list | None = None) -> None:
     # Remembered so Restart can deal a fresh board with the same setup rather
     # than asking for it again.
     g["players"], g["opponent"], g["seed"] = players, opponent, seed
     g["ended"] = False
     g["state"] = new_game(players, seed=seed)
     g["bots"] = [make(opponent, seed=seed * 10 + i) for i in range(players)]
+    # Seats 0..humans-1 are people, the rest are bots. One person is the
+    # table this started as; three people and a bot is the table that asks
+    # "how does the bot do when it is the only bot".
+    k = max(1, min(players, humans if humans is not None else g.get("humans_n", 1)))
+    g["humans_n"] = k
+    g["humans"] = set(range(k))
     g["seat"] = 0
+    given = list(names if names is not None else g.get("names_list", []))
+    g["names_list"] = given
+    g["names"] = {i: (given[i] if i < len(given) and given[i] else
+                      (g.get("name", "You") if i == 0 and k == 1 else f"Seat {i + 1}"))
+                  for i in range(k)}
     g["log"] = []
     g["lines"] = []
     # One snapshot per human action, so Undo rewinds past the bots' replies to
@@ -355,9 +385,9 @@ def start(g: dict, seed: int, players: int, opponent: str) -> None:
 
 
 def advance(g: dict) -> None:
-    """Let the bots play until it is the human's turn, or the game ends."""
-    state, bots, seat = g["state"], g["bots"], g["seat"]
-    while not state.finished and state.current.idx != seat:
+    """Let the bots play until it is a person's turn, or the game ends."""
+    state, bots, humans = g["state"], g["bots"], humans_of(g)
+    while not state.finished and state.current.idx not in humans:
         actor = state.current.idx
         actions = legal_actions(state)
         if not actions:
@@ -601,8 +631,10 @@ def coords() -> dict:
     return _layout.ALL
 
 
-def snapshot(g: dict) -> dict:
-    state, seat = g["state"], g["seat"]
+def snapshot(g: dict, seat: int | None = None) -> dict:
+    """The game from one seat's point of view: its hand, its mat, its moves."""
+    state = g["state"]
+    seat = g["seat"] if seat is None or seat not in humans_of(g) else seat
     tiles = []
     for town, slot, tile in state.all_tiles():
         tiles.append({
@@ -752,6 +784,10 @@ def snapshot(g: dict) -> dict:
         # still yours to change.
         "actions_left": state.actions_left,
         "seat": seat,
+        # Every human seat and every seat's name, so a page can label the
+        # other people at the table and know whether it is a shared one.
+        "humans": sorted(humans_of(g)),
+        "names": {str(i): who(g, i) for i in range(state.n_players)},
         "finished": state.finished,
         "winners": list(winners(state)) if state.finished else [],
         "coal_market": state.coal,
@@ -798,7 +834,9 @@ def snapshot(g: dict) -> dict:
         "discard": sum(len(p.discard) for p in state.players),
         "wild_city": state.wild_location,
         "wild_ind": state.wild_industry,
-        "can_undo": bool(g.get("undo")),
+        # Undo rewinds the last person's move; at a shared table that is
+        # somebody else's, so it is off there.
+        "can_undo": bool(g.get("undo")) and len(humans_of(g)) == 1,
         "room": g.get("room", "main"),
         "rooms": sorted(GAMES),
         # Conceded rather than played out: the standings are real but the game
@@ -844,7 +882,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/api/state"):
             g = game_for(room_of(self.path))
             with g["lock"]:
-                self._send(json.dumps(snapshot(g)).encode(), "application/json")
+                self._send(json.dumps(snapshot(g, seat_of(self.path))).encode(),
+                           "application/json")
         else:
             self._send(UI.read_bytes(), "text/html; charset=utf-8")
 
@@ -859,11 +898,14 @@ class Handler(BaseHTTPRequestHandler):
         g = game_for(room_of(self.path, body))
         # One request at a time per table. Threading means two clicks really can
         # arrive together, and every branch below mutates the game.
+        seat = seat_of(self.path, body)
         with g["lock"]:
-            self._handle(g, body)
-            self._send(json.dumps(snapshot(g)).encode(), "application/json")
+            self._handle(g, body, seat)
+            self._send(json.dumps(snapshot(g, seat)).encode(), "application/json")
 
-    def _handle(self, g: dict, body: dict) -> None:
+    def _handle(self, g: dict, body: dict, seat: int | None) -> None:
+        if seat is None or seat not in humans_of(g):
+            seat = g["seat"]
         if self.path.startswith("/api/move"):
             state = g["state"]
             actions = legal_actions(state)
@@ -875,7 +917,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if g.get("ended"):
                 return
-            if not state.finished and state.current.idx == g["seat"] \
+            if not state.finished and state.current.idx == seat \
                     and 0 <= i < len(actions):
                 g["undo"].append((state.clone(), len(g["log"]), len(g["lines"]),
                                   len(g.get("replay", [])),
@@ -888,7 +930,7 @@ class Handler(BaseHTTPRequestHandler):
             # abandoned halfway is not a log anyone wants on disk.
             g["exported"] = export_log(g)
         elif self.path.startswith("/api/undo"):
-            if g["undo"]:
+            if g["undo"] and len(humans_of(g)) == 1:
                 st, nlog, nlines, nrep, stats = g["undo"].pop()
                 g["state"] = st
                 del g["log"][nlog:]
@@ -970,15 +1012,22 @@ def main() -> None:
     # if you want your UI games counted alongside them.
     ap.add_argument("--name", default="You",
                     help="name for your seat in exported logs")
+    ap.add_argument("--humans", type=int, default=1,
+                    help="how many seats are people; seats 0..N-1, the rest are bots")
+    ap.add_argument("--names", default="",
+                    help="comma-separated names for the human seats, in seat order")
     args = ap.parse_args()
 
+    names = [x.strip() for x in args.names.split(",")] if args.names else []
+    if args.humans == 1 and not names:
+        names = [args.name]
     DEFAULTS.update(players=args.players, opponent=args.opponent,
-                    name=args.name)
+                    name=args.name, humans=args.humans, names=names)
     # "main" is dealt from --seed so a solo session stays reproducible; every
     # other room gets its own random deal when someone first asks for it.
     main_game = {"lock": threading.Lock(), "room": "main", "name": args.name}
     GAMES["main"] = main_game
-    start(main_game, args.seed, args.players, args.opponent)
+    start(main_game, args.seed, args.players, args.opponent, args.humans, names)
 
     # Bind BEFORE announcing. The banner used to print first, so a port that
     # was already taken still advertised "share this: http://<ip>:8765" and then
@@ -998,6 +1047,12 @@ def main() -> None:
     print(f"BrassBot UI on http://{args.host}:{args.port}  "
           f"({args.players}p, seed {args.seed}, opponents: {args.opponent})",
           flush=True)
+    if args.humans > 1:
+        print(f"  {args.humans} people at this table, seats 0 to {args.humans - 1}; "
+              f"each opens the address with their seat:", flush=True)
+        for i in range(args.humans):
+            print(f"    seat {i} ({who(main_game, i)}): "
+                  f"http://{args.host}:{args.port}/?seat={i}", flush=True)
     if args.host != "127.0.0.1":
         for ip in _lan_addresses():
             print(f"  share this: http://{ip}:{args.port}", flush=True)
