@@ -998,7 +998,11 @@ def main() -> None:
     _engine.MAX_SCOUT_VARIANTS = 56       # C(8,3), so no triple is cut
 
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--seed", type=int, default=1)
+    # None, not 1: with a fixed default every start dealt the same game, and
+    # two people on two days played identical cards without knowing it. The
+    # seed used is printed, so any deal can be brought back with --seed N.
+    ap.add_argument("--seed", type=int, default=None,
+                    help="deal the main table from this seed; omitted, a fresh one each start")
     ap.add_argument("--players", type=int, default=4)
     ap.add_argument("--opponent", default="heuristic",
                     help="bot spec for the other seats, e.g. planner")
@@ -1018,6 +1022,8 @@ def main() -> None:
                     help="comma-separated names for the human seats, in seat order")
     args = ap.parse_args()
 
+    if args.seed is None:
+        args.seed = random.randrange(1, 10 ** 6)
     names = [x.strip() for x in args.names.split(",")] if args.names else []
     if args.humans == 1 and not names:
         names = [args.name]
