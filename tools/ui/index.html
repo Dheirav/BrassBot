@@ -1093,12 +1093,17 @@ function draw(s) {
   // that you want on disk before you walk away from it.
   const xb = document.getElementById('exportbtn');
   if (xb) {
+    // A game saves itself when it ends, and a game still being played is not
+    // worth saving, so there is nothing for this button to do in between.
+    const over = !!(s.finished || s.ended);
     xb.textContent = s.autosaved ? '✓ Saved' : '⭳ Export';
-    xb.disabled = !!s.autosaved;
+    xb.disabled = !!s.autosaved || !over;
     xb.title = s.autosaved
       ? 'this game was written to logs/ the moment it ended'
-      : 'write the game so far to logs/, in the same format as the pasted '
-        + 'Boomforge logs, so the analysis scripts can read it';
+      : over ? 'write this game to logs/, in the same format as the pasted '
+               + 'Boomforge logs, so the analysis scripts can read it'
+             : 'a game writes itself to logs/ when it ends; a half-played one '
+               + 'is not a log worth keeping';
   }
   const ex = document.getElementById('exported');
   if (ex && s.exported)

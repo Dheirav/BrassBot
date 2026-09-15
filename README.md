@@ -173,7 +173,12 @@ PYTHONPATH=. .venv/bin/python tools/review.py logs/<game>.replay.json
 
 At each of your turns it enumerates what was legal, scores every option the way
 the bot scores a position, and reports where your choice ranked and how far
-behind the bot's pick it was. Read the gaps rather than the ranks: most
+behind the bot's pick it was. It also reports what the *position* was saying,
+regardless of the choice: whether the tiles you have built can actually be sold
+with the beer that exists, whether the beer they need is yours or merchant beer
+anyone can take first, and how much level 2+ tile you are carrying into the Rail
+Era, where it scores a second time. Across nine games those three fire once in
+the wins and two or three times in the losses. Read the gaps rather than the ranks: most
 decisions score within a point of each other, and the bot is not obviously
 stronger than you, so a disagreement means the moment is worth a look.
 

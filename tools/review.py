@@ -38,6 +38,8 @@ from brassbot.engine import apply_action, legal_actions  # noqa: E402
 # server, so a file that predates the "engine" key gets these rather than the
 # engine defaults, which produce a shorter list and a divergence on move two.
 SERVE_KNOBS = {"MAX_DISCARD_VARIANTS": 8, "SCOUT_POOL": 8, "MAX_SCOUT_VARIANTS": 56}
+from brassbot.gamedata import Era, Industry  # noqa: E402
+from brassbot.network import connected_locations  # noqa: E402
 from brassbot.state import new_game  # noqa: E402
 from play import describe  # noqa: E402
 
@@ -54,6 +56,69 @@ def score_options(bot, state, seat, actions):
         probe = state.clone()
         apply_action(probe, a)
         out.append(bot.position_value(probe, seat))
+    return out
+
+
+def beer_plan(state, seat):
+    """Barrels this seat could reach, against what its unsold tiles will need.
+
+    Praveen lost a game by 42 with two level-5 manufacturers on the board and
+    one brewery, ever: an L5 needs two beer and a merchant slot holds one, so
+    both were unsellable from the moment they were built. Nothing in the UI
+    said so, and nothing in the review did either. The count is deliberately
+    generous -- every merchant barrel on the board, not only the reachable
+    ones -- so it warns when the shortfall is certain rather than merely likely.
+    """
+    own = sum(t.resources for _, _, t in state.all_tiles()
+              if t.owner == seat and t.industry is Industry.BREWERY)
+    merchant = sum(slot.beer for slot in state.merchant_slots())
+    need = sum(state.data.tile(t.industry, t.level).beer_to_sell or 0
+               for _, _, t in state.all_tiles()
+               if t.owner == seat and not t.flipped and t.industry.is_sellable)
+    return own, merchant, need
+
+
+def carried(state, seat):
+    """Level 2+ tiles this seat holds, and what they would score again.
+
+    Across nine complete games canal-era VP did not predict the result at all
+    (wins at 13, 13, 28, 30; losses at 8, 12, 18, 19, 24), while this did:
+    wins carried 38 and 40 VP of level 2+ tiles across the boundary, losses 11
+    to 29. A brewery held unflipped for the Rail Era's first round reads as
+    zero on the canal scoreboard and 5 to 7 at the rail one.
+    """
+    tiles = [t for _, _, t in state.all_tiles()
+             if t.owner == seat and t.level >= 2]
+    return len(tiles), sum(state.data.tile(t.industry, t.level).vp for t in tiles)
+
+
+def warnings_for(state, seat):
+    """Checks that fire on the position, not on the choice.
+
+    Each returns a KIND as well as its text, and the report prints the first
+    time each kind was true. A beer shortfall stays true for the rest of the
+    game and its numbers drift, so printing every wording of it buries
+    everything else.
+    """
+    out = []
+    own, merchant, need = beer_plan(state, seat)
+    if need > own + merchant:
+        out.append(("beer-short",
+                    f"{need} beer needed to sell the tiles you have built and "
+                    f"only {own + merchant} exists anywhere ({own} yours, "
+                    f"{merchant} merchant). Some of them cannot be sold at all."))
+    elif need > own:
+        out.append(("beer-borrowed",
+                    f"{need} beer needed and only {own} of it yours; the rest "
+                    f"is merchant beer that anyone selling first can take."))
+    # The last canal round, once: what crosses the boundary scores twice.
+    if state.era is Era.CANAL and state.round == state.rounds_this_era:
+        k, vp = carried(state, seat)
+        if vp < 30:
+            out.append(("thin-boundary",
+                        f"carrying {k} level 2+ tiles worth {vp} VP into the "
+                        f"Rail Era, where they score a second time. Games won "
+                        f"in this corpus carried about seven, worth 35 to 40."))
     return out
 
 
@@ -81,7 +146,7 @@ def main(argv=None):
           f"{total} actions", flush=True)
     print(f"PROGRESS done=0 total={total} unit=actions t=0", flush=True)
 
-    t0, reviewed = time.time(), []
+    t0, reviewed, flags = time.time(), [], {}
     for step, idx in enumerate(rep["actions"]):
         actions = legal_actions(state)
         if not actions:
@@ -102,6 +167,11 @@ def main(argv=None):
                 "rank": order.index(idx) + 1, "of": len(actions),
                 "gap": vals[best] - vals[idx],
             })
+        if state.current.idx == seat:
+            for kind, text in warnings_for(state, seat):
+                flags.setdefault(kind, {"era": state.era.value,
+                                        "round": state.round,
+                                        "step": step, "text": text})
         apply_action(state, chosen)
         if step % 10 == 0:
             print(f"PROGRESS done={step} total={total} unit=actions "
@@ -120,6 +190,11 @@ def main(argv=None):
     print(f"  agreed with the bot's first pick: {top} ({100*top/len(reviewed):.0f}%)")
     print(f"  median gap to its pick: {st.median(r['gap'] for r in reviewed):.2f}"
           f"   mean {st.mean(r['gap'] for r in reviewed):.2f}")
+
+    if flags:
+        print("\n  what the position was telling you, the first turn it was true:")
+        for f in sorted(flags.values(), key=lambda f: f["step"]):
+            print(f"    {f['era']:<5} r{f['round']:<2}  {f['text']}")
 
     show = reviewed if args.all else sorted(reviewed, key=lambda r: -r["gap"])[:args.worst]
     print(f"\n  {'the widest gaps' if not args.all else 'every decision'}:")

@@ -305,16 +305,24 @@ def summary(g: dict) -> dict:
             "seats": seats}
 
 
-def export_log(g: dict) -> str:
-    """Write the game so far in the pasted-log format, newest line first.
+def export_log(g: dict):
+    """Write a FINISHED game in the pasted-log format, newest line first.
 
     Same shape as logs/*.log so tools that read those -- the playstyle and
     canal-bank analyses -- can pool UI games with the Boomforge ones.
+
+    A game still in progress writes nothing. It used to write a
+    "game in progress" log, which pooled a half-game with whole ones in every
+    analysis that globs logs/, and left a replay of 98 actions that replays to
+    a position nobody can score. A game saves itself when it ends; before that
+    there is nothing worth keeping.
     """
     state = g["state"]
-    top = ([f"game over, winner: {', '.join(who(g, i) for i in winners(state))}"]
+    if not state.finished and not g.get("ended"):
+        return None
+    top = [f"game over, winner: {', '.join(who(g, i) for i in winners(state))}"
            if state.finished else
-           [f"game in progress · {state.era.value} era round {state.round}"])
+           f"ended early · {state.era.value} era round {state.round}"]
     body = list(reversed(g["lines"]))
     LOGS.mkdir(exist_ok=True)
     from datetime import datetime
@@ -926,9 +934,9 @@ class Handler(BaseHTTPRequestHandler):
                 record(g, actions[i], i)
                 advance(g)
         elif self.path.startswith("/api/export"):
-            # Writing a file is the player's call, not the server's -- a game
-            # abandoned halfway is not a log anyone wants on disk.
-            g["exported"] = export_log(g)
+            # A finished game has already saved itself; this is the button for
+            # asking again, and it writes nothing while the game is still on.
+            g["exported"] = export_log(g) or g.get("exported")
         elif self.path.startswith("/api/undo"):
             if g["undo"] and len(humans_of(g)) == 1:
                 st, nlog, nlines, nrep, stats = g["undo"].pop()
