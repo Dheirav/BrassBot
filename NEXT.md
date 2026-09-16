@@ -3280,3 +3280,82 @@ by pid. Killing it, a `pgrep -f` on the run's argument string matched the
 session's own shell, which was carrying that string. Kill by exact pid only;
 this is the eighth time in the project's record that a pattern kill has hit
 the wrong process.
+
+### 2026-09-16: the advisor moved into the game, after the move
+
+Two things asked for once the measuring stopped, and both about the person
+rather than the bot.
+
+**`review.py --against-bot`.** The seat-swap number (the bot from your seat,
+same deal, same opponents) now comes out of the review, beside your own game,
+as a table of VP by source: each industry, links, merchant bonus, and the
+VP-penalty for a debt paid in points. The trace behind it (`Sources` in
+`tools/seatswap.py`) wraps `engine.score_era` on the game's own state, the
+way attribution.py does, and asserts every seat's rows add up to the
+scoreboard. The first version failed that assertion on a random bot that went
+into debt: the engine takes VP away at the end of a round, on somebody else's
+action, so the residual is settled for every seat after every action and the
+penalty is its own row. The game from 2026-09-12 23:15 reads: cotton +23,
+brewery +9, iron +7, links +6, manufacturer -15, total +31. That is the
+decomposition that took three ad-hoc scripts last week, and it is what to read
+after every game: a source the bot never scored and you did is a plan it
+cannot form.
+
+**A verdict after each move, in the UI.** The "After your move" panel on the
+right shows, for the move just made, what the bot ranked it against (rank,
+gap, and its own pick when different) and the position checks from the review
+(beer against what is built, whose beer, what crosses the boundary), each
+kind once, on the move that made it true. Deliberately never BEFORE the move.
+The bot is a 139-point player against a 170-point one; advice taken in
+advance would teach the person to play like it, and then the people at the
+table stop being a test of it. A verdict on a move already made can only be
+argued with. Undo takes the verdict back with the move, and a check that
+fired on the move taken back can fire again. The ranking costs one ply over
+the legal list, 0.03 to 1.4 seconds including the bots' replies, all of it
+behind the bots' own thinking time.
+
+Gap wording on the panel: under a point is "close call"; the reviewed games'
+median disagreement is about 1, and their widest gaps start around 5.
+
+### 2026-09-16: the sell chain, three runs, nothing shipped
+
+The last bot idea with evidence behind it: the swap tables said cotton +23
+and +27 to the human, a source the bot scored zero on, because a cotton plan
+is build, brewery, sell and the pair search values a position the moment the
+turn ends. Built as a form change (`plan_lines` and friends in heuristic.py):
+chains of our own actions rooted at every sellable held or buildable,
+extended only by actions that close the gap to the sale, valued at the end
+of our NEXT turn after a greedy completion, and competing against the best
+four pairs completed the same way. The opponents pass on the probe and the
+cards drawn there are blanks that permit no build, so nothing hidden is read.
+Cost 1.5x a game.
+
+| variant | per block | pooled |
+| --- | --- | --- |
+| plan_lines 6 | -9.48 / -9.69 / -9.81 | -9.66 +- 0.63, blocks agree |
+| plan_lines 6, plan_rail_from 5 (rail rounds 5 to 8 only) | +1.04 / -4.26 / -2.19 | -1.53 +- 0.72, blocks disagree |
+| plan_lines 6, plan_margin 4 | +0.25 / -2.07 / +0.54 | -0.66 +- 0.64, null |
+
+The chains did what was asked. Twelve traced games: cotton 7.6 VP a game
+from 0.2, sells 3.9 from 1.8, sellables 31.5 from 17.7. And links 49.7 from
+59.3, brewery 13.6 from 19.9, iron 19.7 from 24.9: the chain is paid for out
+of the infrastructure that scores twice, which is this bot's whole edge.
+Gated to the rounds where the human's cotton went in, the loss goes and no
+gain comes. Held to a margin of 4, the same. So a chain that clearly beats
+the pairs on the probe is worth what the bot already plays, and the ones
+that only just beat them lose, which says the probe flatters a chain by a
+few points (the barrel is always still there when the opponents pass) and
+there is nothing underneath once that is priced out.
+
+What it means for the person: the cotton edge is in the position it was
+built on. The human's cotton paid because it sat on top of a link and iron
+game the bot also plays, in rounds where nothing else converted actions to
+VP as well, with breweries already placed for it. The bot given the chain
+either builds it instead of that game (and loses 10) or on top of it (and
+gains nothing). The 25th to 27th runs of the measuring campaign; the ledger
+stands at zero shipped from all of them.
+
+`plan_lines` stays at 0 with the numbers written on it. The mechanism is
+kept: it is the only search in the bot that crosses a turn boundary and
+keeps playing, and the untested note under `settle` (cross the boundary with
+a crude stand-in, then keep searching) is now tested for one template.

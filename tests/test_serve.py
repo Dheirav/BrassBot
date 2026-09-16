@@ -151,3 +151,55 @@ def test_export_writes_a_log_the_parsers_can_read(game, tmp_path, monkeypatch):
     assert any(l.startswith("canal era scored:") for l in lines)
     # the pooling parsers key on "<name> <verb>"
     assert any(l.startswith("Tester ") for l in lines)
+
+
+class _Req:
+    """Enough of the handler for `_handle`: the path and nothing else."""
+
+    def __init__(self, path):
+        self.path = path
+
+    _handle = serve.Handler._handle
+
+
+def _move(game, index):
+    _Req("/api/move")._handle(game, {"index": index, "version": game["version"]},
+                              game["seat"])
+
+
+def test_a_move_gets_a_verdict_after_it_and_never_before(game):
+    """The advisor speaks about the move just made. The opening snapshot
+    carries no notes, the first move produces exactly one, and it names what
+    the bot ranked the move against."""
+    serve.start(game, seed=21, players=4, opponent="heuristic", humans=2)
+    assert serve.snapshot(game)["notes"] == []
+    actions = legal_actions(game["state"])
+    _move(game, len(actions) - 1)
+    notes = serve.snapshot(game)["notes"]
+    assert len(notes) == 1
+    n = notes[0]
+    assert n["of"] == len(actions) and 1 <= n["rank"] <= n["of"]
+    assert n["gap"] >= 0 and (n["bot"] is None) == (n["rank"] == 1)
+    assert n["played"]
+    # A verdict on a move is a verdict the seat that made it sees, not the
+    # table: the notes are per seat.
+    assert serve.snapshot(game, seat=1)["notes"] == []
+
+
+def test_undo_takes_the_verdict_back_with_the_move(game):
+    _move(game, 0)
+    assert len(serve.snapshot(game)["notes"]) == 1
+    _Req("/api/undo")._handle(game, {}, game["seat"])
+    assert serve.snapshot(game)["notes"] == []
+    assert game["flagged"][game["seat"]] == set()
+
+
+def test_a_position_check_is_said_once(game, monkeypatch):
+    """A beer shortfall stays true until the game ends; it is reported on the
+    move that made it so and then left alone."""
+    monkeypatch.setattr(serve, "warnings_for",
+                        lambda state, seat: [("beer-short", "no beer for that")])
+    _move(game, 0)
+    _move(game, 0)
+    notes = serve.snapshot(game)["notes"]
+    assert [n["flags"] for n in notes] == [["no beer for that"], []]

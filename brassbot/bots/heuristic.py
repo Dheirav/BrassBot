@@ -26,8 +26,8 @@ from __future__ import annotations
 
 import math
 
-from ..actions import Build, Loan, Network, Pass, Sell
-from ..cards import CardKind
+from ..actions import Build, Loan, Network, Pass, Scout, Sell
+from ..cards import Card, CardKind
 from ..engine import apply_action, legal_actions, link_icons_at, spec_for
 from ..gamedata import Era, Industry, income_level
 from ..network import connected_locations
@@ -853,6 +853,50 @@ class HeuristicBot(Bot):
         # all: this game, as our bots play it, is much less adversarial than it
         # looks. You are racing, not fighting.
         "settle": 0,
+        # The sell chain: lines of our own actions that end in a sale, searched
+        # PAST the end of this turn and valued at their end.
+        #
+        # The pair search values a position the moment our turn ends, so a
+        # cotton mill built now is an unflipped tile at `unflipped` odds and
+        # the brewery that would sell it next turn is a tile nobody drinks.
+        # The human's plan is build, build brewery, sell, and the bot scored
+        # zero cotton from the same cards in both games the seat-swap has
+        # looked at (cotton +23 and +27 to the human). settle showed that
+        # crossing the turn boundary only to WATCH the opponents buys nothing;
+        # this crosses it to keep playing. The opponents pass on the probe
+        # and the cards we draw there are blanks that permit no build, so no
+        # hidden information is read.
+        #
+        # Each line is a fixed prefix (the chain) completed greedily to the end
+        # of our next turn, and it competes against the best pairs completed
+        # the same way, so the comparison is at one depth by one evaluator.
+        # `plan_lines` is how many chains may be valued per decision; 0 is
+        # off. `plan_margin` is what a chain must beat the pairs by.
+        #
+        # Measured, 540 seat-balanced 4p games a run, three blocks each:
+        #   plan_lines 6                 -9.66 +- 0.63, blocks agree (all -9.5)
+        #   plan_lines 6, plan_rail_from 5   -1.53 +- 0.72, blocks disagree
+        #   plan_lines 6, plan_margin 4  -0.66 +- 0.64, null, blocks agree
+        # The chains do what was asked: cotton 7.6 VP a game from 0.2, sells
+        # doubled, sellables 31.5 from 17.7. They pay for it with 10 VP of
+        # links, 6 of brewery, 5 of iron. Gated to the late Rail Era or held
+        # to a margin of 4 the loss goes away and no gain appears: a chain
+        # that clearly beats the pairs on the probe is only as good as what
+        # the bot already plays. The probe flatters a chain by a few points
+        # (the opponents pass, so the barrel is always still there), and
+        # once that is priced out nothing is left. The human's cotton edge
+        # is in the position it was built on, not in the chain. Kept at 0.
+        "plan_lines": 0,
+        "plan_margin": 0.0,
+        # How many of the pair search's best pairs are completed and valued
+        # the same way, so a chain is measured against the best of several
+        # continuations and not only the pair that was best at depth two.
+        "plan_pairs": 4,
+        # Chains only from this Rail Era round on (0: any time). The human's
+        # cotton paid when it was played on top of the link and iron game,
+        # in the rounds where nothing else converts actions to VP as well;
+        # played instead of that game it measured -9.66 (see NEXT.md).
+        "plan_rail_from": 0,
     }
 
     # Per-player-count overrides layered on DEFAULTS. The formats are genuinely
@@ -1000,9 +1044,16 @@ class HeuristicBot(Bot):
                 best_value, best_action = value, action
 
         width = int(self.w["pair_search"])
+        pairs = [(best_value, best_action, None)]
         if width > 0 and state.actions_left >= 2 and len(scored) > 1:
-            best_action = self._best_of_pair(state, me, scored, width)
+            best_action, pairs = self._best_of_pair(state, me, scored, width)
+        if int(self.w["plan_lines"]) > 0 and self._plan_time(state):
+            best_action = self._plan_or_pair(state, me, actions, pairs) or best_action
         return best_action
+
+    def _plan_time(self, state) -> bool:
+        gate = int(self.w["plan_rail_from"])
+        return not gate or (state.era is Era.RAIL and state.round >= gate)
 
     def _best_of_pair(self, state, me, scored, width):
         """Pick the first action of the best PAIR, not the best single action.
@@ -1013,7 +1064,7 @@ class HeuristicBot(Bot):
         is where the cost lives; the second action is searched in full.
         """
         best_pair, best_first = None, None
-        finalists = []
+        finalists, pairs = [], []
         expand = [first for _v, first in sorted(scored, key=lambda sa: -sa[0])[:width]]
         if self.w["market_setup"]:
             for first in self._setup_links(state, scored):
@@ -1030,6 +1081,7 @@ class HeuristicBot(Bot):
             # A first action that ends our turn cannot be paired; score it alone.
             if probe.finished or probe.current.idx != me:
                 value = self.position_value(probe, me) + bias
+                pairs.append((value, first, None))
                 if best_pair is None or value > best_pair + 1e-9:
                     best_pair, best_first = value, first
                 continue
@@ -1056,13 +1108,214 @@ class HeuristicBot(Bot):
                          + bias + self._bias(probe, second))
                 if self.w["settle"]:
                     finalists.append((value, first, after))
+                pairs.append((value, first, second))
                 if best_pair is None or value > best_pair + 1e-9:
                     best_pair, best_first = value, first
 
         keep = int(self.w["settle"])
         if keep and finalists:
             best_first = self._settle(finalists, me, keep) or best_first
-        return best_first if best_first is not None else scored[0][1]
+        if best_first is None:
+            return scored[0][1], pairs
+        # The pairs come back best first, so a caller wanting the top few
+        # takes a prefix. Sorted stably on value alone: generation order
+        # breaks ties, the same rule `choose` uses.
+        pairs.sort(key=lambda t: -t[0])
+        return best_first, pairs
+
+    # --- the sell chain -----------------------------------------------------
+
+    # A card that permits nothing. The cards we draw on a probe that runs past
+    # the end of our turn are replaced with this: it can still be discarded
+    # for a Sell or a Network, which any card can, but it never says where we
+    # may build, so a line cannot be made legal by a draw we have not seen.
+    BLANK = Card(CardKind.INDUSTRY, industries=frozenset())
+
+    def _skip_to_me(self, probe, me, kept: int) -> bool:
+        """Roll the probe to our next turn with the opponents passing.
+
+        `kept` is how many cards we held once the action that ended our turn
+        had discarded its own; everything above it in hand was drawn from a
+        deck we are not allowed to look at. Returns False if the game ended.
+        """
+        hand = probe.players[me].hand
+        for i in range(kept, len(hand)):
+            hand[i] = self.BLANK
+        guard = 0
+        while not probe.finished and probe.current.idx != me and guard < 12:
+            apply_action(probe, Pass(0))
+            guard += 1
+        return not probe.finished and probe.current.idx == me
+
+    def _step(self, probe, me, action) -> int:
+        """Apply one of our actions on a probe.
+
+        Returns 0 when the line is dead (the game ended), 1 while the same
+        turn continues, 2 when the action ended our turn and the probe has
+        been rolled on to the start of our next one.
+        """
+        spent = 3 if isinstance(action, Scout) else 1
+        kept = len(probe.players[me].hand) - spent
+        apply_action(probe, action)
+        if probe.finished:
+            return 0
+        if probe.current.idx != me:
+            return 2 if self._skip_to_me(probe, me, kept) else 0
+        return 1
+
+    @staticmethod
+    def _sale_gap(probe, me, town, slot):
+        """What still stands between this tile and its sale.
+
+        (1 if no accepting merchant is connected else 0, barrels short). Own
+        breweries need no connection; a rival's must reach the tile, and the
+        merchant's own barrel counts only once an accepting slot is reachable.
+        """
+        tile = probe.tiles[town][slot]
+        if tile is None or tile.flipped:
+            return (0, 0)
+        need = spec_for(probe, tile).beer_to_sell or 0
+        reach = connected_locations(probe, town)
+        accepting = [s for mid, slots in probe.merchants.items() if mid in reach
+                     for s in slots if s.accepts(tile.industry)]
+        beer = sum(t.resources for tt, _, t in probe.all_tiles()
+                   if t.industry is Industry.BREWERY
+                   and (t.owner == me or tt in reach))
+        if any(s.beer > 0 for s in accepting):
+            beer += 1
+        return (0 if accepting else 1, max(0, need - beer))
+
+    def _plans(self, state, me, actions, limit):
+        """Chains of our own actions that end in a sale of one tile.
+
+        Rooted at every sellable we hold unflipped and every sellable Build on
+        offer now, then extended a step at a time by the actions that close
+        the gap to the sale -- a brewery when barrels are short, a link when
+        no accepting merchant is reached -- and finished by the Sell itself.
+        Depth is the end of our next turn. Anything that does not shorten
+        the gap is not part of a chain and is left to the pair search.
+        """
+        horizon = state.actions_left + 2
+        roots = []
+        seen = set()
+        for a in actions:
+            if isinstance(a, Build) and a.industry.is_sellable:
+                key = (a.town, a.slot)
+                if key not in seen:
+                    seen.add(key)
+                    roots.append(([a], key))
+        for town, slot, t in state.all_tiles():
+            if t.owner == me and t.industry.is_sellable and not t.flipped:
+                roots.append(([], (town, slot)))
+        lines, budget = [], 60   # expansions, so a rich board cannot run away
+        for prefix, (town, slot) in roots:
+            if len(lines) >= limit or budget <= 0:
+                break
+            probe = state.clone()
+            alive = True
+            for a in prefix:
+                alive = self._step(probe, me, a)
+            if not alive:
+                continue
+            stack = [(probe, list(prefix), self._sale_gap(probe, me, town, slot))]
+            while stack and len(lines) < limit and budget > 0:
+                probe, line, gap = stack.pop()
+                if len(line) >= horizon:
+                    continue
+                budget -= 1
+                reach = connected_locations(probe, town)
+                nxt = []
+                for a in legal_actions(probe):
+                    if isinstance(a, Sell):
+                        if any(sa.town == town and sa.slot == slot for sa in a.sales):
+                            nxt.append((a, True))
+                    elif isinstance(a, Build):
+                        if a.industry is Industry.BREWERY and gap[1] > 0:
+                            nxt.append((a, False))
+                    elif isinstance(a, Network):
+                        ends = {e for l in a.lines for e in state.data.link_by_id[l].ends}
+                        if ends & reach:
+                            nxt.append((a, False))
+                done = set()
+                for a, final in nxt:
+                    key = (type(a).__name__, getattr(a, "town", None),
+                           getattr(a, "slot", None), getattr(a, "lines", None),
+                           getattr(a, "own_beer", None),
+                           tuple((sa.town, sa.slot) for sa in a.sales)
+                           if isinstance(a, Sell) else None)
+                    if key in done:
+                        continue
+                    done.add(key)
+                    after = probe.clone()
+                    if final:
+                        # The line is the chain; what follows it is greedy.
+                        lines.append(line + [a])
+                        if len(lines) >= limit:
+                            break
+                        continue
+                    if not self._step(after, me, a):
+                        continue
+                    g2 = self._sale_gap(after, me, town, slot)
+                    if g2 < gap:
+                        stack.append((after, line + [a], g2))
+        return lines
+
+    def _line_value(self, state, me, line):
+        """A line's worth at the end of our next turn, completed greedily.
+
+        The chain is played as given, then the one-ply model plays out what
+        is left of this turn and the whole of the next, and the position is
+        read where that turn ends. Every line, the pair included, is valued
+        at that one point by that one evaluator.
+        """
+        model = self._opponent_model()
+        probe = state.clone()
+        bias, crossed = 0.0, 0
+        for a in line:
+            bias += self._bias(probe, a)
+            r = self._step(probe, me, a)
+            if r == 0:
+                return self.position_value(probe, me) + bias
+            crossed += r == 2
+        while crossed < 2 and not probe.finished:
+            acts = legal_actions(probe)
+            if not acts:
+                break
+            a = model.choose(probe, acts)
+            bias += self._bias(probe, a)
+            r = self._step(probe, me, a)
+            if r == 0:
+                break
+            crossed += r == 2
+        return self.position_value(probe, me) + bias
+
+    def _plan_or_pair(self, state, me, actions, pairs):
+        """Play a chain's first action when the chain beats the pairs.
+
+        `pairs` is the pair search's ranking, best first. The best few are
+        completed and valued at the same horizon as the chains, so the chain
+        has to beat the best continuation of each rather than the single
+        pair that was best at depth two.
+        """
+        lines = self._plans(state, me, actions, int(self.w["plan_lines"]))
+        if not lines:
+            return None
+        bar, seen = None, set()
+        for _v, first, second in pairs:
+            if len(seen) >= int(self.w["plan_pairs"]):
+                break
+            if (first, second) in seen:
+                continue
+            seen.add((first, second))
+            v = self._line_value(state, me, [a for a in (first, second) if a is not None])
+            if bar is None or v > bar:
+                bar = v
+        best, best_value = None, bar + self.w["plan_margin"]
+        for line in lines:
+            v = self._line_value(state, me, line)
+            if v > best_value + 1e-9:
+                best, best_value = line, v
+        return best[0] if best else None
 
     def _setup_links(self, state, scored):
         """Links worth searching as the first half of a link-then-coal pair.
@@ -1114,11 +1367,13 @@ class HeuristicBot(Bot):
     def _opponent_model(self):
         """A one-ply copy of ourselves, used to answer our own plans.
 
-        pair_search and settle are both off, or building it would recurse.
+        pair_search, settle and plan_lines are all off, or building it would
+        recurse.
         """
         model = getattr(self, "_settle_model", None)
         if model is None:
-            model = type(self)(**{**self._explicit, "pair_search": 0, "settle": 0})
+            model = type(self)(**{**self._explicit, "pair_search": 0, "settle": 0,
+                                  "plan_lines": 0})
             self._settle_model = model
         return model
 

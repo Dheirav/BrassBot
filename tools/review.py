@@ -30,18 +30,17 @@ for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import brassbot.engine as _engine  # noqa: E402
 from brassbot.bots.heuristic import HeuristicBot  # noqa: E402
 from brassbot.engine import apply_action, legal_actions  # noqa: E402
-
-# What tools/serve.py sets before it plays. Every replay so far came from that
-# server, so a file that predates the "engine" key gets these rather than the
-# engine defaults, which produce a shorter list and a divergence on move two.
-SERVE_KNOBS = {"MAX_DISCARD_VARIANTS": 8, "SCOUT_POOL": 8, "MAX_SCOUT_VARIANTS": 56}
 from brassbot.gamedata import Era, Industry  # noqa: E402
 from brassbot.network import connected_locations  # noqa: E402
 from brassbot.state import new_game  # noqa: E402
 from play import describe  # noqa: E402
+# `knobs` applies what tools/serve.py sets before it plays. Every replay so far
+# came from that server, so a file that predates the "engine" key gets those
+# rather than the engine defaults, which produce a shorter list and a
+# divergence on move two.
+from seatswap import Sources, knobs, play as swap, table  # noqa: E402
 
 
 def score_options(bot, state, seat, actions):
@@ -129,18 +128,23 @@ def main(argv=None):
     ap.add_argument("-n", "--worst", type=int, default=8,
                     help="how many of the widest gaps to print")
     ap.add_argument("--all", action="store_true", help="print every decision")
+    ap.add_argument("--against-bot", action="store_true",
+                    help="also play the bot from your seat and put the two "
+                         "games side by side, VP by source")
     args = ap.parse_args(argv)
 
     rep = json.loads(Path(args.replay).read_text())
     seat, name = rep["seat"], rep.get("name", "You")
     # The indices were drawn against a list built with these settings; replaying
     # with any others reads the wrong action.
-    for k, v in rep.get("engine", SERVE_KNOBS).items():
-        setattr(_engine, k, v)
+    knobs(rep)
     state = new_game(rep["players"], seed=rep["seed"])
     judge = HeuristicBot(seed=0)
+    # The replay is traced whether or not the swap is asked for: it is cheap,
+    # and it is what makes the swap's table comparable.
+    src = Sources(state, rep["players"])
+    src.__enter__()
 
-    mine = [i for i in range(len(rep["actions"]))]
     total = len(rep["actions"])
     print(f"  {name}, seat {seat}, {rep['players']}p, seed {rep['seed']}, "
           f"{total} actions", flush=True)
@@ -154,6 +158,7 @@ def main(argv=None):
         if idx >= len(actions):
             print(f"  replay diverged at action {step}: index {idx} of "
                   f"{len(actions)} legal", flush=True)
+            src.__exit__()
             return 2
         chosen = actions[idx]
         if state.current.idx == seat and len(actions) > 1:
@@ -172,14 +177,17 @@ def main(argv=None):
                 flags.setdefault(kind, {"era": state.era.value,
                                         "round": state.round,
                                         "step": step, "text": text})
-        apply_action(state, chosen)
+        src.step(state.current.idx, chosen)
         if step % 10 == 0:
             print(f"PROGRESS done={step} total={total} unit=actions "
                   f"t={time.time()-t0:.1f}", flush=True)
 
+    src.__exit__()
     finals = [p.vp for p in state.players]
     print(f"\n  replayed to the end: final VP {finals}, "
           f"{'finished' if state.finished else 'INCOMPLETE'}")
+    if state.finished:
+        src.check()
     if not reviewed:
         print("  no decisions to review")
         return 0
@@ -204,6 +212,28 @@ def main(argv=None):
         print(f"        you  {r['played'][:78]}")
         if r["rank"] != 1:
             print(f"        bot  {r['best'][:78]}")
+
+    if args.against_bot and state.finished:
+        # The seated bot gets the seed the server would have given that seat,
+        # so this is the game the bot would have played had it sat there.
+        t1 = time.time()
+        swapped, theirs = swap(rep["seed"], rep["players"],
+                               rep.get("opponent", "heuristic"),
+                               rep["seed"] * 10 + seat, seat)
+        vp = [p.vp for p in swapped.players]
+        rank = 1 + sum(1 for j, v in enumerate(vp) if j != seat and v > vp[seat])
+        print(f"\n  the bot from your seat, same deal, same opponents "
+              f"({time.time() - t1:.0f}s): final VP {vp}, seat {seat} = {vp[seat]}, "
+              f"finished #{rank}")
+        print(f"  you scored {finals[seat]}, finished "
+              f"#{1 + sum(1 for j, v in enumerate(finals) if j != seat and v > finals[seat])}")
+        print("\n  where the difference came from, VP by source (tiles or links built):")
+        print(table(name, src, seat, theirs))
+        print("\n  read the big rows. A source the bot never scored and you did is "
+              "something\n  it cannot plan for; one you both scored is a difference "
+              "of degree.")
+    elif args.against_bot:
+        print("\n  --against-bot skipped: the replay did not reach the end")
     return 0
 
 

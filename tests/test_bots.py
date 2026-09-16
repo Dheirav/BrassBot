@@ -272,3 +272,44 @@ def test_choosing_a_move_uses_the_profile_for_that_player_count(clean_profiles):
     assert bot.w["pass_bias"] == HeuristicBot.DEFAULTS["pass_bias"]
 
 
+
+
+def test_the_sell_chain_reads_no_hidden_cards():
+    """The probe that runs past our turn draws from the real deck; every
+    card it draws must come back as a blank that permits no build."""
+    from brassbot.bots.heuristic import HeuristicBot
+    from brassbot.engine import legal_actions, apply_action
+    from brassbot.state import new_game
+
+    st = new_game(4, seed=9)
+    bot = HeuristicBot(plan_lines=6)
+    me = st.current.idx
+    probe = st.clone()
+    a = legal_actions(probe)[0]
+    kept = len(probe.players[me].hand) - 1
+    apply_action(probe, a)          # canal round 1 is one action: turn ends
+    assert probe.current.idx != me
+    assert bot._skip_to_me(probe, me, kept)
+    hand = probe.players[me].hand
+    assert hand[kept:] and all(c is HeuristicBot.BLANK for c in hand[kept:])
+    assert all(not isinstance(b, type(a)) or b.card < kept
+               for b in legal_actions(probe) if hasattr(b, "industry"))
+
+
+def test_the_sell_chain_bot_is_deterministic_and_off_by_default():
+    from brassbot.bots.heuristic import HeuristicBot
+    from brassbot.engine import legal_actions, apply_action
+    from brassbot.state import new_game
+
+    assert HeuristicBot.DEFAULTS["plan_lines"] == 0
+
+    def run(bot):
+        st = new_game(2, seed=4)
+        out = []
+        for _ in range(12):
+            a = bot.choose(st, legal_actions(st))
+            out.append(repr(a))
+            apply_action(st, a)
+        return out
+
+    assert run(HeuristicBot(plan_lines=6)) == run(HeuristicBot(plan_lines=6))

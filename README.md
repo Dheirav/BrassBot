@@ -182,6 +182,20 @@ the wins and two or three times in the losses. Read the gaps rather than the ran
 decisions score within a point of each other, and the bot is not obviously
 stronger than you, so a disagreement means the moment is worth a look.
 
+Add `--against-bot` and it also plays the bot from your seat, same deal, same
+opponents, and puts the two games side by side as VP by source: each industry,
+links, merchant bonuses. "You 128, the bot 97" says you won; "cotton +23,
+brewery +9, manufacturer -15" says where. A source the bot never scored and you
+did is a plan it cannot form, which is the kind of difference worth knowing
+about. The swap takes about half a minute.
+
+The same verdict arrives in the game itself, **after** each of your moves, in
+the "After your move" panel: how the bot ranked what you played, what it would
+have done when that differs, and the position checks above the first time each
+becomes true. Never before the move. The bot is not the stronger player, and
+advice taken in advance would teach you to play like it, at which point you stop
+being a test of it. A verdict on a move already made is something to argue with.
+
 Two things about the server worth knowing: it holds **one game**, so a second
 browser tab is playing the same one (a stale tab is refused rather than allowed
 to play a move you cannot see); and **Undo rewinds past the bots' replies**, so

@@ -298,6 +298,13 @@
   .warn { color:var(--accent) }
   .ok { color:var(--ok) }
   .gone { color:var(--bad) }
+  /* After your move: the latest verdict in full, the ones before it as a
+     dimmer single line each, so the section reads newest first. */
+  #after .note { font-size:12px; margin:0 0 8px; line-height:1.4 }
+  #after .note.old { color:var(--dim); font-size:11px; margin-bottom:4px }
+  #after .note .ok { color:var(--ok) }
+  #after .note .gap { color:var(--warn) }
+  #after .note .flag { color:var(--bad); display:block; margin-top:3px }
   .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden;
          min-width:70px; flex:1 }
   .bar > i { display:block; height:100%; background:var(--accent) }
@@ -491,6 +498,12 @@
   <div id="seats"></div>
   <h2>Mat &mdash; next tile of each industry</h2>
   <div class="kinds" id="mattabs"></div><div class="mat" id="mat"></div>
+  <!-- The bot's opinion of the move you just made, and nothing before it.
+       Advice ahead of the move would teach you to play like the bot, and it
+       is not the better player; a verdict after it is something to argue
+       with. -->
+  <h2>After your move</h2>
+  <div id="after"></div>
   <h2>Recent <button id="logmode" onclick="toggleLog()"
       style="font-size:10px;padding:2px 6px">detail</button></h2>
   <div id="log"></div>
@@ -1465,6 +1478,7 @@ function draw(s) {
       + renderKind(kind, opts, s);
   }
 
+  renderAfter(s);
   const lm = document.getElementById('logmode');
   if (lm) lm.textContent = logProse ? 'prose' : 'detail';
   // Grouped by round. A flat list of twenty actions hides where a turn ended,
@@ -1483,6 +1497,31 @@ function draw(s) {
       }</div>`;
   }
   document.getElementById('log').innerHTML = rows;
+}
+
+// The gap is in the bot's own units, the same ones review.py prints: under a
+// point is noise (the median disagreement in a reviewed game is about 1), and
+// the review's "widest gaps" start around 5.
+function verdict(n) {
+  if (!n.bot) return `<span class="ok">the bot would have played this too</span>`;
+  if (n.gap < 1) return `<span class="ok">close call</span> (gap ${n.gap.toFixed(1)}):
+    the bot leaned to <em>${n.bot}</em>`;
+  return `<span class="gap">bot: ${n.bot}</span> (gap ${n.gap.toFixed(1)}, yours ranked
+    ${n.rank} of ${n.of})`;
+}
+function renderAfter(s) {
+  const box = document.getElementById('after');
+  if (!box) return;
+  const notes = (s.notes || []).slice().reverse();
+  if (!notes.length) {
+    box.innerHTML = '<p class="hint">Once you have moved, the bot says what it would have done.</p>';
+    return;
+  }
+  box.innerHTML = notes.map((n, i) => i === 0
+    ? `<div class="note"><span class="meta">${n.era} r${n.round}</span> you: ${n.played}<br>
+       ${verdict(n)}${n.flags.map(f => `<span class="flag">${f}</span>`).join('')}</div>`
+    : `<div class="note old">${n.era} r${n.round} ${n.played}: ${
+        n.bot ? `bot ${n.bot} (gap ${n.gap.toFixed(1)})` : 'agreed'}</div>`).join('');
 }
 
 // Hovering a move rings the town it happens at. Reading a move like

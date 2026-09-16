@@ -45,7 +45,9 @@ from brassbot.gamedata import (Era, Industry,  # noqa: E402
 from brassbot.network import is_connected_to_merchant  # noqa: E402
 from brassbot.resources import plan_cost  # noqa: E402
 from brassbot.state import new_game  # noqa: E402
+from brassbot.bots.heuristic import HeuristicBot  # noqa: E402
 from tools.play import describe  # noqa: E402
+from tools.review import score_options, warnings_for  # noqa: E402
 
 UI = Path(__file__).resolve().parent / "ui" / "index.html"
 # Overridable so the test suite does not write into the analysis corpus. A
@@ -216,6 +218,53 @@ def record(g: dict, action, index: int | None = None) -> None:
         g["lines"].append(f"{rec.era.value} era scored: " + ", ".join(parts))
 
 
+def advise(g: dict, seat: int, actions: list, i: int) -> dict:
+    """What the bot makes of the move a person just chose, told afterwards.
+
+    The judgement is the review's, one move at a time and while the position
+    is still in front of you, instead of in a report after the game. It is
+    deliberately not offered BEFORE the move. The bot is not the stronger
+    player, so advice taken in advance would teach the person to play like
+    it, and then the people at the table stop being a test of it; a verdict
+    on a move already made can only be argued with.
+
+    Called before the move is applied for the ranking, which needs the list
+    the move was drawn from; the position checks want the board AFTER it,
+    and `settle_note` adds those once `record` has run.
+    """
+    state = g["state"]
+    # Without the card: the verdict is about the move, and the card it was
+    # played with is already in the log.
+    label = lambda a: move_label(state, a).split(" · card:")[0]
+    note = {"step": len(g["log"]), "era": state.era.value, "round": state.round,
+            "played": label(actions[i]), "of": len(actions),
+            "rank": 1, "gap": 0.0, "bot": None, "flags": [], "kinds": []}
+    if len(actions) > 1:
+        judge = g.setdefault("judge", HeuristicBot(seed=0))
+        vals = score_options(judge, state, seat, actions)
+        best = max(range(len(vals)), key=lambda k: vals[k])
+        note["rank"] = 1 + sum(1 for v in vals if v > vals[i])
+        note["gap"] = round(vals[best] - vals[i], 2)
+        if best != i:
+            note["bot"] = label(actions[best])
+    return note
+
+
+def settle_note(g: dict, seat: int, note: dict) -> None:
+    """Add the position checks, each kind the first time it is true.
+
+    A beer shortfall stays true for the rest of the game, so it is said once,
+    on the move that made it so, and not on every move after.
+    """
+    seen = g.setdefault("flagged", {}).setdefault(seat, set())
+    for kind, text in warnings_for(g["state"], seat):
+        if kind not in seen:
+            seen.add(kind)
+            note["flags"].append(text)
+            note["kinds"].append(kind)
+    g.setdefault("notes", {}).setdefault(seat, []).append(note)
+
+
 def tally(g: dict, action) -> None:
     """Count what each seat did, by era, for the end-of-game breakdown.
 
@@ -383,6 +432,8 @@ def start(g: dict, seed: int, players: int, opponent: str,
     g["undo"] = []
     g["replay"] = []
     g["stats"] = {}
+    g["notes"] = {}
+    g["flagged"] = {}
     g["exported"] = None
     # A move is sent as an INDEX into the legal-action list, which the server
     # regenerates per request. Two tabs on one game, or a click racing an undo,
@@ -867,6 +918,9 @@ def snapshot(g: dict, seat: int | None = None) -> dict:
         "stopping": STOPPING.is_set(),
         "moves": moves,
         "log": g["log"][-14:],
+        # The bot's verdict on this seat's own moves, newest last. Only after
+        # the move: see `advise`.
+        "notes": g.get("notes", {}).get(seat, [])[-4:],
     }
 
 
@@ -929,9 +983,12 @@ class Handler(BaseHTTPRequestHandler):
                     and 0 <= i < len(actions):
                 g["undo"].append((state.clone(), len(g["log"]), len(g["lines"]),
                                   len(g.get("replay", [])),
-                                  json.loads(json.dumps(g.get("stats", {})))))
+                                  json.loads(json.dumps(g.get("stats", {}))),
+                                  len(g.get("notes", {}).get(seat, []))))
                 del g["undo"][:-40]
+                note = advise(g, seat, actions, i)
                 record(g, actions[i], i)
+                settle_note(g, seat, note)
                 advance(g)
         elif self.path.startswith("/api/export"):
             # A finished game has already saved itself; this is the button for
@@ -939,13 +996,18 @@ class Handler(BaseHTTPRequestHandler):
             g["exported"] = export_log(g) or g.get("exported")
         elif self.path.startswith("/api/undo"):
             if g["undo"] and len(humans_of(g)) == 1:
-                st, nlog, nlines, nrep, stats = g["undo"].pop()
+                st, nlog, nlines, nrep, stats, nnotes = g["undo"].pop()
                 g["state"] = st
                 del g["log"][nlog:]
                 del g["lines"][nlines:]
                 del g.setdefault("replay", [])[nrep:]
                 # JSON round-trip turned the seat keys into strings.
                 g["stats"] = {int(k): v for k, v in stats.items()}
+                # A check that fired on the move taken back may fire again on
+                # the move that replaces it, so it is forgotten with the note.
+                notes = g.setdefault("notes", {}).setdefault(seat, [])
+                del notes[nnotes:]
+                g.setdefault("flagged", {})[seat] = {k for n in notes for k in n["kinds"]}
                 bump(g)
         elif self.path.startswith("/api/new"):
             # Restart keeps the table it was set up with; only the deal changes.
