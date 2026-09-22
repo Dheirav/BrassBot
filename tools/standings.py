@@ -4,7 +4,7 @@ Runs the report-seed cells that the handover document quotes. Unlike
 `brassbot.evaluate.evaluate`, which uses `pool.map` and prints nothing until it
 finishes, this reports per-game progress so a long run can be watched:
 
-    PYTHONPATH=. .venv/bin/python tools/standings.py --out runs/standings.log
+    PYTHONPATH=. .venv/bin/python tools/standings.py > runs/standings.log
     tools/watch-progress.sh runs/standings.log        # in another shell
 
 Each line of PROGRESS output carries the counter and the elapsed seconds, so the

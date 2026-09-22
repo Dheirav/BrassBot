@@ -10,17 +10,25 @@ is the current state; `docs/architecture.md` is where the code lives.
 
 ### Where the bot stands, 200 games a cell, report seeds
 
-Refreshed 2026-09-06 after the re-tune, all six cells, 200 games each.
-Regenerate with `tools/standings.py -n 200 --formats 4,3,2`.
+Refreshed 2026-09-22 with everything shipped to date (`canal_double` 1.25 and
+the halved `merchant_access` of 2026-09-07 included), all six cells, 200 games
+each, 17 minutes on PyPy. Regenerate with
+`PYTHONPATH=. .venv-pypy/bin/python tools/standings.py -n 200 --formats 4,3,2 > runs/standings.log`.
 
 | fmt | pool | all seats | SD | P10 | best |
 | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 130.0 +- 0.5 | 14.2 | 113 | 171 |
-| 4p | vs greedy | 148.4 +- 1.1 | 15.8 | 129 | 188 |
-| 3p | mirror | 146.8 +- 0.5 | 12.9 | 130 | 200 |
-| 3p | vs greedy | 150.2 +- 1.2 | 17.6 | 129 | 197 |
-| 2p | mirror | 163.5 +- 0.9 | 17.7 | 142 | 213 |
-| 2p | vs greedy | 155.1 +- 1.3 | 18.0 | 131 | 199 |
+| 4p | mirror | 125.7 +- 0.6 | 16.2 | 108 | 162 |
+| 4p | vs greedy | 150.7 +- 1.1 | 16.2 | 129 | 193 |
+| 3p | mirror | 142.9 +- 0.5 | 12.7 | 127 | 182 |
+| 3p | vs greedy | 147.7 +- 1.3 | 17.8 | 125 | 186 |
+| 2p | mirror | 162.4 +- 0.8 | 16.9 | 141 | 200 |
+| 2p | vs greedy | 155.7 +- 1.4 | 19.2 | 130 | 202 |
+
+Against the 2026-09-06 table: 4p mirror 130.0 -> 125.7 and 3p mirror
+146.8 -> 142.9, while 4p vs greedy 148.4 -> 150.7. The two weights shipped in
+between each measured a seat-balanced gain, and a mirror gives every seat the
+gain at once: the bots contest each other harder and everybody scores less.
+That is the paragraph below, happening.
 
 **A cell moving is not how a change is judged here, and this refresh shows why.**
 The re-tune measures **+3.11 +- 0.58** seat-balanced at 4p and **-3.73 +- 0.56**
@@ -53,9 +61,6 @@ seeds with a different harness, which is the useful corroboration.
 Regenerate with `tools/standings.py` (progress-reporting, unlike
 `evaluate.evaluate` which prints nothing until it finishes) and watch it with
 `tools/watch-progress.sh runs/standings-4p.log --watch`.
-
-**STALE as of 2026-09-07:** `canal_double` 0.75 -> 1.25 shipped at 4p after this
-table was made. Regenerate before quoting a cell.
 
 ### 2026-09-08: what Boomforge actually is, and the UI rebuilt from it
 
@@ -978,9 +983,15 @@ target sits near the top of the human range.
 Live *automation* of BoardGameArena is off the table — an advisor that takes a
 state and returns a move avoids their terms entirely.
 
-## Current state
+## Current state (SUPERSEDED: this is the state at the end of August)
 
-Rules engine complete and stable: 204 tests pass, and 80 full 4-player games
+Kept as the record of what the first week produced. The current state is the
+"Read this first" block at the top, and `docs/architecture.md` is the map of
+the code as it is now. The bot list below stops at `heuristic` because the
+planner, the opening book and the learned bot did not exist yet, and the
+baseline numbers are from before every weight that followed.
+
+Rules engine complete and stable: the suite passed, and 80 full 4-player games
 (40 random, 40 greedy) run to completion with no failures.
 
 - `brassbot/data/brass.json` — generated, canonical component data.

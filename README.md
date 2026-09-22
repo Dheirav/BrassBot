@@ -4,7 +4,8 @@ A rules engine, bots, and a measurement harness for **Brass: Birmingham**
 (Roxley, 2018).
 
 The engine plays all three player counts. The strongest bot is `heuristic`: a
-37-weight position evaluation with an exact two-ply search over the two actions
+weighted position evaluation (every weight annotated with its measurement in
+`brassbot/bots/heuristic.py`) with an exact two-ply search over the two actions
 that make up your own turn. Everything is measured against a held-out seed
 block, and results that do not survive replication are recorded as failures
 rather than shipped — several are, below.
@@ -12,22 +13,23 @@ rather than shipped — several are, below.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install pytest pillow
-PYTHONPATH=. .venv/bin/python -m pytest -q          # 204 tests
+PYTHONPATH=. .venv/bin/python -m pytest -q
 ```
 
 ## Playing strength
 
-`heuristic`, 200 games a cell on the reporting seed block. A *mirror* is every
-seat playing the same bot; *vs greedy* is one seat against three weaker bots.
+`heuristic`, 200 games a cell on the reporting seed block, refreshed
+2026-09-22. A *mirror* is every seat playing the same bot; *vs greedy* is one
+seat against three weaker bots.
 
 | format | pool | mean VP | SD | P10 | best | win rate |
 | --- | --- | --- | --- | --- | --- | --- |
-| 4p | mirror | 131.3 ± 0.4 | 12.4 | 116 | 172 | 25% |
-| 4p | vs greedy | 146.7 ± 1.1 | 15.0 | 129 | 184 | 100% |
-| 3p | mirror | 144.8 ± 0.6 | 14.5 | 128 | 185 | 33% |
-| 3p | vs greedy | 148.0 ± 1.4 | 19.3 | 121 | 193 | 100% |
-| 2p | mirror | 162.9 ± 0.9 | 17.0 | 141 | 203 | 50% |
-| 2p | vs greedy | 157.0 ± 1.4 | 19.6 | 134 | 217 | 100% |
+| 4p | mirror | 125.7 ± 0.6 | 16.2 | 108 | 162 | 25% |
+| 4p | vs greedy | 150.7 ± 1.1 | 16.2 | 129 | 193 | 100% |
+| 3p | mirror | 142.9 ± 0.5 | 12.7 | 127 | 182 | 33% |
+| 3p | vs greedy | 147.7 ± 1.3 | 17.8 | 125 | 186 | 100% |
+| 2p | mirror | 162.4 ± 0.8 | 16.9 | 141 | 200 | 50% |
+| 2p | vs greedy | 155.7 ± 1.4 | 19.2 | 130 | 202 | 100% |
 
 **Mirror win rates are mechanical.** 25/33/50% is what identical seats must
 produce, so that column is a check that the harness is sound, not a result.
@@ -196,11 +198,12 @@ becomes true. Never before the move. The bot is not the stronger player, and
 advice taken in advance would teach you to play like it, at which point you stop
 being a test of it. A verdict on a move already made is something to argue with.
 
-Two things about the server worth knowing: it holds **one game**, so a second
-browser tab is playing the same one (a stale tab is refused rather than allowed
-to play a move you cannot see); and **Undo rewinds past the bots' replies**, so
-taking a move back after seeing what they did leaks information a real game
-would not. That is right for analysis and wrong for honest play.
+Two things about the server worth knowing: a table is **one game**, so a second
+browser tab on the same `?room=` is playing the same one (a stale tab is refused
+rather than allowed to play a move you cannot see); and **Undo rewinds past the
+bots' replies**, so taking a move back after seeing what they did leaks
+information a real game would not. That is right for analysis and wrong for
+honest play.
 
 ## Using it
 

@@ -25,7 +25,7 @@ tools/               command line entry points (see README for usage)
   play.py            the same game one move at a time, for a shell or an agent
   verify-weight.py   the measurement that decides what ships
   regime-split.py    the same, partitioned by a board feature (mode-selection)
-tests/               205 tests; several pin rules that agents found broken
+tests/               the suite; several tests pin rules that agents found broken
 ```
 
 Note what is NOT covered by tests: everything in `tools/`. The UI is verified by
@@ -39,7 +39,7 @@ driving a real browser against a real server (Playwright), not by unit tests.
 2. The bot picks one. `HeuristicBot.choose` clones the state, applies each
    candidate, and scores the result with `position_value`.
 3. `position_value` = our `player_value` minus `rival` x the best opponent's.
-   `player_value` is the whole evaluation: 37 weighted terms, several of which
+   `player_value` is the whole evaluation: a few dozen weighted terms, several of which
    carry per-player-count overrides in `PROFILES`.
 4. `engine.apply_action(state, action)` mutates the real state, and may end the
    turn, the round or the era.
